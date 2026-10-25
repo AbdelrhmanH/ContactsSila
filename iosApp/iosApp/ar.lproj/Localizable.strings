@@ -1,0 +1,19 @@
+/* App Name */
+"app_name" = "صِلَة";
+
+/* Navigation */
+"nav_contacts" = "جهات الاتصال";
+"nav_services" = "دليل الخدمات";
+"nav_arham" = "أرحام";
+
+/* Actions */
+"action_call" = "اتصال";
+"action_message" = "رسالة";
+"action_save" = "حفظ";
+"action_cancel" = "إلغاء";
+"action_search" = "بحث بالاسم أو الرقم…";
+
+/* Arham */
+"arham_status_ok" = "متواصل 🟢";
+"arham_status_soon" = "اقترب الموعد 🟡";
+"arham_status_overdue" = "يحتاج اتصال 🔴";

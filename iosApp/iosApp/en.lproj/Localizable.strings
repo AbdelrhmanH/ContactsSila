@@ -1,0 +1,19 @@
+/* App Name */
+"app_name" = "Sila";
+
+/* Navigation */
+"nav_contacts" = "Contacts";
+"nav_services" = "Directory";
+"nav_arham" = "Arham";
+
+/* Actions */
+"action_call" = "Call";
+"action_message" = "Message";
+"action_save" = "Save";
+"action_cancel" = "Cancel";
+"action_search" = "Search name or number…";
+
+/* Arham */
+"arham_status_ok" = "Connected 🟢";
+"arham_status_soon" = "Due Soon 🟡";
+"arham_status_overdue" = "Needs Call 🔴";

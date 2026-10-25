@@ -1,0 +1,59 @@
+<resources>
+    <!-- اسم التطبيق -->
+    <string name="app_name">صِلَة</string>
+
+    <!-- شريط التنقل السفلي -->
+    <string name="nav_contacts">جهات الاتصال</string>
+    <string name="nav_services">دليل الخدمات</string>
+    <string name="nav_arham">أرحام</string>
+
+    <!-- تبويبات وفئات التصنيف -->
+    <string name="category_all">الكل</string>
+    <string name="category_family">عائلة</string>
+    <string name="category_friends">أصدقاء</string>
+    <string name="category_work">عمل</string>
+    <string name="category_services">خدمات</string>
+    <string name="category_emergency">طوارئ</string>
+    <string name="category_uncategorized">غير مصنف</string>
+
+    <!-- إجراءات عامة -->
+    <string name="action_call">اتصال</string>
+    <string name="action_message">رسالة</string>
+    <string name="action_save">حفظ</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_edit">تعديل</string>
+    <string name="action_delete">حذف</string>
+    <string name="action_confirm">تأكيد</string>
+    <string name="action_undo">تراجع</string>
+    <string name="action_search">بحث بالاسم أو الرقم…</string>
+    <string name="action_share">مشاركة</string>
+    <string name="action_merge">دمج</string>
+
+    <!-- حالات أرحام -->
+    <string name="arham_status_ok">متواصل 🟢</string>
+    <string name="arham_status_soon">اقترب الموعد 🟡</string>
+    <string name="arham_status_overdue">يحتاج اتصال 🔴</string>
+    <string name="arham_podium_title">الأكثر وصالاً</string>
+    <string name="arham_stats_calls">إجمالي المكالمات</string>
+    <string name="arham_stats_target">نسبة تحقيق الهدف</string>
+
+    <!-- دليل الخدمات -->
+    <string name="directory_search_hint">ابحث عن خدمة (سباك، صيدلية، مطعم…)</string>
+    <string name="directory_badge_verified">موثق ✔</string>
+    <string name="directory_badge_community">مجتمعي</string>
+    <string name="directory_add_service">أضف نشاطك للدليل</string>
+
+    <!-- الإعدادات والمظهر -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_theme">المظهر</string>
+    <string name="settings_language">اللغة</string>
+    <string name="theme_light">فاتح</string>
+    <string name="theme_dark">داكن</string>
+    <string name="theme_system">تلقائي (حسب النظام)</string>
+    <string name="language_ar">العربية</string>
+    <string name="language_en">English</string>
+
+    <!-- الصلاحيات والخصوصية -->
+    <string name="permission_contacts_title">صلاحية جهات الاتصال</string>
+    <string name="permission_contacts_desc">تطبيق صِلَة يعالج جهات اتصالك محلياً 100% على جهازك ولا يرفع بياناتك الشخصية إلى أي خادم.</string>
+</resources>

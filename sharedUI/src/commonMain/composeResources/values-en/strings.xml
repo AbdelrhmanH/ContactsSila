@@ -1,0 +1,59 @@
+<resources>
+    <!-- App Name -->
+    <string name="app_name">Sila</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_contacts">Contacts</string>
+    <string name="nav_services">Directory</string>
+    <string name="nav_arham">Arham</string>
+
+    <!-- Categories -->
+    <string name="category_all">All</string>
+    <string name="category_family">Family</string>
+    <string name="category_friends">Friends</string>
+    <string name="category_work">Work</string>
+    <string name="category_services">Services</string>
+    <string name="category_emergency">Emergency</string>
+    <string name="category_uncategorized">Uncategorized</string>
+
+    <!-- Common Actions -->
+    <string name="action_call">Call</string>
+    <string name="action_message">Message</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_search">Search name or number…</string>
+    <string name="action_share">Share</string>
+    <string name="action_merge">Merge</string>
+
+    <!-- Arham Statuses -->
+    <string name="arham_status_ok">Connected 🟢</string>
+    <string name="arham_status_soon">Due Soon 🟡</string>
+    <string name="arham_status_overdue">Needs Call 🔴</string>
+    <string name="arham_podium_title">Top Connected</string>
+    <string name="arham_stats_calls">Total Calls</string>
+    <string name="arham_stats_target">Goal Progress</string>
+
+    <!-- Directory -->
+    <string name="directory_search_hint">Search service (plumber, pharmacy, etc.)</string>
+    <string name="directory_badge_verified">Verified ✔</string>
+    <string name="directory_badge_community">Community</string>
+    <string name="directory_add_service">Add Your Service</string>
+
+    <!-- Settings & Theme -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_theme">Appearance</string>
+    <string name="settings_language">Language</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System Default</string>
+    <string name="language_ar">العربية</string>
+    <string name="language_en">English</string>
+
+    <!-- Permissions -->
+    <string name="permission_contacts_title">Contacts Permission</string>
+    <string name="permission_contacts_desc">Sila processes your contacts 100% locally on your device and never uploads your personal data to any server.</string>
+</resources>
