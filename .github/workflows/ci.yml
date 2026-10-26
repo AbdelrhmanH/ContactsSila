@@ -98,3 +98,13 @@ jobs:
           CODE_SIGNING_REQUIRED=NO
           CODE_SIGN_IDENTITY=""
           build
+
+      - name: Upload Kotlin/Native Test Reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-test-reports
+          path: |
+            sharedLogic/build/test-results/
+            sharedLogic/build/reports/tests/
+          if-no-files-found: ignore

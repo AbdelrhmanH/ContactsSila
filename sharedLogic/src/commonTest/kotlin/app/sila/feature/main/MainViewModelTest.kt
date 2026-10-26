@@ -74,8 +74,8 @@ class MainViewModelTest {
             val arhamRepo = ArhamRepositoryImpl(db)
             val servicesRepo = ServicesRepositoryImpl(db)
             val settingsRepo = SettingsRepositoryImpl(SilaPreferencesDataSource())
-            val getPriority = GetArhamPriorityListUseCase(arhamRepo, fixedClock)
-            val getStats = GetArhamDashboardStatsUseCase(getPriority)
+            val getPriority = GetArhamPriorityListUseCase(arhamRepo, fixedClock, unconfinedDispatchers)
+            val getStats = GetArhamDashboardStatsUseCase(getPriority, unconfinedDispatchers)
 
             val vm = MainViewModel(
                 contactsRepository = contactsRepo,
@@ -103,8 +103,8 @@ class MainViewModelTest {
             val arhamRepo = ArhamRepositoryImpl(db)
             val servicesRepo = ServicesRepositoryImpl(db)
             val settingsRepo = SettingsRepositoryImpl(SilaPreferencesDataSource())
-            val getPriority = GetArhamPriorityListUseCase(arhamRepo, fixedClock)
-            val getStats = GetArhamDashboardStatsUseCase(getPriority)
+            val getPriority = GetArhamPriorityListUseCase(arhamRepo, fixedClock, unconfinedDispatchers)
+            val getStats = GetArhamDashboardStatsUseCase(getPriority, unconfinedDispatchers)
 
             val vm = MainViewModel(
                 contactsRepository = contactsRepo,
