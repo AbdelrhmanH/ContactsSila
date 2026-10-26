@@ -47,7 +47,7 @@ import app.sila.core.database.SilaTypeConverters
  * مع الاعتماد الكامل على Coroutines (AppDispatchers.io) و Flow التفاعلي.
  */
 class LocalSilaDatabase(
-    dbFilePath: String = ":memory:",
+    val dbFilePath: String = ":memory:",
     private val dispatchers: AppDispatchers = DefaultAppDispatchers(),
     private val converters: SilaTypeConverters = SilaTypeConverters()
 ) : SilaRoomDatabase(), ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao {

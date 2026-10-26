@@ -12,6 +12,10 @@
 "action_save" = "حفظ";
 "action_cancel" = "إلغاء";
 "action_search" = "بحث بالاسم أو الرقم…";
+"action_toggle_language" = "English";
+
+/* Services */
+"services_subtitle" = "دليل الخدمات الموثق";
 
 /* Arham */
 "arham_status_ok" = "متواصل 🟢";

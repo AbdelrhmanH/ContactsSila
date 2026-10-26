@@ -12,6 +12,10 @@
 "action_save" = "Save";
 "action_cancel" = "Cancel";
 "action_search" = "Search name or number…";
+"action_toggle_language" = "العربية";
+
+/* Services */
+"services_subtitle" = "Verified Services Directory";
 
 /* Arham */
 "arham_status_ok" = "Connected 🟢";

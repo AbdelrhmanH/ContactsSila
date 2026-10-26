@@ -1,9 +1,11 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinNativeLink
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.skie)
 }
 
 /**
@@ -84,11 +86,31 @@ kotlin {
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.androidx.sqlite.bundled.jvm)
+            implementation(libs.konsist)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.koin.test)
+        }
+    }
+}
+
+val skieBinariesDir = layout.buildDirectory.dir("skie/binaries")
+
+tasks.withType<KotlinNativeLink>().configureEach {
+    doFirst {
+        // Safeguard for touchlab/SKIE#208: remove stale Swift macro generated files before framework linking
+        val binariesRoot = skieBinariesDir.get().asFile
+        if (binariesRoot.exists()) {
+            binariesRoot.walkTopDown()
+                .filter { file ->
+                    file.isFile &&
+                        file.name.startsWith("@__swiftmacro_") &&
+                        file.name.endsWith(".swift") &&
+                        file.invariantSeparatorsPath.contains("/swift/swift-generated-sources/")
+                }
+                .forEach { it.delete() }
         }
     }
 }
