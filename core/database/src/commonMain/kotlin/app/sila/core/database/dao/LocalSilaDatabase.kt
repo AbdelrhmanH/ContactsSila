@@ -72,18 +72,6 @@ class LocalSilaDatabase(
         "emergency_ringing_sessions"
     )
 
-    override fun clearAllTables() {
-        sqliteConnection.execSQL("DELETE FROM contact_phones")
-        sqliteConnection.execSQL("DELETE FROM arham")
-        sqliteConnection.execSQL("DELETE FROM contacts")
-        sqliteConnection.execSQL("DELETE FROM services")
-        sqliteConnection.execSQL("DELETE FROM call_events")
-        sqliteConnection.execSQL("DELETE FROM arham_inbox")
-        sqliteConnection.execSQL("DELETE FROM dispute_logs")
-        contactsState.value = emptyList()
-        servicesState.value = emptyList()
-    }
-
     private val dbMutex = Mutex()
 
     private val sqliteConnection: SQLiteConnection = BundledSQLiteDriver().open(dbFilePath).also { conn ->
@@ -717,7 +705,11 @@ class LocalSilaDatabase(
         }
     }
 
-    override fun close() {
+    /**
+     * إغلاق اتصال SQLite المستقل. `close()` في RoomDatabase نهائية على iOS،
+     * لذا يُنفَّذ الإغلاق الفعلي عبر هذه الدالة على جميع المنصات.
+     */
+    fun closeConnection() {
         sqliteConnection.close()
     }
 

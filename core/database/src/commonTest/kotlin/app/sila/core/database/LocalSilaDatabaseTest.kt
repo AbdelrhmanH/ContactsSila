@@ -40,7 +40,7 @@ class LocalSilaDatabaseTest {
             assertEquals(1, results.size)
             assertEquals("العم أحمد", results.first().name.displayName)
         } finally {
-            db.close()
+            db.closeConnection()
         }
     }
 
@@ -51,7 +51,7 @@ class LocalSilaDatabaseTest {
             val family = db.observeContacts(category = Category.FAMILY).first()
             assertEquals(3, family.size)
         } finally {
-            db.close()
+            db.closeConnection()
         }
     }
 
@@ -87,7 +87,7 @@ class LocalSilaDatabaseTest {
             assertEquals(1, report.archivedDisputes)
             assertTrue(report.deletedInboxMessages == 0)
         } finally {
-            db.close()
+            db.closeConnection()
         }
     }
 
@@ -111,7 +111,7 @@ class LocalSilaDatabaseTest {
             )
         )
         db1.upsertContact(newRelative)
-        db1.close()
+        db1.closeConnection()
 
         // 2. أعد فتح قاعدة البيانات من نفس الملف على القرص وتحقق من قراءة البيانات العلائقية
         val db2 = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
@@ -123,7 +123,7 @@ class LocalSilaDatabaseTest {
             assertEquals(Relation.GRANDFATHER, loaded.arham?.relation)
             assertEquals(1_760_000_000_000L, loaded.arham?.lastContactedAt)
         } finally {
-            db2.close()
+            db2.closeConnection()
         }
     }
 }
