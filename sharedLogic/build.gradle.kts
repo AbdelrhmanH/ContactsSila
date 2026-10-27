@@ -96,11 +96,14 @@ kotlin {
     }
 }
 
-val skieBinariesDir = layout.buildDirectory.dir("skie/binaries")
-
 tasks.withType<KotlinNativeLink>().configureEach {
+    val skieBinariesDir = layout.buildDirectory.dir("skie/binaries")
+
     doFirst {
         // Safeguard for touchlab/SKIE#208: remove stale Swift macro generated files before framework linking
+        // (declared as a local val inside the task-configuration block so the doFirst closure stays
+        // Gradle configuration-cache compatible — a script-level val would capture the script object,
+        // failing cache storage with "cannot serialize Gradle script object references").
         val binariesRoot = skieBinariesDir.get().asFile
         if (binariesRoot.exists()) {
             binariesRoot.walkTopDown()
