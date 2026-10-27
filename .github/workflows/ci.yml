@@ -49,3 +49,62 @@ jobs:
 
       - name: Assemble Android Debug & Release APK (ProGuard/R8 Check)
         run: ./gradlew :androidApp:assembleDebug :androidApp:assembleRelease --console=plain
+
+  verify-ios:
+    name: iOS Simulator Tests, SKIE Framework & App Build
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify macOS Runner Environment (Arm64 + Xcode 16.2 Pinning)
+        run: |
+          [ "$(uname -m)" = "arm64" ] || { echo "Expected arm64 macOS runner"; exit 1; }
+          [ -d "/Applications/Xcode_16.2.app" ] || { echo "Required /Applications/Xcode_16.2.app not found"; exit 1; }
+          sudo xcode-select -s /Applications/Xcode_16.2.app
+          uname -m
+          xcode-select -p
+          xcodebuild -version | grep -q "Xcode 16.2" || { echo "xcodebuild output did not contain 'Xcode 16.2' after pinning"; exit 1; }
+          xcodebuild -version
+          swift --version
+          chmod +x gradlew
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Kotlin/Native iOS Simulator Tests (SharedLogic)
+        run: ./gradlew :sharedLogic:iosSimulatorArm64Test --console=plain
+
+      - name: Generate SKIE Framework & Link (Debug Simulator)
+        run: ./gradlew :sharedLogic:linkDebugFrameworkIosSimulatorArm64 --console=plain
+
+      - name: Build SwiftUI Simulator App (Debug, No Code Signing)
+        run: >-
+          xcodebuild
+          -project iosApp/iosApp.xcodeproj
+          -scheme iosApp
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=""
+          build
+
+      - name: Upload Kotlin/Native Test Reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-test-reports
+          path: |
+            sharedLogic/build/test-results/
+            sharedLogic/build/reports/tests/
+          if-no-files-found: ignore

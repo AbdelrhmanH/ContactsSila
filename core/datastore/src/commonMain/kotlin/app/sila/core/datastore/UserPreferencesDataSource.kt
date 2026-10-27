@@ -39,7 +39,7 @@ interface UserPreferencesDataSource {
 
 class SilaPreferencesDataSource(
     initialPreferences: UserPreferences = UserPreferences(),
-    storageFilePath: String? = null
+    val storageFilePath: String? = null
 ) : UserPreferencesDataSource {
 
     private val dataStore: DataStore<Preferences>? = storageFilePath?.let { path ->

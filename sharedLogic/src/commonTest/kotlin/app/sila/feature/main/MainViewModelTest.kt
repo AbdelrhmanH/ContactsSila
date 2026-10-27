@@ -62,7 +62,7 @@ class MainViewModelTest {
             assertEquals("العم أحمد", items[0].displayName)
             assertEquals(ArhamStatus.OVERDUE, items[0].status)
         } finally {
-            db.close()
+            db.closeConnection()
         }
     }
 
@@ -74,8 +74,8 @@ class MainViewModelTest {
             val arhamRepo = ArhamRepositoryImpl(db)
             val servicesRepo = ServicesRepositoryImpl(db)
             val settingsRepo = SettingsRepositoryImpl(SilaPreferencesDataSource())
-            val getPriority = GetArhamPriorityListUseCase(arhamRepo, fixedClock)
-            val getStats = GetArhamDashboardStatsUseCase(getPriority)
+            val getPriority = GetArhamPriorityListUseCase(arhamRepo, fixedClock, unconfinedDispatchers)
+            val getStats = GetArhamDashboardStatsUseCase(getPriority, unconfinedDispatchers)
 
             val vm = MainViewModel(
                 contactsRepository = contactsRepo,
@@ -91,7 +91,7 @@ class MainViewModelTest {
             vm.onIntent(MainIntent.CallNumber(phone = "+201022223333", contactId = 2L))
             assertEquals(0, vm.state.value.overdueArhamCount)
         } finally {
-            db.close()
+            db.closeConnection()
         }
     }
 
@@ -103,8 +103,8 @@ class MainViewModelTest {
             val arhamRepo = ArhamRepositoryImpl(db)
             val servicesRepo = ServicesRepositoryImpl(db)
             val settingsRepo = SettingsRepositoryImpl(SilaPreferencesDataSource())
-            val getPriority = GetArhamPriorityListUseCase(arhamRepo, fixedClock)
-            val getStats = GetArhamDashboardStatsUseCase(getPriority)
+            val getPriority = GetArhamPriorityListUseCase(arhamRepo, fixedClock, unconfinedDispatchers)
+            val getStats = GetArhamDashboardStatsUseCase(getPriority, unconfinedDispatchers)
 
             val vm = MainViewModel(
                 contactsRepository = contactsRepo,
@@ -125,7 +125,7 @@ class MainViewModelTest {
             vm.onIntent(MainIntent.ToggleLanguage)
             assertEquals(AppLanguage.ENGLISH, vm.state.value.preferences.language)
         } finally {
-            db.close()
+            db.closeConnection()
         }
     }
 }

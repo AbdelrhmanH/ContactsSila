@@ -1,7 +1,6 @@
 package app.sila.core.database
 
 import androidx.room.Database
-import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import app.sila.core.database.dao.ArhamDao
 import app.sila.core.database.dao.ContactDao
@@ -37,7 +36,7 @@ import app.sila.core.database.entity.ServiceEntity
     exportSchema = true
 )
 @TypeConverters(SilaTypeConverters::class)
-abstract class SilaRoomDatabase : RoomDatabase() {
+abstract class SilaRoomDatabase : RoomDatabaseLifecycleBridge() {
     abstract fun contactDao(): ContactDao
     abstract fun arhamDao(): ArhamDao
     abstract fun serviceDao(): ServiceDao

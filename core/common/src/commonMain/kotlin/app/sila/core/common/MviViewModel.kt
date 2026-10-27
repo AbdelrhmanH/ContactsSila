@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 /**
  * عقد MVI الموحد لجميع الـ ViewModels في صِلَة (ARCHITECTURE.md §4).
  */
-interface MviViewModel<S, I, E> {
+interface MviViewModel<S : Any, I : Any, E : Any> {
     val state: StateFlow<S>
     val effects: Flow<E>
     fun onIntent(intent: I)
@@ -23,7 +23,7 @@ interface MviViewModel<S, I, E> {
 /**
  * الصنف الأساسي المشترك لبناء ViewModels تتبع نمط MVI + UDF.
  */
-abstract class BaseMviViewModel<S, I, E>(initialState: S) : ViewModel(), MviViewModel<S, I, E> {
+abstract class BaseMviViewModel<S : Any, I : Any, E : Any>(initialState: S) : ViewModel(), MviViewModel<S, I, E> {
 
     private val _state = MutableStateFlow(initialState)
     override val state: StateFlow<S> = _state.asStateFlow()

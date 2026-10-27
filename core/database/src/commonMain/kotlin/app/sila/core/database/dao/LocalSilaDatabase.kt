@@ -47,7 +47,7 @@ import app.sila.core.database.SilaTypeConverters
  * مع الاعتماد الكامل على Coroutines (AppDispatchers.io) و Flow التفاعلي.
  */
 class LocalSilaDatabase(
-    dbFilePath: String = ":memory:",
+    val dbFilePath: String = ":memory:",
     private val dispatchers: AppDispatchers = DefaultAppDispatchers(),
     private val converters: SilaTypeConverters = SilaTypeConverters()
 ) : SilaRoomDatabase(), ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao {
@@ -71,18 +71,6 @@ class LocalSilaDatabase(
         "scheduled_messages",
         "emergency_ringing_sessions"
     )
-
-    override fun clearAllTables() {
-        sqliteConnection.execSQL("DELETE FROM contact_phones")
-        sqliteConnection.execSQL("DELETE FROM arham")
-        sqliteConnection.execSQL("DELETE FROM contacts")
-        sqliteConnection.execSQL("DELETE FROM services")
-        sqliteConnection.execSQL("DELETE FROM call_events")
-        sqliteConnection.execSQL("DELETE FROM arham_inbox")
-        sqliteConnection.execSQL("DELETE FROM dispute_logs")
-        contactsState.value = emptyList()
-        servicesState.value = emptyList()
-    }
 
     private val dbMutex = Mutex()
 
@@ -717,7 +705,11 @@ class LocalSilaDatabase(
         }
     }
 
-    override fun close() {
+    /**
+     * إغلاق اتصال SQLite المستقل. `close()` في RoomDatabase نهائية على iOS،
+     * لذا يُنفَّذ الإغلاق الفعلي عبر هذه الدالة على جميع المنصات.
+     */
+    fun closeConnection() {
         sqliteConnection.close()
     }
 

@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- أخطاء ترجمة Kotlin/Native في `:core:database` على iOS (`'clearAllTables' overrides nothing` و `'close' in 'RoomDatabase' is final`): إدخال جسر `RoomDatabaseLifecycleBridge` بنمط expect/actual (ADR-0008)، حذف `clearAllTables` الميت، واستبدال `close()` بـ `closeConnection()`.
+
 ### Added
 - مستند متطلبات المنتج (PRD) ومواصفات الميزات والتوثيق الهندسي الكامل (34 ملفاً هندسياً يغطي كل جوانب النظام).
 - مراجع التصميم البصرية وقواعد الـ UI/UX وإمكانية الوصول (WCAG 2.1 AA).

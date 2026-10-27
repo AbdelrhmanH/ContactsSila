@@ -41,7 +41,7 @@
 
 | الغرض | الأداة |
 |---|---|
-| الواجهة | SwiftUI (iOS 16+ مقترح) |
+| الواجهة | SwiftUI (iOS 17+) |
 | التنقل | NavigationStack, TabView |
 | جهات الاتصال | Contacts.framework |
 | الخلفية | BackgroundTasks (BGTaskScheduler) |

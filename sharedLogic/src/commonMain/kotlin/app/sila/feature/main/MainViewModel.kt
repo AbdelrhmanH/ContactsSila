@@ -21,6 +21,8 @@ import app.sila.feature.services.domain.ServicesRepository
 import app.sila.feature.settings.domain.SettingsRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
@@ -120,6 +122,12 @@ class MainViewModel(
             }
         }.launchIn(viewModelScope)
     }
+
+    override val state: StateFlow<MainUiState>
+        get() = super.state
+
+    override val effects: Flow<MainEffect>
+        get() = super.effects
 
     override fun onIntent(intent: MainIntent) {
         when (intent) {

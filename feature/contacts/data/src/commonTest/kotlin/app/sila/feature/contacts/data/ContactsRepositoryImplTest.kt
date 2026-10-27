@@ -42,7 +42,7 @@ class ContactsRepositoryImplTest {
             repo.deleteContact(500L)
             assertNull(repo.getContactById(500L))
         } finally {
-            db.close()
+            db.closeConnection()
         }
     }
 }
