@@ -23,7 +23,8 @@ Single-context repo (this repo):
 │   ├── 0004-room-offline-first.md            ← Room KMP as single source of truth (accepted)
 │   ├── 0005-navigation.md                    ← Navigation Compose + NavigationStack (accepted)
 │   ├── 0006-call-log-strategy.md             ← Call-log tracking strategy for Arham (proposed)
-│   └── 0007-hybrid-feature-modularization.md ← Layers inside Features architecture (accepted)
+│   ├── 0007-hybrid-feature-modularization.md ← Layers inside Features architecture (accepted)
+│   └── 0008-room-lifecycle-bridge.md          ← expect/actual bridge for the RoomDatabase lifecycle across platforms (accepted)
 └── ...
 ```
 
