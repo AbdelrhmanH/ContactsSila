@@ -2,7 +2,7 @@
 
 > كل مهمة = PR واحد تقريباً. ضع `[x]` عند الإنجاز.
 
-## المرحلة 0 — الأساس ✅ (على Android + المشترك KMP)
+## المرحلة 0 — الأساس ✅ (على Android + iOS + المشترك KMP)
 **الهدف:** هيكل يعمل على المنصتين بشريط تنقل موحد.
 
 - [x] إنشاء مشروع KMP (`sharedLogic`, `sharedUI`, `androidApp`, `iosApp`)
@@ -16,7 +16,7 @@
 - [x] Koin: `ensureKoinStarted()` في `SilaApplication` و `sharedLogic` + ربط التبعيات كـ Singletons
 - [x] `MainViewModel` و ViewModels الميزات بنمط MVI + UDF
 - [x] `core:designsystem`: Theme (فاتح/داكن)، الخطوط، الألوان، `SilaActionSheet`، `SilaCategoryChip`، `SilaContactRow`، `SilaServiceCard`، `SilaArhamRankedRow`، `SilaSettingsGroup`
-- [ ] ربط SwiftUI بـ `MainViewModel` عبر SKIE (يتطلب بيئة macOS / Xcode للتحقق)
+- [x] ربط SwiftUI بـ `MainViewModel` عبر SKIE (يتطلب بيئة macOS / Xcode للتحقق)
 - [x] Navigation: 3 تبويبات (`CONTACTS`, `SERVICES`, `ARHAM`) مع شارة عدد المتأخرين في أرحام
 - [x] الترجمة عربي/إنجليزي + RTL-First
 
