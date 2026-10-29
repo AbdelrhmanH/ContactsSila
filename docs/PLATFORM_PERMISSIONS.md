@@ -14,7 +14,7 @@
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" /> <!-- رنين الطوارئ -->
-<!-- مشروطة بقرار ADR-0006 -->
+<!-- مستبعدة في المرحلة 1 بموجب ADR-0006 (الخيار B: بدون قراءة سجل المكالمات) -->
 <!-- <uses-permission android:name="android.permission.READ_CALL_LOG" /> -->
 
 <queries>
@@ -34,7 +34,7 @@
 | Notifications | عند تفعيل أرحام أول مرة | أرحام تعمل داخل التطبيق فقط |
 | Phone State | أول اتصال بخدمة | لا تقييم تلقائي بعد المكالمة |
 | Call Phone | أول نقرة اتصال | استخدام `ACTION_DIAL` (يفتح لوحة الاتصال) |
-| Call Log | تفعيل التتبع الصامت (إن سُمح) | التتبع عبر المكالمات من داخل التطبيق + تأكيد يدوي |
+| Call Log | **لا تُطلب في المرحلة 1** (ADR-0006) | الأثر: التتبع عبر المكالمات من داخل التطبيق + تأكيد يدوي |
 | Location | أول فتح للدليل | اختيار المدينة يدوياً |
 | Camera | مسح QR / صورة | خيار المعرض |
 | Foreground Service | رنين الطوارئ المتواصل + أتمتة الرنة | — |
@@ -76,7 +76,7 @@
 | Smart Fallback (واتساب) | ✅ Intent `whatsapp://send` | ✅ URL scheme `whatsapp://` | — |
 
 ## 5. سياسة Google Play
-- `READ_CALL_LOG` و `PROCESS_OUTGOING_CALLS`: مسموحة أساساً للتطبيق **الافتراضي للهاتف/الرسائل** أو فئات استثناء محددة، مع نموذج **Permissions Declaration**. القرار في [ADR-0006](adr/0006-call-log-strategy.md).
+- `READ_CALL_LOG` و `PROCESS_OUTGOING_CALLS`: مسموحة أساساً للتطبيق **الافتراضي للهاتف/الرسائل** أو فئات استثناء محددة، مع نموذج **Permissions Declaration**. **قرار المرحلة 1: لا تُطلب** — صِلَة ليست معالج هاتف افتراضي، والتتبع عبر الخيار B ([ADR-0006](adr/0006-call-log-strategy.md)).
 - **Data Safety Form:** تصريح دقيق: Contacts (على الجهاز فقط)، Phone number (للحساب)، Approximate location، App interactions.
 - **حذف الحساب** متاح من داخل التطبيق ومن رابط ويب.
 

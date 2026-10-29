@@ -32,8 +32,8 @@ erDiagram
 | العمود | النوع | ملاحظات |
 |---|---|---|
 | id | Long PK | |
-| systemContactId | String UNIQUE | ID دفتر الهاتف |
-| lookupKey | String? | أندرويد |
+| systemContactId | String UNIQUE | مفتاح المزامنة الدائم: Android `LOOKUP_KEY` / iOS `identifier` (ADR-0009) |
+| lookupKey | String? | أندرويد — مرآة `LOOKUP_KEY` لبناء `CONTENT_LOOKUP_URI` |
 | accountType / accountName | String? | phone / com.google / sim |
 | displayName, fileAs | String | |
 | prefix, firstName, middleName, lastName, suffix, nickname, phoneticName | String? | |
@@ -48,6 +48,7 @@ erDiagram
 | excludeFromSmartFilter | Boolean | |
 | normalizedName | String | للبحث والمكررات (تطبيع عربي) |
 | createdAt, updatedAt | Long | |
+| systemDeletedAt | Long? | **يُضاف في المرحلة 1** ([ADR-0010](adr/0010-incremental-contacts-sync.md)) — تعليم حذف ناعم يُخفى من القائمة ويُنظَّف بعد 30 يوماً |
 
 ### الجداول الفرعية (كلها `contactId` FK + CASCADE)
 | الجدول | الأعمدة |

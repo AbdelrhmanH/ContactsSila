@@ -8,6 +8,8 @@
 | [0004](0004-room-offline-first.md) | Room KMP كمصدر وحيد للحقيقة (Offline-First) | مقبول |
 | [0005](0005-navigation.md) | Navigation Compose و NavigationStack | مقبول |
 | [0006](0006-call-log-strategy.md) | استراتيجية تتبع المكالمات لأرحام | **مقبول** |
+| [0007](0007-hybrid-feature-modularization.md) | التقسيم الهجين: طبقات داخل الميزات | مقبول |
+| [0008](0008-room-lifecycle-bridge.md) | جسر دورة حياة Room بين المنصتين | مقبول |
 | [0009](0009-contacts-platform-boundary.md) | حدود تكامل جهات الاتصال مع المنصات | مقبول |
 | [0010](0010-incremental-contacts-sync.md) | المزامنة التزايدية لجهات الاتصال إلى Room | مقبول |
 

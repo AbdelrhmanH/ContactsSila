@@ -194,6 +194,11 @@ sequenceDiagram
     DB-->>UI: Flow emits
 ```
 
+> [!NOTE]
+> المخطط أعلاه يصف التصميم السابق. التسلسل المعتمد في المرحلة 1 هو [ADR-0010](adr/0010-incremental-contacts-sync.md):
+> Android = `ContentObserver` مجمّع (إشارة فقط) + فرق `RawContacts.VERSION` + مصالحة كاملة دورية؛ iOS = `CNChangeHistoryFetchRequest` + رمز محفوظ، وإعادة مزامنة كاملة عند فقدانه.
+> والحذف **ليس فورياً**: تعليم `systemDeletedAt` أولاً ثم تنظيف بعد 30 يوماً.
+
 - الربط بين السجل المحلي وجهة الاتصال الأصلية: `systemContactId` + `lookupKey` (أندرويد) / `identifier` (iOS).
 - بيانات صِلَة (التصنيف، أرحام، الوسوم) تُحفظ في Room فقط، ولا تُكتب في دفتر الهاتف (باستثناء النغمة والبريد الصوتي والمفضلة والحقول القياسية).
 
