@@ -1,6 +1,6 @@
 # ADR-0006: استراتيجية تتبع المكالمات لأرحام
-- **الحالة:** **مقترح — بانتظار قرار صاحب المنتج**
-- **التاريخ:** 2026-10-25
+- **الحالة:** **مقبول — 2026-10-29**
+- **التاريخ:** 2026-10-25 (اقتراح) · 2026-10-29 (قبول)
 
 ## السياق
 التتبع الصامت لأرحام وشرط التقييم يعتمدان على معرفة المكالمات وأوقاتها ومددها.
@@ -20,6 +20,19 @@
 - **MVP:** الخيار **B** على المنصتين (طبقة `CallEventSource` موحدة بمصادر: `IN_APP`, `OBSERVER`, `MANUAL`).
 - تصميم `CallEventSource` بحيث يُضاف مصدر `CALL_LOG` لاحقاً دون تغيير الـ domain.
 - **لاحقاً:** تقييم الخيار **A** كميزة اختيارية ("اجعل صِلَة تطبيق الهاتف") بعد إثبات القيمة.
+
+## القرار (2026-10-29)
+**قُبل الخيار B نهائياً للمرحلة 1** بعد التحقق من وثائق المنصات:
+
+- **iOS:** لا يوجد أي API عام لقراءة سجل المكالمات. `CXCallObserver` يعطي المكالمات النشطة أثناء عمل التطبيق فقط، و`Call Directory Extension` مخصص للحظر/التعريف ولا يقرأ السجل. → المصادر المتاحة: `IN_APP` + `OBSERVER` + `MANUAL` فقط.
+  - المصدر: [CallKit](https://developer.apple.com/documentation/callkit) · [CXCallObserver](https://developer.apple.com/documentation/callkit/cxcallobserver) · [Identifying and blocking calls](https://developer.apple.com/documentation/callkit/identifying-and-blocking-calls)
+- **Android:** `READ_CALL_LOG` صلاحية مقيّدة على مستوى النظام وتتطلب دور معالج الهاتف الافتراضي أو فئة استثناء ضيقة معلنة في Google Play؛ تطبيق إدارة جهات اتصال غير افتراضي لا يستوفي الشروط. → لا تُطلب الصلاحية في المرحلة 1.
+  - المصدر: [Play call log policy](https://support.google.com/googleplay/android-developer/answer/10208820) · [READ_CALL_LOG](https://developer.android.com/reference/android/Manifest.permission#READ_CALL_LOG)
+- **تقسيم المنصات:** iOS وAndroid يتشاركان نفس العقد (`CallEventSource`) ونفس تجربة التأكيد اليدوي؛ الاختلاف في التنفيذ فقط:
+  - Android: مكالمات من داخل التطبيق + قياس المدة عبر `READ_PHONE_STATE` + تأكيد بعد العودة.
+  - iOS: مكالمات من داخل التطبيق + `CXCallObserver` أثناء العمل + تأكيد يدوي.
+- **الخيار A** (Dialer افتراضي + `InCallService`) يبقى خارج نطاق المرحلة 1 ويُقيَّم لاحقاً كوضع اختياري؛ لا يُدخل أي اعتماد سيرفر.
+- **لا يُضاف** مصدر `CALL_LOG` إلى `CallEventSource` إلا بعد اعتماد دور الـ Dialer أو استثناء Play موثق.
 
 ## العواقب
 - ✅ إطلاق آمن في المتاجر.
