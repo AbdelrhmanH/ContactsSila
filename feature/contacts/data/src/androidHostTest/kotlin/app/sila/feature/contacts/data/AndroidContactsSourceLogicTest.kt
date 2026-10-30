@@ -253,38 +253,45 @@ class AndroidContactsSourceLogicTest {
             )
         )
         val data = listOf(
+            // الأعمدة الحقيقية لـ CommonDataKinds.StructuredName (AOSP):
+            // DISPLAY_NAME=DATA1, GIVEN_NAME=DATA2, FAMILY_NAME=DATA3, PREFIX=DATA4,
+            // MIDDLE_NAME=DATA5, SUFFIX=DATA6, PHONETIC_GIVEN/MIDDLE/FAMILY=DATA7/8/9.
             androidNameRecord(
                 contactId = 100L,
                 data1 = "سارة أحمد",
-                data2 = "الأستاذة",
-                data3 = "سارة",
-                data4 = "الوسطى",
-                data5 = "أحمد",
+                data2 = "سارة",
+                data3 = "أحمد",
+                data4 = "الأستاذة",
+                data5 = "الوسطى",
                 data6 = "الشريفية",
-                data7 = "سارة الوسطى أحمد"
+                data7 = "سارة",
+                data8 = "الوسطى",
+                data9 = "أحمد"
             ),
+            // Phone: NUMBER=DATA1, TYPE=DATA2, LABEL=DATA3, NORMALIZED_NUMBER=DATA4.
             androidPhoneRecord(
                 contactId = 100L,
                 data1 = "0777 123 456",
                 data2 = "2",
                 data3 = null,
-                data7 = "+964777123456"
+                data4 = "+964777123456"
             ),
             androidPhoneRecord(
                 contactId = 100L,
                 data1 = "0790 000 111",
                 data2 = "0",
                 data3 = "بيت العم",
-                data7 = null
+                data4 = null
             ),
             androidEmailRecord(contactId = 100L, data1 = "sara@example.com", data2 = "2", data3 = null),
             androidEmailRecord(contactId = 100L, data1 = "sara.work@example.com", data2 = "4", data3 = null),
+            // Organization: COMPANY=DATA1, LABEL=DATA3, TITLE=DATA4, DEPARTMENT=DATA5.
             androidRecord(
                 contactId = 100L,
                 mimeType = AndroidDataMimeTypes.ORGANIZATION,
                 data1 = "شركة الأفق",
-                data3 = "مهندسة برمجيات",
-                data4 = "قسم المحمول"
+                data4 = "مهندسة برمجيات",
+                data5 = "قسم المحمول"
             ),
             androidRecord(
                 contactId = 100L,
@@ -388,7 +395,7 @@ class AndroidContactsSourceLogicTest {
                 )
             ),
             dataRecords = listOf(
-                androidPhoneRecord(contactId = 999L, data1 = "0500000000", data2 = "2", data3 = null, data7 = null)
+                androidPhoneRecord(contactId = 999L, data1 = "0500000000", data2 = "2", data3 = null, data4 = null)
             )
         )
         val contact = contacts.single()
@@ -434,6 +441,8 @@ class AndroidContactsSourceLogicTest {
         data5: String? = null,
         data6: String? = null,
         data7: String? = null,
+        data8: String? = null,
+        data9: String? = null,
     ): AndroidDataRecord = AndroidDataRecord(
         aggregateContactId = contactId,
         mimeType = mimeType,
@@ -444,7 +453,9 @@ class AndroidContactsSourceLogicTest {
             AndroidContactsColumns.DATA4 to data4,
             AndroidContactsColumns.DATA5 to data5,
             AndroidContactsColumns.DATA6 to data6,
-            AndroidContactsColumns.DATA7 to data7
+            AndroidContactsColumns.DATA7 to data7,
+            AndroidContactsColumns.DATA8 to data8,
+            AndroidContactsColumns.DATA9 to data9
         )
     )
 
@@ -457,10 +468,13 @@ class AndroidContactsSourceLogicTest {
         data5: String? = null,
         data6: String? = null,
         data7: String? = null,
+        data8: String? = null,
+        data9: String? = null,
     ): AndroidDataRecord = androidRecord(
         contactId = contactId,
         mimeType = AndroidDataMimeTypes.STRUCTURED_NAME,
-        data1 = data1, data2 = data2, data3 = data3, data4 = data4, data5 = data5, data6 = data6, data7 = data7
+        data1 = data1, data2 = data2, data3 = data3, data4 = data4, data5 = data5, data6 = data6,
+        data7 = data7, data8 = data8, data9 = data9
     )
 
     private fun androidPhoneRecord(
@@ -468,11 +482,11 @@ class AndroidContactsSourceLogicTest {
         data1: String? = null,
         data2: String? = null,
         data3: String? = null,
-        data7: String? = null,
+        data4: String? = null,
     ): AndroidDataRecord = androidRecord(
         contactId = contactId,
         mimeType = AndroidDataMimeTypes.PHONE,
-        data1 = data1, data2 = data2, data3 = data3, data7 = data7
+        data1 = data1, data2 = data2, data3 = data3, data4 = data4
     )
 
     private fun androidEmailRecord(

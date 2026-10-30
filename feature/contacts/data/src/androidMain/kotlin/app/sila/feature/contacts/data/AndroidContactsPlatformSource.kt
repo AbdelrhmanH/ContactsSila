@@ -131,14 +131,6 @@ class AndroidContactsPlatformSource(
             )
         }
 
-    private fun queryDataForRawContactIds(rawContactIds: List<String>): List<AndroidDataRecord> =
-        rawContactIds.chunked(SQL_IN_BATCH_SIZE).flatMap { chunk ->
-            queryDataRecords(
-                selection = "${ContactsContract.Data.RAW_CONTACT_ID} IN (${inSelectionPlaceholders(chunk.size)})",
-                selectionArgs = chunk.toTypedArray()
-            )
-        }
-
     private fun queryDataRecords(selection: String, selectionArgs: Array<String>): List<AndroidDataRecord> =
         contentResolver.useQuery(
             uri = ContactsContract.Data.CONTENT_URI,
@@ -155,7 +147,7 @@ class AndroidContactsPlatformSource(
             }
         }
 
-    /** DATA1..DATA7 من الصف الحالي — أسماء المفاتيح من [AndroidContactsColumns] حصراً. */
+    /** DATA1..DATA9 من الصف الحالي — أسماء المفاتيح من [AndroidContactsColumns] حصراً. */
     private fun Cursor.androidDataValues(): Map<String, String?> = buildMap {
         for (column in DATA_VALUE_COLUMNS) {
             val index = getColumnIndex(column)
@@ -218,9 +210,12 @@ class AndroidContactsPlatformSource(
             .associate { it.rawContactId to it.aggregateContactId }
         val changedAggregateIds = changedAggregatesById.values.filterNotNull().distinct()
 
-        // الصفوف الكاملة للجهات المجمّعة المتأثرة + سجلاتها من جدول Data.
+        // الصفوف الكاملة للجهات المجمّعة المتأثرة + سجلاتها من جدول Data — تُقرأ بحسب
+        // CONTACT_ID (المجمّع) لا RAW_CONTACT_ID: الـ upsert يَعِد بالحالة النهائية الكاملة،
+        // وصف Data مُسجَّل بـ CONTACT_ID؛ جلب بيانات السجلات الخام المتغيرة حصراً يُسقط
+        // بيانات السجلات الشقيقة (حساب ثانٍ/واتساب) من الـ upsert فيمحوها Room (D2).
         val contactRows = queryContactRowsByIds(changedAggregateIds)
-        val dataRecords = queryDataForRawContactIds(changedRawIds)
+        val dataRecords = queryDataForContactIds(changedAggregateIds)
 
         // مفاتيح LOOKUP_KEY المُحلَّة للسجلات الخام المتغيرة (للقطة الجديدة).
         val lookupKeyByAggregateId = contactRows.associate { it.aggregateContactId to it.lookupKey }
@@ -365,7 +360,9 @@ class AndroidContactsPlatformSource(
             AndroidContactsColumns.DATA4,
             AndroidContactsColumns.DATA5,
             AndroidContactsColumns.DATA6,
-            AndroidContactsColumns.DATA7
+            AndroidContactsColumns.DATA7,
+            AndroidContactsColumns.DATA8,
+            AndroidContactsColumns.DATA9
         )
 
         val CONTACT_PROJECTION = arrayOf(
@@ -398,7 +395,9 @@ class AndroidContactsPlatformSource(
             ContactsContract.Data.DATA4,
             ContactsContract.Data.DATA5,
             ContactsContract.Data.DATA6,
-            ContactsContract.Data.DATA7
+            ContactsContract.Data.DATA7,
+            ContactsContract.Data.DATA8,
+            ContactsContract.Data.DATA9
         )
     }
 }
@@ -412,7 +411,12 @@ private inline fun <T> ContentResolver.useQuery(
     sortOrder: String? = null,
     block: (Cursor) -> List<T>
 ): List<T> {
-    val cursor = query(uri, projection, selection, selectionArgs, sortOrder) ?: return emptyList()
+    // المؤشر null = فشل Provider (عملية المزود قُتلت/غير متاح) — لا يُطوى إلى نجاح فارغ أبداً:
+    // رميٌ هنا يُمسَك بـ runCatching في readPage (صفحة فارغة بالعقد) وreadDelta (بلا لقطة
+    // جديدة — لا تطبيق جزئي ولا حذف وهمي). الإرجاع الفارغ الصامت كان يجعل scanRawContacts
+    // يُبلّغ "كل السجلات اختفت" فيُمحى دفتر Room كله (D3).
+    val cursor = query(uri, projection, selection, selectionArgs, sortOrder)
+        ?: throw IllegalStateException("ContactsProvider returned a null cursor for $uri")
     return cursor.use { current -> block(current) }
 }
 

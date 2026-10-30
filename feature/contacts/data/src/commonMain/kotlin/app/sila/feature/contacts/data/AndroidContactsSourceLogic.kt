@@ -37,6 +37,8 @@ internal object AndroidContactsColumns {
     const val DATA5 = "data5"
     const val DATA6 = "data6"
     const val DATA7 = "data7"
+    const val DATA8 = "data8"
+    const val DATA9 = "data9"
 }
 
 /** أنواع سجلات `ContactsContract.Data` (قيم `MIMETYPE` الثابتة في SQLite). */
@@ -210,13 +212,20 @@ internal fun mapAndroidContactRows(
         val contactName = ContactName(
             displayName = displayName,
             fileAs = row.displayName ?: displayName,
-            prefix = nameRecord?.values?.get(AndroidContactsColumns.DATA2),
-            firstName = nameRecord?.values?.get(AndroidContactsColumns.DATA3),
-            middleName = nameRecord?.values?.get(AndroidContactsColumns.DATA4),
-            lastName = nameRecord?.values?.get(AndroidContactsColumns.DATA5),
+            // أعمدة CommonDataKinds.StructuredName الحقيقية (AOSP):
+            // DISPLAY_NAME=DATA1, GIVEN_NAME=DATA2, FAMILY_NAME=DATA3, PREFIX=DATA4,
+            // MIDDLE_NAME=DATA5, SUFFIX=DATA6, PHONETIC_GIVEN/MIDDLE/FAMILY=DATA7/8/9.
+            prefix = nameRecord?.values?.get(AndroidContactsColumns.DATA4),
+            firstName = nameRecord?.values?.get(AndroidContactsColumns.DATA2),
+            middleName = nameRecord?.values?.get(AndroidContactsColumns.DATA5),
+            lastName = nameRecord?.values?.get(AndroidContactsColumns.DATA3),
             suffix = nameRecord?.values?.get(AndroidContactsColumns.DATA6),
             nickname = null,
-            phoneticName = nameRecord?.values?.get(AndroidContactsColumns.DATA7)
+            phoneticName = listOfNotNull(
+                nameRecord?.values?.get(AndroidContactsColumns.DATA7),
+                nameRecord?.values?.get(AndroidContactsColumns.DATA8),
+                nameRecord?.values?.get(AndroidContactsColumns.DATA9)
+            ).filter { it.isNotBlank() }.joinToString(" ").takeIf { it.isNotBlank() }
         )
         PlatformContact(
             systemContactId = row.lookupKey ?: return@mapNotNull null,
@@ -243,14 +252,14 @@ internal fun mapAndroidContactRows(
     }
 }
 
-/** بناء قائمة الهواتف من سجلات `CommonDataKinds.Phone` لتغطية الأرقام (DATA7 = NORMALIZED_NUMBER). */
+/** بناء قائمة الهواتف من سجلات `CommonDataKinds.Phone` (NUMBER=DATA1, TYPE=DATA2, LABEL=DATA3, NORMALIZED_NUMBER=DATA4). */
 private fun List<AndroidDataRecord>.toAndroidPhones(): List<Phone> = mapNotNull { record ->
     val rawNumber = record.values[AndroidContactsColumns.DATA1] ?: return@mapNotNull null
     val typeInt = record.values[AndroidContactsColumns.DATA2]?.toIntOrNull()
     val customLabel = record.values[AndroidContactsColumns.DATA3]
     Phone(
         raw = rawNumber,
-        e164 = record.values[AndroidContactsColumns.DATA7] ?: rawNumber,
+        e164 = record.values[AndroidContactsColumns.DATA4]?.takeIf { it.isNotBlank() } ?: rawNumber,
         type = mapAndroidPhoneType(typeInt, customLabel),
         label = customLabel
     )
@@ -268,11 +277,11 @@ private fun List<AndroidDataRecord>.toAndroidEmails(): List<Email> = mapNotNull 
     )
 }
 
-/** بناء المعلومات الوظيفية من سجلات `CommonDataKinds.Organization` (DATA1=Company, DATA3=Title, DATA4=Dept). */
+/** بناء المعلومات الوظيفية من سجلات `CommonDataKinds.Organization` (COMPANY=DATA1, TITLE=DATA4, DEPARTMENT=DATA5). */
 private fun AndroidDataRecord.toAndroidOrganization(): Organization? {
     val company = values[AndroidContactsColumns.DATA1]
-    val department = values[AndroidContactsColumns.DATA4]
-    val jobTitle = values[AndroidContactsColumns.DATA3]
+    val department = values[AndroidContactsColumns.DATA5]
+    val jobTitle = values[AndroidContactsColumns.DATA4]
     if (company.isNullOrBlank() && jobTitle.isNullOrBlank() && department.isNullOrBlank()) return null
     return Organization(
         company = company,
