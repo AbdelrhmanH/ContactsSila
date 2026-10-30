@@ -387,7 +387,7 @@ $$
 - **Android خارجي:** `ROLE_CALL_SCREENING` دور **اختياري** بموافقة صريحة، منفصل عن معالج الهاتف الافتراضي. يعطي رقم/اتجاه المكالمة عند إنشائها فقط، بلا نهاية أو مدة، ولا يحجب/يرفض/يسكت/يعيد توجيه أي مكالمة ويستجيب خلال 5 ثوانٍ برد محايد. `TelephonyCallback` يرصد الحالة فقط (`RINGING/OFFHOOK/IDLE`) بلا هوية أو مدة.
 - **iOS خارجي:** `CXCallObserver` أثناء حياة التطبيق فقط: وجود مكالمة، الاتجاه، وحالة الاتصال/النهاية. لا رقم للطرف الآخر ولا سجل مكالمات ولا مدة مضمونة؛ لا يُشتق رقم من `CXCall.uuid`.
 - **التأكيد الاحتياطي:** أي حدث خارجي بلا هوية أو نتيجة مؤكدة يدخل بطاقة تأكيد معلّقة (اختيار القريب أو «غير متعلقة»، وتأكيد «تم التواصل / لم يرد»). المكالمات غير القابلة للرصد تُسجَّل يدوياً. تُمنع الأحداث المكررة عند دمج الرصد مع التأكيد.
-- **شرط تحديث أرحام:** يُحدَّث `lastContactedAt` فقط من حدث `COMPLETED` بدليل اتصال ونهاية ومدة > 0، أو من تفاعل `CONFIRMED` صراحةً. `ATTEMPTED`/`CONNECTED` بلا نهاية/`UNANSWERED`/`UNKNOWN`/`PENDING` لا تُحدّث الحالة.
+- **شرط تحديث أرحام:** يُحدَّث `lastContactedAt` فقط من حدث `COMPLETED` بدليل اتصال ونهاية ومدة > 0، أو من تفاعل `CONFIRMED` صراحةً. `ATTEMPTED`/`CONNECTED` بلا نهاية/`UNANSWERED`/`UNKNOWN`/`PENDING`/`REJECTED` لا تُحدّث الحالة.
 - **بدون أي إنترنت** — هذا القسم لا يتصل بالسيرفر إطلاقاً، وكل الأحداث تبقى في Room.
 
 > [!WARNING]
@@ -785,7 +785,7 @@ data class ArhamEntity(
 data class CallEventEntity(
     @PrimaryKey val id: String,
     val primarySource: CallEventSource,             // IN_APP | ANDROID_CALL_SCREENING | ANDROID_TELEPHONY_OBSERVER | IOS_CALL_OBSERVER | MANUAL
-    val evidenceSources: Set<CallEventSource>,      // يشمل MANUAL عند التأكيد
+    val evidenceSources: Set<CallEventSource>,      // domain Set؛ يُخزَّن JSON في Room (DATA_MODEL: evidenceSourcesJson)
     val timestamp: Long,
     val remoteNumber: String?,                      // null = المنصة لم تكشف الرقم
     val contactId: Long?,

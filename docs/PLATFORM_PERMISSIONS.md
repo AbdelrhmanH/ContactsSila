@@ -78,7 +78,7 @@
 | Smart Fallback (واتساب) | ✅ Intent `whatsapp://send` | ✅ URL scheme `whatsapp://` | — |
 
 > [!NOTE]
-> **رصد المكالمات ([ADR-0006](adr/0006-call-log-strategy.md) — B+):** على Android، `ROLE_CALL_SCREENING` دور اختياري عبر `RoleManager` (API 29+) ولا يتطلب صلاحية في الـ manifest ولا يجعل صِلَة معالج الهاتف الافتراضي. على iOS، `CXCallObserver` لا يتطلب صلاحية ولا entitlement، ولا يُطلب Apple Default Dialer App entitlement. في الحالتين، رفض الرصد يُبقي `IN_APP` + التسجيل اليدوي.
+> **رصد المكالمات ([ADR-0006](adr/0006-call-log-strategy.md) — B+):** على Android، `ROLE_CALL_SCREENING` دور اختياري عبر `RoleManager` (API 29+) ولا يتطلب صلاحية في الـ manifest ولا يجعل صِلَة معالج الهاتف الافتراضي. على iOS، `CXCallObserver` لا يتطلب صلاحية ولا entitlement، ولا يُطلب Apple Default Dialer App entitlement. في الحالتين، رفض الرصد يُبقي `IN_APP` + مراقب حالة الهاتف (حالة فقط) + التسجيل اليدوي.
 
 ## 5. سياسة Google Play
 - `READ_CALL_LOG` و `PROCESS_OUTGOING_CALLS`: صلاحيات **hard-restricted**، ومسموحة في Play فقط حين يكون التطبيق **default Phone أو Assistant handler**، أو ضمن **استثناء مؤهل مؤقت** (مثل التعريف/الحظر، الأتمتة، CRM المؤسسي؛ واستثناء التحقق من الحساب ينتهي في 2027-01-27) بشرط أن تكون الوظيفة أساسية ولا يوجد بديل لها. "Contact prioritization" و"SMS and contacts management" استخدامات غير صالحة لغير المعالج الافتراضي أو معالج جهات الاتصال على مستوى النظام. **المرحلة 1: لا تُطلب** — [ADR-0006](adr/0006-call-log-strategy.md) مقبول (B+) ولا يعتمد على سجل المكالمات؛ صِلَة ليس معالج هاتف افتراضي.
