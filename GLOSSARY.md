@@ -27,7 +27,7 @@
 | الاستعجال | Urgency | `urgency` | الأيام منذ آخر اتصال ÷ أيام الوتيرة |
 | النطاق الأحمر/الأصفر/الأخضر | Overdue / Soon / OK | `ArhamStatus` | حالة الوصال |
 | المنصة | Podium | `ArhamPodium` | أكثر 3 أقارب تواصلت معهم |
-| التتبع الصامت | Silent tracking | `SyncCallLogUseCase` | تحديث آخر اتصال تلقائياً من مكالمات صِلَة (`IN_APP`/`OBSERVER`) + تأكيد يدوي؛ لا قراءة لسجل المكالمات (ADR-0006) |
+| التتبع الصامت | Silent tracking | `SyncCallLogUseCase` → `CallEventSyncWorker` · `CallEventSource` | تحديث `lastContactedAt` من أحداث المكالمات المؤكدة من أي مصدر تسمح به المنصة؛ المرحلة 1: `IN_APP` + `OBSERVER` + `MANUAL`، و`CALL_LOG` مؤجل حتى قرار [ADR-0006](docs/adr/0006-call-log-strategy.md) (غير محسوم) |
 | صلة القرابة | Relation | `Relation` | أب، عم، خال… |
 | طبقة القرابة | Kinship layer | `KinshipLayer` | أصول / فروع / حواشٍ |
 | شجرة العائلة | Family tree | `FamilyTreeScreen` | عرض هرمي للأقارب |
