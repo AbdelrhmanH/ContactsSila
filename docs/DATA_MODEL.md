@@ -78,8 +78,8 @@ erDiagram
 | createdAt | Long |
 
 ### call_events
-`callLogId PK, e164 (Index), direction (IN/OUT/MISSED), durationSec, timestamp (Index), source (CALL_LOG/IN_APP/OBSERVER/MANUAL), simSlot?`
-> يُحتفظ بـ 365 يوماً فقط ثم تُحذف تلقائياً.
+`id PK, primarySource (IN_APP/ANDROID_CALL_SCREENING/ANDROID_TELEPHONY_OBSERVER/IOS_CALL_OBSERVER/MANUAL), evidenceSourcesJson, timestamp (Index), remoteNumber? (Index), contactId? (FK), direction?, startedAt?, connectedAt?, endedAt?, durationSec?, outcome (ATTEMPTED/CONNECTED/COMPLETED/UNANSWERED/UNKNOWN), association, confirmation, confidence, dedupeKey?, simSlot?`
+> عقد الحدث ومصادره في [ADR-0006](adr/0006-call-log-strategy.md). الحقول الاختيارية تعني «المنصة لم تكشفها» ولا تُشتق أو تُخترع. يُحتفظ بالأحداث 365 يوماً ثم تُحذف تلقائياً. المخطط الحالي في المرحلة 0 (`callLogId`, `e164`, `source = CALL_LOG/IN_APP/OBSERVER/MANUAL`) مبدئي ويتطلب هجرة Room في المرحلة 1.
 
 ### services
 `cloudId PK, name, professionId, phoneE164 (Index), previousPhones, visibility, trustScore, uniqueCallers, retentionRate, ratingAvg, ratingCount, isHot, geohash (Index), lat, lng, city, workingHoursJson, ownerVerified, isSavedByUser, myRating, myCallCount, myLastCallAt, possiblyBroken, syncedAt`

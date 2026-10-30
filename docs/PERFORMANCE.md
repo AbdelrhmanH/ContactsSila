@@ -60,7 +60,7 @@
 - **استخدم `@RawQuery` بحذر** — فقط للاستعلامات الديناميكية مع `SimpleSQLiteQuery`.
 - **Indexes** على كل عمود يُستخدم في `WHERE` أو `ORDER BY` أو `JOIN`:
   - `contact_phones.e164`, `contacts.normalizedName`, `contacts.category`
-  - `call_events.e164`, `call_events.timestamp`
+  - `call_events.remoteNumber`, `call_events.timestamp`
   - `services.phoneE164`, `services.geohash`, `services.professionId`
 - **Transactions** لعمليات الكتابة المتعددة (`@Transaction` أو `withTransaction`).
 - **لا `SELECT *`** في الاستعلامات — حدد الأعمدة المطلوبة فقط (أو استخدم `@ColumnInfo` مع Data Class مصغّر).

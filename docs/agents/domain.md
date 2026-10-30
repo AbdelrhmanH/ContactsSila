@@ -22,7 +22,7 @@ Single-context repo (this repo):
 │   ├── 0003-koin-for-di.md                   ← Koin for cross-platform DI (accepted)
 │   ├── 0004-room-offline-first.md            ← Room KMP as single source of truth (accepted)
 │   ├── 0005-navigation.md                    ← Navigation Compose + NavigationStack (accepted)
-│   ├── 0006-call-log-strategy.md             ← Call-tracking strategy for Arham (proposed — reopened)
+│   ├── 0006-call-log-strategy.md             ← Practical multi-source Arham call tracking with confirmation fallback (accepted, B+)
 │   ├── 0007-hybrid-feature-modularization.md ← Layers inside Features architecture (accepted)
 │   ├── 0008-room-lifecycle-bridge.md          ← expect/actual bridge for the RoomDatabase lifecycle across platforms (accepted)
 │   ├── 0009-contacts-platform-boundary.md     ← Contacts platform source boundary + stable identity (accepted)

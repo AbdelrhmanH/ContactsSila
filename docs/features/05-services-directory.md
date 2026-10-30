@@ -91,7 +91,7 @@
 ## حالة الكشف عن نهاية المكالمة
 | المنصة | الآلية |
 |---|---|
-| Android | `TelephonyCallback.CallStateListener` (IDLE بعد OFFHOOK) + مدة تقريبية بقياس OFFHOOK→IDLE للمكالمات التي بدأت من التطبيق؛ لا قراءة لسجل المكالمات في المرحلة 1 ([ADR-0006](../adr/0006-call-log-strategy.md) غير محسوم) |
+| Android | `TelephonyCallback.CallStateListener` (API 31+؛ `PhoneStateListener` على 26–30) — IDLE بعد OFFHOOK + مدة تقريبية بقياس OFFHOOK→IDLE للمكالمات التي بدأت من التطبيق؛ لا قراءة لسجل المكالمات ([ADR-0006](../adr/0006-call-log-strategy.md) مقبول: بدون `READ_CALL_LOG`) |
 | iOS | `CXCallObserver` أثناء عمل التطبيق؛ وإلا عند العودة للتطبيق (`scenePhase == .active`) بعد بدء اتصال من التطبيق |
 
 ## UseCases

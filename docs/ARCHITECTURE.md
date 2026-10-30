@@ -206,7 +206,7 @@ sequenceDiagram
 
 | المهمة | أندرويد | iOS | التكرار |
 |---|---|---|---|
-| مزامنة أحداث المكالمات لأرحام (قرار [ADR-0006](adr/0006-call-log-strategy.md) غير محسوم — لا سجل مكالمات في المرحلة 1) | `CallEventSyncWorker`: مكالمات صِلَة + `READ_PHONE_STATE` (حالة فقط، بلا رقم) | مكالمات صِلَة + `CXCallObserver` أثناء حياة التطبيق (بلا هوية) | عند المكالمة + تأكيد يدوي |
+| مزامنة أحداث المكالمات لأرحام ([ADR-0006](adr/0006-call-log-strategy.md) مقبول — B+؛ لا سجل مكالمات ولا `READ_CALL_LOG`) | `CallEventSyncWorker`: `IN_APP` + `ANDROID_CALL_SCREENING` الاختياري + `ANDROID_TELEPHONY_OBSERVER` (حالة فقط، بلا رقم) | `IN_APP` + `IOS_CALL_OBSERVER` أثناء حياة التطبيق (بلا هوية) | عند المكالمة + تأكيد/تسجيل يدوي |
 | حساب تنبيهات أرحام | `ArhamReminderWorker` | `BGAppRefreshTask` + إشعارات مجدولة مسبقاً | يومياً في الوقت المفضل |
 | فحص المكررات | `DuplicateScanWorker` | `BGProcessingTask` | أسبوعياً |
 | الفلترة الذكية | `SmartCategorizeWorker` | `BGProcessingTask` | بعد Onboarding + عند إضافة دفعة أسماء |
