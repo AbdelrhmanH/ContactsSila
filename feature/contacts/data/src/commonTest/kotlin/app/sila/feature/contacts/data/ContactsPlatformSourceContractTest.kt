@@ -106,7 +106,7 @@ class ContactsPlatformSourceContractTest {
         val observed = mutableListOf<ContactsPermissionState>()
 
         val collector = launch(Unconfined) {
-            fake.observePermissionState().take(4).toList(observed)
+            fake.observePermissionState().take(5).toList(observed)
         }
 
         fake.grantPermission()
@@ -120,7 +120,8 @@ class ContactsPlatformSourceContractTest {
                 ContactsPermissionState.DENIED,
                 ContactsPermissionState.GRANTED,
                 ContactsPermissionState.LIMITED,
-                ContactsPermissionState.DENIED
+                ContactsPermissionState.DENIED,
+                ContactsPermissionState.PERMANENTLY_DENIED
             ),
             observed
         )

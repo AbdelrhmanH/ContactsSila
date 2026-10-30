@@ -124,16 +124,20 @@ class AndroidContactsPlatformSource(
     )
 
     private fun queryDataForContactIds(contactIds: List<Long>): List<AndroidDataRecord> =
-        queryDataRecords(
-            selection = "${ContactsContract.Data.CONTACT_ID} IN (${inSelectionPlaceholders(contactIds.size)})",
-            selectionArgs = contactIds.map(Long::toString).toTypedArray()
-        )
+        contactIds.chunked(SQL_IN_BATCH_SIZE).flatMap { chunk ->
+            queryDataRecords(
+                selection = "${ContactsContract.Data.CONTACT_ID} IN (${inSelectionPlaceholders(chunk.size)})",
+                selectionArgs = chunk.map(Long::toString).toTypedArray()
+            )
+        }
 
     private fun queryDataForRawContactIds(rawContactIds: List<String>): List<AndroidDataRecord> =
-        queryDataRecords(
-            selection = "${ContactsContract.Data.RAW_CONTACT_ID} IN (${inSelectionPlaceholders(rawContactIds.size)})",
-            selectionArgs = rawContactIds.toTypedArray()
-        )
+        rawContactIds.chunked(SQL_IN_BATCH_SIZE).flatMap { chunk ->
+            queryDataRecords(
+                selection = "${ContactsContract.Data.RAW_CONTACT_ID} IN (${inSelectionPlaceholders(chunk.size)})",
+                selectionArgs = chunk.toTypedArray()
+            )
+        }
 
     private fun queryDataRecords(selection: String, selectionArgs: Array<String>): List<AndroidDataRecord> =
         contentResolver.useQuery(
@@ -255,15 +259,15 @@ class AndroidContactsPlatformSource(
         }
 
     /** صفوف `Contacts` لمعرّفات مجمّعة محددة (تُستخدم في الدلتا المتزايدة). */
-    private fun queryContactRowsByIds(aggregateIds: List<Long>): List<AndroidContactRow> {
-        if (aggregateIds.isEmpty()) return emptyList()
-        return contentResolver.useQuery(
-            uri = ContactsContract.Contacts.CONTENT_URI,
-            projection = CONTACT_PROJECTION,
-            selection = "${ContactsContract.Contacts._ID} IN (${inSelectionPlaceholders(aggregateIds.size)})",
-            selectionArgs = aggregateIds.map(Long::toString).toTypedArray()
-        ) { cursor -> cursor.collect { it.androidContactRow() } }
-    }
+    private fun queryContactRowsByIds(aggregateIds: List<Long>): List<AndroidContactRow> =
+        aggregateIds.chunked(SQL_IN_BATCH_SIZE).flatMap { chunk ->
+            contentResolver.useQuery(
+                uri = ContactsContract.Contacts.CONTENT_URI,
+                projection = CONTACT_PROJECTION,
+                selection = "${ContactsContract.Contacts._ID} IN (${inSelectionPlaceholders(chunk.size)})",
+                selectionArgs = chunk.map(Long::toString).toTypedArray()
+            ) { cursor -> cursor.collect { it.androidContactRow() } }
+        }
 
     /**
      * حلّ LOOKUP_KEY لكل السجلات الخام غير المحذوفة (تُستخدم في مسار إعادة المزامنة
@@ -273,18 +277,20 @@ class AndroidContactsPlatformSource(
         val aggregateIds = scanRows.mapNotNull(RawContactScanRow::aggregateContactId).distinct()
         if (aggregateIds.isEmpty()) return emptyMap()
 
-        val lookupByAggregateId = contentResolver.useQuery(
-            uri = ContactsContract.Contacts.CONTENT_URI,
-            projection = arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.LOOKUP_KEY),
-            selection = "${ContactsContract.Contacts._ID} IN (${inSelectionPlaceholders(aggregateIds.size)})",
-            selectionArgs = aggregateIds.map(Long::toString).toTypedArray()
-        ) { cursor ->
-            val pairs = mutableListOf<Pair<Long, String>>()
-            while (cursor.moveToNext()) {
-                val lookupKey = cursor.getString(cursor.getColumnIndex(ContactsContract.Contacts.LOOKUP_KEY)) ?: continue
-                pairs.add(cursor.getLong(cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)) to lookupKey)
+        val lookupByAggregateId = aggregateIds.chunked(SQL_IN_BATCH_SIZE).flatMap { chunk ->
+            contentResolver.useQuery(
+                uri = ContactsContract.Contacts.CONTENT_URI,
+                projection = arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.LOOKUP_KEY),
+                selection = "${ContactsContract.Contacts._ID} IN (${inSelectionPlaceholders(chunk.size)})",
+                selectionArgs = chunk.map(Long::toString).toTypedArray()
+            ) { cursor ->
+                val pairs = mutableListOf<Pair<Long, String>>()
+                while (cursor.moveToNext()) {
+                    val lookupKey = cursor.getString(cursor.getColumnIndex(ContactsContract.Contacts.LOOKUP_KEY)) ?: continue
+                    pairs.add(cursor.getLong(cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)) to lookupKey)
+                }
+                pairs
             }
-            pairs
         }.toMap()
 
         val resolved = mutableMapOf<String, String>()
@@ -353,6 +359,9 @@ class AndroidContactsPlatformSource(
 
     private companion object {
         const val DEFAULT_PAGE_LIMIT = 500
+
+        /** حجم دفعة `IN (..)` — بلا استعلامات بمعاملات غير محدودة فوق حد متغيرات SQLite (ADR-0010 §2). */
+        const val SQL_IN_BATCH_SIZE = 500
 
         /** 30 يوماً حصراً من سجلات الحذف — مجهود أفضل، وليس مصدر التوثيق الأساسي (ADR-0010 §3). */
         const val DELETED_CONTACTS_LOOKBACK_LIMIT = 500

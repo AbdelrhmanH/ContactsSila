@@ -6,8 +6,10 @@ import app.sila.feature.contacts.data.IosHistoryEvent
 import app.sila.feature.contacts.data.IosLabeledValue
 import app.sila.feature.contacts.data.IosPhoneValue
 import app.sila.feature.contacts.data.assembleIosDelta
+import app.sila.feature.contacts.data.mapCnAuthorizationStatus
 import app.sila.feature.contacts.data.mapIosContact
 import app.sila.feature.contacts.data.toIosContactValues
+import app.sila.feature.contacts.domain.ContactsPermissionState
 import app.sila.feature.contacts.domain.ContactsSnapshot
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,6 +18,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import platform.Contacts.CNAuthorizationStatusAuthorized
+import platform.Contacts.CNAuthorizationStatusDenied
+import platform.Contacts.CNAuthorizationStatusLimited
+import platform.Contacts.CNAuthorizationStatusNotDetermined
+import platform.Contacts.CNAuthorizationStatusRestricted
 import platform.Contacts.CNLabelHome
 import platform.Contacts.CNLabelPhoneNumberMobile
 import platform.Contacts.CNLabelWork
@@ -196,6 +203,18 @@ class IosContactsPlatformSourceMappingTest {
         assertTrue(delta.deletedSystemContactIds.isEmpty())
         assertEquals(setOf("fresh-1", "fresh-2"), delta.upserted.map { it.systemContactId }.toSet())
         assertSame(snapshot, delta.newSnapshot)
+    }
+
+    // ----------------------------------------------------------------- permission
+
+    @Test
+    fun mapCnAuthorizationStatus_limitedIsLimitedAndNeverDenial() {
+        // ADR-0010 §5: `.limited` لا يُعامل رفضاً أبداً.
+        assertEquals(ContactsPermissionState.LIMITED, mapCnAuthorizationStatus(CNAuthorizationStatusLimited))
+        assertEquals(ContactsPermissionState.GRANTED, mapCnAuthorizationStatus(CNAuthorizationStatusAuthorized))
+        assertEquals(ContactsPermissionState.DENIED, mapCnAuthorizationStatus(CNAuthorizationStatusDenied))
+        assertEquals(ContactsPermissionState.DENIED, mapCnAuthorizationStatus(CNAuthorizationStatusNotDetermined))
+        assertEquals(ContactsPermissionState.PERMANENTLY_DENIED, mapCnAuthorizationStatus(CNAuthorizationStatusRestricted))
     }
 
     // --------------------------------------------------------------------- token

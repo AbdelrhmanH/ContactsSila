@@ -165,13 +165,8 @@ class IosContactsPlatformSource(
     private fun currentAuthorizationStatus(): Long =
         CNContactStore.authorizationStatusForEntityType(CNEntityTypeContacts)
 
-    private fun currentPermissionState(): ContactsPermissionState = when (currentAuthorizationStatus()) {
-        CNAuthorizationStatusAuthorized -> ContactsPermissionState.GRANTED
-        CNAuthorizationStatusLimited -> ContactsPermissionState.LIMITED
-        CNAuthorizationStatusNotDetermined, CNAuthorizationStatusDenied -> ContactsPermissionState.DENIED
-        CNAuthorizationStatusRestricted -> ContactsPermissionState.PERMANENTLY_DENIED
-        else -> ContactsPermissionState.DENIED
-    }
+    private fun currentPermissionState(): ContactsPermissionState =
+        mapCnAuthorizationStatus(currentAuthorizationStatus())
 
     // ------------------------------------------------------------- Read page
 
@@ -227,16 +222,13 @@ class IosContactsPlatformSource(
     // ------------------------------------------------------------- Delta
 
     private fun fullResyncDelta(previousSnapshot: ContactsSnapshot?): ContactsDelta {
-        val upserted = buildList {
-            var offset = 0
-            while (true) {
-                val page = fetchPage(offset = offset, limit = DEFAULT_PAGE_LIMIT)
-                if (page.contacts.isEmpty()) break
-                addAll(page.contacts)
-                if (!page.hasMore) break
-                offset = page.offset + page.contacts.size
+        // تعداد واحد للمعرفات ثم دفعات ثابتة — ترتيب مستقر عبر كل صفحات إعادة المزامنة (بلا تكرار/نقص).
+        val upserted = fetchAllContactIdentifiers()
+            .chunked(DEFAULT_PAGE_LIMIT)
+            .flatMap { pageIdentifiers ->
+                fetchContactsByIdentifiers(pageIdentifiers)
+                    .map { contact -> mapIosContact(contact.toIosContactValues()) }
             }
-        }
         return ContactsDelta(
             upserted = upserted,
             // القراءة الكاملة لا تحذف أبداً — المصالحة الدورية تبقى مسار الحذف الآمن (ADR-0010 §3).
@@ -327,6 +319,19 @@ private fun throwIfError(error: NSError?, context: String) {
     if (error != null) {
         error("Contacts fetch failed in $context: ${error.localizedDescription}")
     }
+}
+
+/**
+ * خريطة نقية لحالة تفويض `CNContactStore` → حالة العقد (Issue #22 · ADR-0010 §5):
+ * `.limited` → LIMITED حصراً — لا رفض ولا حذف أبداً. Public كي تُختبر من
+ * `sharedLogic/src/iosTest` (موديول مستقل) بقيم `CNAuthorizationStatus` الفعلية.
+ */
+public fun mapCnAuthorizationStatus(status: Long): ContactsPermissionState = when (status) {
+    CNAuthorizationStatusAuthorized -> ContactsPermissionState.GRANTED
+    CNAuthorizationStatusLimited -> ContactsPermissionState.LIMITED
+    CNAuthorizationStatusNotDetermined, CNAuthorizationStatusDenied -> ContactsPermissionState.DENIED
+    CNAuthorizationStatusRestricted -> ContactsPermissionState.PERMANENTLY_DENIED
+    else -> ContactsPermissionState.DENIED
 }
 
 /** طابع زمني (بالميلي ثانية) لوقت إصدار الإشارة الدامجة. */
