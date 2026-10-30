@@ -1,14 +1,11 @@
 package app.sila.feature.contacts.data
 
 import android.Manifest
-import android.app.AppOpsManager
 import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
-import android.os.Build
-import android.os.Process
 import android.provider.ContactsContract
 import app.sila.feature.contacts.domain.ContactsChangeSignal
 import app.sila.feature.contacts.domain.ContactsDelta
@@ -37,8 +34,11 @@ import kotlinx.coroutines.launch
  *   الحذف يُحل حصراً عبر `LOOKUP_KEY` المحفوظ في اللقطة — النقص/الصلاحية الجزئية لا حذف.
  * - **observeChangeSignals:** `ContentObserver` على `Contacts.CONTENT_URI` مع تجميع
  *   (debounce) ≥ [DEFAULT_CHANGE_SIGNAL_DEBOUNCE_MILLIS] — إشارة اتساخ فقط بلا هوية السجل.
- * - **observePermissionState:** `checkSelfPermission` + كشف `PERMANENTLY_DENIED` عبر
- *   `AppOpsManager` على API 29+ ("لا تسأل مرة أخرى").
+ * - **observePermissionState:** `checkSelfPermission` فقط — يُميّز GRANTED عن غير
+ *   المنح (DENIED). لا يُبلَّغ عن `PERMANENTLY_DENIED` من هنا: الكشف العلني الوحيد
+ *   لـ"لا تسأل مرة أخرى" على Android هو نمط الطلبين عبر
+ *   `shouldShowRequestPermissionRationale` داخل تدفق الطلب (يتطلب Activity)،
+ *   فيُكمّله UI/الصلاحيات فوق حالة DENIED (راجع D1 في مراجعة PR #32).
  *
  * كل تحويل يمر حصراً عبر المنطق النقي في [AndroidContactsSourceLogic] (JVM-testable).
  * `readPage` بلا صلاحية/مع خطأ مؤقت يعيد صفحة فارغة، و`readDelta` عند الفشل يعيد
@@ -331,28 +331,17 @@ class AndroidContactsPlatformSource(
     private fun isReadGranted(): Boolean =
         applicationContext.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
-    private fun currentPermissionState(): ContactsPermissionState = when {
-        isReadGranted() -> ContactsPermissionState.GRANTED
-        isPermanentlyDeniedByAppOps() -> ContactsPermissionState.PERMANENTLY_DENIED
-        else -> ContactsPermissionState.DENIED
-    }
+    private fun currentPermissionState(): ContactsPermissionState =
+        if (isReadGranted()) ContactsPermissionState.GRANTED else ContactsPermissionState.DENIED
 
-    /**
-     * "الرجل لا يُطلب منه مرة أخرى" على API 29+ عبر `AppOpsManager`: نتيجة
-     * [AppOpsManager.MODE_ERRORED] تعني حجب دائم لا يمكن التراجع عنه من التطبيق.
-     * تحت API 29 لا توجد آلية موثوقة، فتبقى الحالة DENIED.
-     */
-    private fun isPermanentlyDeniedByAppOps(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
-        val appOps = applicationContext.getSystemService(AppOpsManager::class.java) ?: return false
-        return runCatching {
-            appOps.unsafeCheckOpNoThrow(
-                AppOpsManager.OPSTR_READ_CONTACTS,
-                Process.myUid(),
-                applicationContext.packageName
-            ) == AppOpsManager.MODE_ERRORED
-        }.getOrDefault(false)
-    }
+    // D1 (مراجعة PR #32): كان يُفترض هنا كشف "لا تسأل مرة أخرى" عبر
+    // `AppOpsManager.unsafeCheckOpNoThrow(OPSTR_READ_CONTACTS) == MODE_ERRORED` — وهو خطأ:
+    // العمليات المرتبطة بصلاحيات زمن التشغيل تُحلّ وضعها من حالة الصلاحية نفسها في
+    // AppOpsService (منحة → MODE_ALLOWED، وعدم منحة → MODE_ERRORED)، أي أن MODE_ERRORED
+    // يعني "غير ممنوح" لا "رفض نهائي" — على تثبيت جديد أو بعد رفض عادي على API 29+
+    // تُعاد MODE_ERRORED دائماً، فانطفل طلب الصلاحية كلياً وتحوّل كل رفض إلى دائم.
+    // التوثيق الرسمي لـ MODE_ERRORED حجبٌ عام (SecurityException) بلا دلالة "لا تسأل
+    // مرة أخرى"، والكشف الموثوق يتطلب تدفق الطلب (النمط الثنائي) في طبقة الواجهة.
 
     private fun inSelectionPlaceholders(count: Int): String =
         List(count) { "?" }.joinToString(separator = ",")
