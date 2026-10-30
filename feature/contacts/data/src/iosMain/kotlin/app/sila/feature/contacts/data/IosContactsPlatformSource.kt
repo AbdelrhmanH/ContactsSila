@@ -12,6 +12,7 @@ import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
 import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
@@ -55,18 +56,20 @@ import platform.Contacts.CNContactStore
 import platform.Contacts.CNContactStoreDidChangeNotification
 import platform.Contacts.CNContactUrlAddressesKey
 import platform.Contacts.CNEntityType
-import platform.Contacts.CNEntityTypeContacts
 import platform.Contacts.CNLabelHome
 import platform.Contacts.CNLabelOther
 import platform.Contacts.CNLabelPhoneNumberMobile
 import platform.Contacts.CNLabelWork
 import platform.Contacts.CNLabeledValue
 import platform.Contacts.CNPhoneNumber
+import platform.Contacts.predicateForContactsWithIdentifiers
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
 import platform.Foundation.NSError
 import platform.Foundation.NSEnumerator
 import platform.Foundation.NSNotificationCenter
+import platform.Foundation.data
+import platform.Foundation.dataWithBytes
 import platform.Foundation.timeIntervalSince1970
 
 /**
@@ -129,7 +132,9 @@ class IosContactsPlatformSource(
     override fun observeChangeSignals(): Flow<ContactsChangeSignal> = callbackFlow {
         val observer = NSNotificationCenter.defaultCenter.addObserverForName(
             name = CNContactStoreDidChangeNotification,
-            `object` = store,
+            // الكائن = null حصراً: الإشعار يبثّه نظام (دايمونات خارجية) بمرسل nil —
+            // الترشيح بمثيل المخزن المحلي يُسقط كل تعديلات الجهات الخارجية (F3).
+            `object` = null,
             queue = null
         ) { _ ->
             // مُشغِّل فقط: بلا أي معرفة بالسجل المتغيّر (العقد المجمد).
@@ -151,7 +156,9 @@ class IosContactsPlatformSource(
         }
         val observer = NSNotificationCenter.defaultCenter.addObserverForName(
             name = CNContactStoreDidChangeNotification,
-            `object` = store,
+            // الكائن = null حصراً: الإشعار يبثّه نظام (دايمونات خارجية) بمرسل nil —
+            // الترشيح بمثيل المخزن المحلي يُسقط كل تعديلات الجهات الخارجية (F3).
+            `object` = null,
             queue = null
         ) { _ -> trySend(currentPermissionState()) }
         awaitClose {
@@ -163,7 +170,7 @@ class IosContactsPlatformSource(
     // ------------------------------------------------------------- Permission
 
     private fun currentAuthorizationStatus(): Long =
-        CNContactStore.authorizationStatusForEntityType(CNEntityTypeContacts)
+        CNContactStore.authorizationStatusForEntityType(CNEntityType.CNEntityTypeContacts)
 
     private fun currentPermissionState(): ContactsPermissionState =
         mapCnAuthorizationStatus(currentAuthorizationStatus())
@@ -208,7 +215,7 @@ class IosContactsPlatformSource(
 
     /** قراءة الجهات الموحّدة بمعرفات صفحة واحدة فقط. */
     private fun fetchContactsByIdentifiers(identifiers: List<String>): List<CNContact> = memScoped {
-        val predicate = CNContact.predicateForContactsWithIdentifiers(identifiers)
+        val predicate = CNContact.Companion.predicateForContactsWithIdentifiers(identifiers)
         val error = alloc<ObjCObjectVar<NSError?>>()
         val contacts = store.unifiedContactsMatchingPredicate(
             predicate = predicate,
@@ -242,6 +249,12 @@ class IosContactsPlatformSource(
         memScoped {
             val request = CNChangeHistoryFetchRequest()
             request.startingToken = token
+            // TN3149: دون هذه الإعدادات تردّ أحداث السجل بجهات غير موحّدة وبأحقاص بلا مفاتيح،
+            // فيُلقى CNPropertyNotFetchedException عند قراءة خصائص حدث contact وتفشل كل دلتا
+            // (تبقى بلا تقدم أبداً). shouldUnifyResults يوحّد الجهات، وadditionalContactKeyDescriptors
+            // يجلب حقول [FULL_CONTACT_KEYS] كاملة لأحداث إضافة/تحديث.
+            request.shouldUnifyResults = true
+            request.additionalContactKeyDescriptors = FULL_CONTACT_KEYS
             val error = alloc<ObjCObjectVar<NSError?>>()
             val result = store.enumeratorForChangeHistoryFetchRequest(request, error.ptr)
             throwIfError(error.value, context = "enumeratorForChangeHistoryFetchRequest")
@@ -297,19 +310,21 @@ class IosContactsPlatformSource(
      * `.dropEverything` + إضافات كاملة، فتتحقق دلالات "رمز غير صالح → إعادة المزامنة" (TN3149).
      */
     public fun decodeIosHistoryToken(bytes: ByteArray?): NSData? =
-        bytes.takeIf { it.isNotEmpty() }?.iosByteArrayToData()
+        bytes?.takeIf { it.isNotEmpty() }?.iosByteArrayToData()
 
     private companion object {
         const val DEFAULT_PAGE_LIMIT = 500
         const val PERMISSION_REPOLL_INTERVAL_MILLIS = 5_000L
 
-        /** مفاتيح القراءة الكاملة (إعداد `List<*>` في cinterop 2.4.20 — لا سكبات غير مُسندة). */
+        /** مفاتيح القراءة الكاملة (إعداد `List<*>` في cinterop 2.4.20 — لا سكبات غير مُسندة).
+         *  بلا `CNContactNoteKey` عمداً — قراءة الملاحظات تتطلب صلاحية Apple الخاصة، وطلبها
+         *  دونها يُفشل الجلب كله بـ CNErrorUnauthorizedKeys (تُقرأ فقط عند توفّر المفاتيح). */
         val FULL_CONTACT_KEYS: List<String> = listOf(
             CNContactIdentifierKey,
             CNContactNamePrefixKey, CNContactGivenNameKey, CNContactMiddleNameKey, CNContactFamilyNameKey,
             CNContactNameSuffixKey, CNContactNicknameKey,
             CNContactPhoneticGivenNameKey, CNContactPhoneticMiddleNameKey, CNContactPhoneticFamilyNameKey,
-            CNContactOrganizationNameKey, CNContactDepartmentNameKey, CNContactJobTitleKey, CNContactNoteKey,
+            CNContactOrganizationNameKey, CNContactDepartmentNameKey, CNContactJobTitleKey,
             CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactUrlAddressesKey
         )
     }
@@ -355,7 +370,11 @@ public fun CNContact.toIosContactValues(): IosContactValues = IosContactValues(
     organizationName = organizationName.takeIf { it.isNotBlank() },
     departmentName = departmentName.takeIf { it.isNotBlank() },
     jobTitle = jobTitle.takeIf { it.isNotBlank() },
-    note = note.takeIf { it.isNotBlank() },
+    // iOS 13+: قراءة الملاحظات تتطلب صلاحية Apple الخاصة (com.apple.developer.contacts.notes)،
+    // وطلب CNContactNoteKey دونها يفشل الجلب كله (CNErrorUnauthorizedKeys). لذلك لا تُطلب
+    // الملاحظة ضمن FULL_CONTACT_KEYS، وتُقرأ هنا فقط إذا كانت المفاتيح متاحة فعلاً —
+    // الوصول لخاصية غير مُجلَبة على CNContact يرمي CNPropertyNotFetchedException.
+    note = if (areKeysAvailable(listOf(CNContactNoteKey))) note.takeIf { it.isNotBlank() } else null,
     phones = phoneNumbers
         .filterIsInstance<CNLabeledValue>()
         .mapNotNull { labeled ->
@@ -398,11 +417,8 @@ private fun NSData.iosDataToByteArray(): ByteArray {
     return source.readBytes(byteCount)
 }
 
-/** ByteArray → NSData عبر memScoped (يبقى كامن الأصل حتى إنهاء النسخ). */
+/** ByteArray → NSData (usePinned يضمن بقاء الأصل حتى تنتهي نسخة `dataWithBytes` — النسخة تُنتج NSData مستقلاً). */
 @OptIn(ExperimentalForeignApi::class)
-private fun ByteArray.iosByteArrayToData(): NSData = memScoped {
-    if (isEmpty()) return@memScoped NSData.data()
-    usePinned { pinned ->
-        NSData.dataWithBytes(bytes = pinned.addressOf(0), length = size.toULong())
-    }
+private fun ByteArray.iosByteArrayToData(): NSData = usePinned { pinned ->
+    NSData.Companion.dataWithBytes(pinned.addressOf(0), size.toULong())
 }

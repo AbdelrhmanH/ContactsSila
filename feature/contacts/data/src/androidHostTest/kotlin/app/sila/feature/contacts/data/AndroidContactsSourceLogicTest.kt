@@ -92,6 +92,66 @@ class AndroidContactsSourceLogicTest {
         assertEquals(listOf("10"), diff.deletedRawContactIds)
     }
 
+    @Test
+    fun `deleting one sibling raw contact keeps the aggregate alive`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-A", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 2L, lookupKey = "lookup-A", aggregateContactId = 100L)
+        )
+        val diff = diffRawContactVersions(
+            savedRawContacts = saved,
+            currentRows = listOf(
+                // العضو 10 ما يزال نشطاً بنفس المفتاح، والعضو 11 فُصل (DELETED=1).
+                RawContactScanRow(rawContactId = "10", version = 4L, deleted = false, aggregateContactId = 100L),
+                RawContactScanRow(rawContactId = "11", version = 2L, deleted = true, aggregateContactId = 100L)
+            )
+        )
+        // العضو المفصول يُزال من اللقطة، لكن الجهة المجمّعة الحيّة لا تُبلَّغ محذوفة.
+        assertEquals(listOf("11"), diff.deletedRawContactIds)
+        assertTrue(
+            diff.deletedSystemContactIds.isEmpty(),
+            "An aggregate with an active sibling raw must never be reported deleted."
+        )
+    }
+
+    @Test
+    fun `unlinking one sibling raw contact keeps the aggregate alive`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-A", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 2L, lookupKey = "lookup-A", aggregateContactId = 100L)
+        )
+        val diff = diffRawContactVersions(
+            savedRawContacts = saved,
+            currentRows = listOf(
+                // العضو 11 اختفى كلياً من المسح (فصل تجميع) دون DELETED=1، والعضو 10 نشط.
+                RawContactScanRow(rawContactId = "10", version = 4L, deleted = false, aggregateContactId = 100L)
+            )
+        )
+        assertEquals(listOf("11"), diff.deletedRawContactIds)
+        assertTrue(
+            diff.deletedSystemContactIds.isEmpty(),
+            "Unlinking one raw of an aggregate with an active sibling must not delete the contact."
+        )
+    }
+
+    @Test
+    fun `deleting the last active raw of a lookup key reports the aggregate deleted`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-A", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 2L, lookupKey = "lookup-B", aggregateContactId = 101L)
+        )
+        val diff = diffRawContactVersions(
+            savedRawContacts = saved,
+            currentRows = listOf(
+                // كلا العضوين حُذفا: المفتاح A يُبلَّغ محذوفاً (لا عضو نشط) كما B.
+                RawContactScanRow(rawContactId = "10", version = 4L, deleted = true, aggregateContactId = 100L),
+                RawContactScanRow(rawContactId = "11", version = 2L, deleted = true, aggregateContactId = 101L)
+            )
+        )
+        assertEquals(setOf("lookup-A", "lookup-B"), diff.deletedSystemContactIds.toSet())
+        assertEquals(setOf("10", "11"), diff.deletedRawContactIds.toSet())
+    }
+
     // ------------------------------------------------- resolveProviderDeletedContacts
 
     @Test

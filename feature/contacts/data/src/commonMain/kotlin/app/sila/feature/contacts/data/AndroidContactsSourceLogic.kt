@@ -121,6 +121,17 @@ internal fun diffRawContactVersions(
         }
     }
 
+    // 3) فصل/حذف أحد أعضاء التجميع (RawContact) لا يعني حذف جهة الاتصال المجمّعة نفسها:
+    //    يُلغى الحذف المُبلَّغ عن أي مفتاح LOOKUP_KEY ما دام هناك سجل خام آخر نشط (بلا
+    //    DELETED=1) بنفس المفتاح المحفوظ — وإلا حُذفت جهة حيّة من Room (أخطاء المزامنة).
+    val activeRawIds = currentRows.filter { !it.deleted }.map { it.rawContactId }.toSet()
+    val stillActiveLookupKeys = savedRawContacts
+        .filterKeys { it in activeRawIds }
+        .values
+        .mapNotNull { it.lookupKey }
+        .toSet()
+    deletedLookupKeys.removeAll(stillActiveLookupKeys)
+
     val changedRawContactIds = currentRows.asSequence()
         .filter { !it.deleted }
         .filter { row -> savedRawContacts[row.rawContactId]?.version != row.version }

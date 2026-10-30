@@ -23,6 +23,7 @@ import platform.Contacts.CNAuthorizationStatusDenied
 import platform.Contacts.CNAuthorizationStatusLimited
 import platform.Contacts.CNAuthorizationStatusNotDetermined
 import platform.Contacts.CNAuthorizationStatusRestricted
+import platform.Contacts.CNContactNoteKey
 import platform.Contacts.CNLabelHome
 import platform.Contacts.CNLabelPhoneNumberMobile
 import platform.Contacts.CNLabelWork
@@ -47,43 +48,51 @@ class IosContactsPlatformSourceMappingTest {
 
     @Test
     fun cnMutableContact_mapsAllSupportedFieldsWithPureMapper() {
+        // cinterop 2.4.20: خصائص CNMutableContact قابلة للقراءة فقط (val) — الإعداد عبر دوال
+        // الضبط `setX(...)` المستخرجة من klib (المُعدِّلات ObjC readwrite).
         val fixture = CNMutableContact().apply {
-            namePrefix = "السيدة"
-            givenName = "سارة"
-            middleName = "الوسطى"
-            familyName = "أحمد"
-            nameSuffix = "الشريفية"
-            nickname = "سس"
-            phoneticGivenName = "سارة صوتياً"
-            phoneticFamilyName = "أحمد صوتياً"
-            organizationName = "شركة الأفق"
-            departmentName = "قسم المحمول"
-            jobTitle = "مهندسة برمجيات"
-            note = "زميلة من العمل"
-            phoneNumbers = listOf(
-                CNLabeledValue(
-                    label = CNLabelPhoneNumberMobile,
-                    value = CNPhoneNumber(stringValue = "+20 100 123 4567")
-                ),
-                CNLabeledValue(
-                    label = CNLabelHome,
-                    value = CNPhoneNumber(stringValue = "+20 2 555 0100")
+            setNamePrefix("السيدة")
+            setGivenName("سارة")
+            setMiddleName("الوسطى")
+            setFamilyName("أحمد")
+            setNameSuffix("الشريفية")
+            setNickname("سس")
+            setPhoneticGivenName("سارة صوتياً")
+            setPhoneticFamilyName("أحمد صوتياً")
+            setOrganizationName("شركة الأفق")
+            setDepartmentName("قسم المحمول")
+            setJobTitle("مهندسة برمجيات")
+            setNote("زميلة من العمل")
+            setPhoneNumbers(
+                listOf(
+                    CNLabeledValue(
+                        label = CNLabelPhoneNumberMobile,
+                        value = CNPhoneNumber(stringValue = "+20 100 123 4567")
+                    ),
+                    CNLabeledValue(
+                        label = CNLabelHome,
+                        value = CNPhoneNumber(stringValue = "+20 2 555 0100")
+                    )
                 )
             )
-            emailAddresses = listOf(
-                CNLabeledValue(
-                    label = CNLabelWork,
-                    value = NSString.create(string = "sara@example.com") as NSCopyingProtocol
-                ),
-                CNLabeledValue(
-                    label = CNLabelHome,
-                    value = NSString.create(string = "sara.home@example.com") as NSCopyingProtocol
+            setEmailAddresses(
+                listOf(
+                    CNLabeledValue(
+                        label = CNLabelWork,
+                        value = NSString.create(string = "sara@example.com") as NSCopyingProtocol
+                    ),
+                    CNLabeledValue(
+                        label = CNLabelHome,
+                        value = NSString.create(string = "sara.home@example.com") as NSCopyingProtocol
+                    )
                 )
             )
-            urlAddresses = listOf(
-                CNLabeledValue(
-                    label = CNLabelWork,
-                    value = NSString.create(string = "https://sara.example.com") as NSCopyingProtocol
+            setUrlAddresses(
+                listOf(
+                    CNLabeledValue(
+                        label = CNLabelWork,
+                        value = NSString.create(string = "https://sara.example.com") as NSCopyingProtocol
+                    )
                 )
             )
         }
@@ -116,11 +125,16 @@ class IosContactsPlatformSourceMappingTest {
         assertEquals(2, mapped.emails.size)
         assertEquals("WORK", mapped.emails[0].type)
         assertEquals("HOME", mapped.emails[1].type)
-        assertNotNull(mapped.organization)
-        assertEquals("شركة الأفق", mapped.organization.company)
-        assertEquals("مهندسة برمجيات", mapped.organization.jobTitles.single())
+        val org = assertNotNull(mapped.organization)
+        assertEquals("شركة الأفق", org.company)
+        assertEquals("مهندسة برمجيات", org.jobTitles.single())
         assertEquals(listOf("https://sara.example.com"), mapped.websites)
-        assertEquals("زميلة من العمل", mapped.notes)
+        // الملاحظة تُقرأ فقط إن كانت مفاتيحها متاحة (صلاحية Apple الخاصة على جهات النظام؛
+        // CNMutableContact المبني محلياً يملكها دائماً، بينما المخزن بلا الصلاحية لا يجلبه).
+        assertEquals(
+            if (fixture.areKeysAvailable(listOf(CNContactNoteKey))) "زميلة من العمل" else null,
+            mapped.notes
+        )
         assertNull(mapped.account)
     }
 
