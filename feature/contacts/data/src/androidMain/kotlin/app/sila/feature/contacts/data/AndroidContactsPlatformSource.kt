@@ -226,7 +226,12 @@ class AndroidContactsPlatformSource(
 
         return ContactsDelta(
             upserted = mapAndroidContactRows(contactRows, dataRecords),
-            deletedSystemContactIds = deletedSystemContactIds,
+            // + المفاتيح الملغاة: سجل خام متغير حُدّث مفتاحه (إعادة تجميع/مزامن) —
+            // القديم هوية ماتت تُحذف من Room مع upsert الجديد، وإلا تكرار (D1 جولة 3).
+            deletedSystemContactIds = (
+                deletedSystemContactIds +
+                    supersededLookupKeys(resolvedLookupKeys, previousSnapshot.androidRawContacts)
+                ).distinct(),
             newSnapshot = buildNextAndroidSnapshot(currentRows, resolvedLookupKeys, previousSnapshot),
             isFullResync = false
         )

@@ -152,6 +152,48 @@ class AndroidContactsSourceLogicTest {
         assertEquals(setOf("10", "11"), diff.deletedRawContactIds.toSet())
     }
 
+    // ------------------------------------------------- supersededLookupKeys
+
+    @Test
+    fun `regenerated lookup key reports the old key as superseded`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "old-10", aggregateContactId = 100L)
+        )
+        val superseded = supersededLookupKeys(
+            resolvedLookupKeys = mapOf("10" to "new-10"),
+            savedRawContacts = saved
+        )
+        assertEquals(listOf("old-10"), superseded)
+    }
+
+    @Test
+    fun `unchanged lookup keys and brand new raws report nothing superseded`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-10", aggregateContactId = 100L)
+        )
+        val superseded = supersededLookupKeys(
+            resolvedLookupKeys = mapOf(
+                "10" to "lookup-10", // نفس المفتاح — لا تغيير هوية.
+                "77" to "lookup-77" // سجل خام جديد بلا حالة محفوظة.
+            ),
+            savedRawContacts = saved
+        )
+        assertTrue(superseded.isEmpty())
+    }
+
+    @Test
+    fun `two raws of one aggregate whose key changed report the old key once`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "old-A", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 2L, lookupKey = "old-A", aggregateContactId = 100L)
+        )
+        val superseded = supersededLookupKeys(
+            resolvedLookupKeys = mapOf("10" to "new-A", "11" to "new-A"),
+            savedRawContacts = saved
+        )
+        assertEquals(listOf("old-A"), superseded)
+    }
+
     // ------------------------------------------------- resolveProviderDeletedContacts
 
     @Test

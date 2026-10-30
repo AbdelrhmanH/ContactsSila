@@ -167,6 +167,23 @@ internal fun resolveProviderDeletedContacts(
 }
 
 /**
+ * المفاتيح القديمة الملغاة (superseded) لسجلات خام تغيّر `LOOKUP_KEY` لها بعد آخر لقطة.
+ *
+ * المزود يُعيد توليد `LOOKUP_KEY` عند إعادة التجميع/بعض المزامنات (ADR-0009 §4 يعترف
+ * بتغيره)، والهوية في Room فريدة على `systemContactId` — فدلتا تُفسّر upsert بالمفتاح
+ * الجديد دون بلاغ عن القديم تُراكم صفوف مكررة لنفس الشخص. المفتاح القديم هنا «هوية ماتت»
+ * تُبلَّغ في `deletedSystemContactIds` مع upsert المفتاح الجديد. المفاتيح تأتي من
+ * [diffRawContactVersions] المسح الكامل، فلا يُبلَّغ إلا عن مفاتيح سجلات متغيرة فعلاً —
+ * المسح الناقص لا يمس هذا المسار (مصالحة المسح الكامل مؤجلة لعنصر المزامنة — ADR-0010 §3).
+ */
+internal fun supersededLookupKeys(
+    resolvedLookupKeys: Map<String, String>,
+    savedRawContacts: Map<String, AndroidRawContactState>,
+): List<String> = resolvedLookupKeys.mapNotNull { (rawId, currentKey) ->
+    savedRawContacts[rawId]?.lookupKey?.takeIf { it != currentKey }
+}.distinct()
+
+/**
  * بناء اللقطة الجديدة (تُحفظ داخل نفس معاملة Room مع الدلتا — ADR-0010 §7).
  *
  * [resolvedLookupKeys] يحمل مفاتيح `LOOKUP_KEY` المُحلَّة للسجلات المتغيرة/الجديدة؛
