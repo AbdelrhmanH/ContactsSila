@@ -48,6 +48,8 @@ import app.sila.feature.arham.presentation.ArhamScreen
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.presentation.ContactsScreen
 import app.sila.feature.contacts.presentation.ContactsViewModel
+import app.sila.feature.contacts.presentation.onboarding.OnboardingScreen
+import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainIntent
 import app.sila.feature.main.MainUiState
 import app.sila.feature.main.MainViewModel
@@ -59,6 +61,10 @@ import app.sila.feature.settings.presentation.SettingsViewModel
 /**
  * نقطة الدخول للواجهة المشتركة — تحصل على التبعيات من حاوية Koin المشتركة (ensureKoinStarted)
  * وتفوّض كل شاشة Stateful إلى الـ ViewModel المستقل الخاص بميزتها طبقاً لمبادئ SOLID (SRP & DIP).
+ *
+ * بوابة التهيئة الأولى (Issue #26 — T5): ما دام `onboardingCompleted` غير مُعاد
+ * من DataStore (Single Source of Truth) تعرض شاشة التهيئة (ضيف فقط) بدل الصفحة الرئيسة،
+ * ولا تُعرض التهيئة إطلاقاً بعد اكتمالها.
  */
 @Composable
 @Preview
@@ -71,42 +77,51 @@ fun App(
     val servicesViewModel = remember(koin) { koin.get<ServicesViewModel>() }
     val arhamViewModel = remember(koin) { koin.get<ArhamViewModel>() }
     val settingsViewModel = remember(koin) { koin.get<SettingsViewModel>() }
+    val onboardingViewModel = remember(koin) { koin.get<OnboardingViewModel>() }
 
     val state by mainViewModel.state.collectAsState()
     val isDark = state.preferences.themeMode == AppThemeMode.DARK
     val isRtl = state.preferences.language.isRtl
     val isAr = state.preferences.language == AppLanguage.ARABIC
+    val onboardingStrings = rememberOnboardingStrings()
 
     SilaTheme(darkTheme = isDark, isRtl = isRtl) {
-        SilaMainShell(
-            state = state,
-            onIntent = mainViewModel::onIntent,
-            contactsContent = {
-                ContactsScreen(
-                    viewModel = contactsViewModel,
-                    isArabic = isAr,
-                    onCallContact = { phone, id -> mainViewModel.onIntent(MainIntent.CallNumber(phone, id)) }
-                )
-            },
-            servicesContent = {
-                ServicesScreen(
-                    viewModel = servicesViewModel,
-                    isArabic = isAr
-                )
-            },
-            arhamContent = {
-                ArhamScreen(
-                    viewModel = arhamViewModel,
-                    isArabic = isAr
-                )
-            },
-            settingsContent = {
-                SettingsScreen(
-                    viewModel = settingsViewModel,
-                    onDismiss = { mainViewModel.onIntent(MainIntent.DismissSettingsSheet) }
-                )
-            }
-        )
+        if (!state.preferences.onboardingCompleted) {
+            OnboardingScreen(
+                viewModel = onboardingViewModel,
+                strings = onboardingStrings
+            )
+        } else {
+            SilaMainShell(
+                state = state,
+                onIntent = mainViewModel::onIntent,
+                contactsContent = {
+                    ContactsScreen(
+                        viewModel = contactsViewModel,
+                        isArabic = isAr,
+                        onCallContact = { phone, id -> mainViewModel.onIntent(MainIntent.CallNumber(phone, id)) }
+                    )
+                },
+                servicesContent = {
+                    ServicesScreen(
+                        viewModel = servicesViewModel,
+                        isArabic = isAr
+                    )
+                },
+                arhamContent = {
+                    ArhamScreen(
+                        viewModel = arhamViewModel,
+                        isArabic = isAr
+                    )
+                },
+                settingsContent = {
+                    SettingsScreen(
+                        viewModel = settingsViewModel,
+                        onDismiss = { mainViewModel.onIntent(MainIntent.DismissSettingsSheet) }
+                    )
+                }
+            )
+        }
     }
 }
 

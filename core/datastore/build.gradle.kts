@@ -28,6 +28,7 @@ kotlin {
             api(project(":core:common"))
             api(project(":core:model"))
             implementation(libs.androidx.datastore.preferences)
+            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

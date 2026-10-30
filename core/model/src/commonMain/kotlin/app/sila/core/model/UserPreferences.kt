@@ -34,5 +34,13 @@ data class UserPreferences(
     val searchRadiusKm: Int = 5,
     val autoUpdatePhonebookServices: Boolean = false,
     val smartFilterEnabled: Boolean = true,
-    val onboardingCompleted: Boolean = false
+    val onboardingCompleted: Boolean = false,
+    /** المرحلة 1 ضيف فقط (لا حساب ولا OTP) — Issue #26 / #20. */
+    val isGuest: Boolean = true,
+    /** الخطوة التي سيعود إليها المستخدم عند إعادة الدخول (أول خطوة غير مكتملة). */
+    val onboardingResumeStep: String? = null,
+    /** آخر نتيجة صلاحية جهات اتصال أبلغتها المنصة أثناء التهيئة (اسم حالة). */
+    val onboardingContactsPermission: String? = null,
+    /** اختيارات "أهم 5 أشخاص" — عقد التسليم إلى T8 (انظر TopFiveSelection). */
+    val onboardingTopFiveSelections: List<TopFiveSelection> = emptyList()
 )

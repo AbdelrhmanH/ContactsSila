@@ -19,6 +19,7 @@ import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
 import app.sila.feature.arham.domain.RecordArhamCallUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
+import app.sila.feature.contacts.data.OnboardingRepositoryImpl
 import app.sila.feature.contacts.domain.ContactsRepository
 import app.sila.feature.contacts.domain.DeleteContactUseCase
 import app.sila.feature.contacts.domain.DetectDuplicatesUseCase
@@ -27,7 +28,14 @@ import app.sila.feature.contacts.domain.ObserveContactsUseCase
 import app.sila.feature.contacts.domain.ObserveFavoriteContactsUseCase
 import app.sila.feature.contacts.domain.SmartCategorizeContactUseCase
 import app.sila.feature.contacts.domain.UpdateContactCategoryUseCase
+import app.sila.feature.contacts.domain.onboarding.CompleteOnboardingStepUseCase
+import app.sila.feature.contacts.domain.onboarding.CompleteOnboardingUseCase
+import app.sila.feature.contacts.domain.onboarding.ObserveOnboardingStateUseCase
+import app.sila.feature.contacts.domain.onboarding.OnboardingRepository
+import app.sila.feature.contacts.domain.onboarding.SaveTopFiveSelectionUseCase
+import app.sila.feature.contacts.domain.onboarding.SetOnboardingPermissionsResultUseCase
 import app.sila.feature.contacts.presentation.ContactsViewModel
+import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
 import app.sila.feature.services.data.ServicesRepositoryImpl
 import app.sila.feature.services.domain.LookupServiceByPhoneUseCase
@@ -95,6 +103,24 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             updateContactCategory = get(),
             deleteContact = get(),
             detectDuplicates = get()
+        )
+    }
+
+    // :feature:contacts — التهيئة الأولى للمضيف (Guest onboarding) (Issue #26 — T5)
+    single<OnboardingRepository> { OnboardingRepositoryImpl(dataSource = get()) }
+    factory { ObserveOnboardingStateUseCase(repository = get()) }
+    factory { CompleteOnboardingStepUseCase(repository = get()) }
+    factory { SetOnboardingPermissionsResultUseCase(repository = get()) }
+    factory { SaveTopFiveSelectionUseCase(repository = get()) }
+    factory { CompleteOnboardingUseCase(repository = get()) }
+    single {
+        OnboardingViewModel(
+            observeOnboardingState = get(),
+            completeStep = get(),
+            setPermissionsResult = get(),
+            saveTopFiveSelection = get(),
+            finishOnboarding = get(),
+            observeContacts = get()
         )
     }
 
