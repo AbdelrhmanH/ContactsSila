@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- قراءة جهات الاتصال للعرض والمزامنة محلياً فقط (لا رفع للسيرفر — ADR-0009 §6) -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
     <application
         android:name=".SilaApplication"
         android:allowBackup="true"

@@ -5,8 +5,8 @@ package app.sila.feature.contacts.domain
  *
  * يجب حفظها داخل نفس معاملة كتابة الدلتا في Room ليستأنف الاستيراد دون فقد بيانات.
  * تحتوي:
- * - **iOS:** بايتات رمز سجل التغييرات (`CNFetchResult.currentHistoryToken` مُأرشف عبر
- *   NSKeyedArchiver) في [iosHistoryTokenBytes].
+ * - **iOS:** بايتات رمز سجل التغييرات (`CNFetchResult.currentHistoryToken` / `CNContactStore.currentHistoryToken`
+ *   — `NSData` بايتات نقية) في [iosHistoryTokenBytes].
  * - **Android:** خريطة نُسَخ السجلات الخام (`RawContacts._ID -> الإصدار والمفتاح`) في
  *   [androidRawContacts] كمدخل حصري لحساب الفروق بين الإصدارات.
  *
@@ -14,7 +14,7 @@ package app.sila.feature.contacts.domain
  * - خالٍ تماماً من أي أنواع منصات (`android.*` / `platform.*`) — BYTES/ فقط.
  * - [platformMarker] يميّز ملكية اللقطة: لقطة أُنتجت على منصة أخرى (مثلاً بعد إعادة
  *   استعادة بيانات بين المنصتين) تُعامل كلاقطة **غير صالحة** → إعادة مزامنة كاملة.
- * - قيم الفساد: رمس iOS فارغ/غير قابل لفك الأرشفة → إعادة مزامنة كاملة، لا حذف أبداً.
+ * - قيم الفساد: بايتات iOS فارغة → إعادة مزامنة كاملة → إعادة مزامنة كاملة، لا حذف أبداً.
  */
 class ContactsSnapshot(
     val platformMarker: String? = null,

@@ -84,6 +84,10 @@ kotlin {
 
             api(libs.koin.core)
         }
+        getByName("androidMain").dependencies {
+            // androidContext() في appDeclaration (SilaApplication) — Issue #22.
+            api(libs.koin.android)
+        }
         getByName("androidHostTest").dependencies {
             implementation(libs.androidx.sqlite.bundled.jvm)
             implementation(libs.konsist)

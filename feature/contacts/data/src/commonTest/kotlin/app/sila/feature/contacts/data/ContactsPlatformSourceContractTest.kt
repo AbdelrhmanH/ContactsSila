@@ -7,6 +7,7 @@ import app.sila.feature.contacts.domain.ContactsSnapshot
 import kotlinx.coroutines.Dispatchers.Unconfined
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

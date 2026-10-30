@@ -12,7 +12,7 @@ import app.sila.feature.contacts.domain.ContactsSnapshot
  * المنطق النقي لمصدر جهات الاتصال على iOS — خالٍ من أنواع `platform.*` ويُختبر على JVM
  * (المقاصفة/التجميع) وعلى محاكي iOS (تحويل `CNContact` الفعلي) — Issue #22.
  *
- * [IosContactsPlatformSource] يحوّل `CNContact`/أحداث `CNChangeHistoryFetchResponse`
+ * [IosContactsPlatformSource] يحوّل `CNContact`/أحداث `CNChangeHistoryFetchRequest`
  * إلى القيم النقية هنا حصراً، فيبقى التجميع قابلاً للاختبار دون طلب صلاحية.
  */
 

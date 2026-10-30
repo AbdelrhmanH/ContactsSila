@@ -1,0 +1,428 @@
+package app.sila.feature.contacts.data
+
+import app.sila.feature.contacts.domain.AndroidRawContactState
+import app.sila.feature.contacts.domain.ContactsSnapshot
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * اختبارات المنطق النقي لمصدر جهات الاتصال على Android — JVM خالص بلا Robolectric
+ * ولا أنواع `android.*` (Issue #22 · ADR-0010 §3).
+ */
+class AndroidContactsSourceLogicTest {
+
+    // ------------------------------------------------------------ diffRawContactVersions
+
+    @Test
+    fun `version bump of an existing raw contact is reported as a change`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-10", aggregateContactId = 100L)
+        )
+        val diff = diffRawContactVersions(
+            savedRawContacts = saved,
+            currentRows = listOf(
+                RawContactScanRow(rawContactId = "10", version = 5L, deleted = false, aggregateContactId = 100L)
+            )
+        )
+        assertEquals(listOf("10"), diff.changedRawContactIds)
+        assertTrue(diff.deletedSystemContactIds.isEmpty())
+        assertTrue(diff.deletedRawContactIds.isEmpty())
+    }
+
+    @Test
+    fun `unchanged versions produce no changes`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-10", aggregateContactId = 100L)
+        )
+        val diff = diffRawContactVersions(
+            savedRawContacts = saved,
+            currentRows = listOf(
+                RawContactScanRow(rawContactId = "10", version = 4L, deleted = false, aggregateContactId = 100L)
+            )
+        )
+        assertTrue(diff.changedRawContactIds.isEmpty())
+        assertTrue(diff.deletedSystemContactIds.isEmpty())
+    }
+
+    @Test
+    fun `new raw contact is reported as a change`() {
+        val diff = diffRawContactVersions(
+            savedRawContacts = emptyMap(),
+            currentRows = listOf(
+                RawContactScanRow(rawContactId = "20", version = 1L, deleted = false, aggregateContactId = 200L)
+            )
+        )
+        assertEquals(listOf("20"), diff.changedRawContactIds)
+    }
+
+    @Test
+    fun `row marked DELETED=1 resolves deletion through the saved lookup key`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-10", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 2L, lookupKey = "lookup-11", aggregateContactId = 101L)
+        )
+        val diff = diffRawContactVersions(
+            savedRawContacts = saved,
+            currentRows = listOf(
+                // 10 اختفى كلياً، 11 معلَّم DELETED=1.
+                RawContactScanRow(rawContactId = "11", version = 2L, deleted = true, aggregateContactId = 101L)
+            )
+        )
+        assertEquals(listOf("lookup-11", "lookup-10"), diff.deletedSystemContactIds)
+        assertEquals(setOf("11", "10"), diff.deletedRawContactIds.toSet())
+        // السجل المحذوف لا يُعد تغييراً.
+        assertTrue(diff.changedRawContactIds.isEmpty())
+    }
+
+    @Test
+    fun `deleted raw contact without a saved lookup key produces no system-contact deletion`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = null, aggregateContactId = 100L)
+        )
+        val diff = diffRawContactVersions(
+            savedRawContacts = saved,
+            currentRows = listOf(
+                RawContactScanRow(rawContactId = "10", version = 4L, deleted = true, aggregateContactId = 100L)
+            )
+        )
+        assertTrue(diff.deletedSystemContactIds.isEmpty())
+        assertEquals(listOf("10"), diff.deletedRawContactIds)
+    }
+
+    // ------------------------------------------------- resolveProviderDeletedContacts
+
+    @Test
+    fun `provider deletions resolve only through snapshot saved aggregate ids`() {
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-10", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 4L, lookupKey = "lookup-11", aggregateContactId = null),
+            "12" to AndroidRawContactState(version = 4L, lookupKey = "lookup-12", aggregateContactId = 102L)
+        )
+        val resolved = resolveProviderDeletedContacts(
+            deletedRecords = listOf(
+                DeletedAggregateContactRecord(aggregateContactId = 100L, deletedAtMillis = 1_000L),
+                DeletedAggregateContactRecord(aggregateContactId = 999L, deletedAtMillis = 2_000L)
+            ),
+            savedRawContacts = saved
+        )
+        // 100 حُذف فعلاً في اللقطة، و999 ليس له حالة محفوظة، و11 بلا aggregateContactId.
+        assertEquals(listOf("lookup-10"), resolved)
+    }
+
+    @Test
+    fun `provider deletions never invent deletions for unknown contacts`() {
+        val resolved = resolveProviderDeletedContacts(
+            deletedRecords = listOf(DeletedAggregateContactRecord(aggregateContactId = 42L)),
+            savedRawContacts = emptyMap()
+        )
+        assertTrue(resolved.isEmpty())
+    }
+
+    // ------------------------------------------------------- buildNextAndroidSnapshot
+
+    @Test
+    fun `unchanged raw contacts keep their previously saved lookup keys`() {
+        val previous = ContactsSnapshot(
+            platformMarker = ContactsSnapshot.PLATFORM_ANDROID,
+            androidRawContacts = mapOf(
+                "10" to AndroidRawContactState(version = 4L, lookupKey = "old-lookup-10", aggregateContactId = 100L)
+            )
+        )
+        val next = buildNextAndroidSnapshot(
+            currentRows = listOf(
+                RawContactScanRow(rawContactId = "10", version = 4L, deleted = false, aggregateContactId = 100L)
+            ),
+            resolvedLookupKeys = emptyMap(),
+            previousSnapshot = previous
+        )
+        assertEquals("old-lookup-10", next.androidRawContacts.getValue("10").lookupKey)
+        assertEquals(4L, next.androidRawContacts.getValue("10").version)
+        assertEquals(ContactsSnapshot.PLATFORM_ANDROID, next.platformMarker)
+        assertNull(next.iosHistoryTokenBytes)
+    }
+
+    @Test
+    fun `resolved lookup keys take precedence for changed raw contacts`() {
+        val previous = ContactsSnapshot(
+            platformMarker = ContactsSnapshot.PLATFORM_ANDROID,
+            androidRawContacts = mapOf(
+                "10" to AndroidRawContactState(version = 4L, lookupKey = "old-lookup-10", aggregateContactId = 100L)
+            )
+        )
+        val next = buildNextAndroidSnapshot(
+            currentRows = listOf(
+                RawContactScanRow(rawContactId = "10", version = 5L, deleted = false, aggregateContactId = 100L)
+            ),
+            resolvedLookupKeys = mapOf("10" to "new-lookup-10"),
+            previousSnapshot = previous
+        )
+        assertEquals("new-lookup-10", next.androidRawContacts.getValue("10").lookupKey)
+        assertEquals(5L, next.androidRawContacts.getValue("10").version)
+    }
+
+    @Test
+    fun `deleted rows and snapshot platform marker are handled`() {
+        val previousIos = ContactsSnapshot(platformMarker = ContactsSnapshot.PLATFORM_IOS)
+        val next = buildNextAndroidSnapshot(
+            currentRows = listOf(
+                RawContactScanRow(rawContactId = "10", version = 4L, deleted = false, aggregateContactId = 100L),
+                RawContactScanRow(rawContactId = "11", version = 6L, deleted = true, aggregateContactId = 101L)
+            ),
+            resolvedLookupKeys = emptyMap(),
+            previousSnapshot = previousIos
+        )
+        // الصفوف المحذوفة (DELETED=1) لا تدخل اللقطة، والعلامة تفرض ملكية Android.
+        assertEquals(setOf("10"), next.androidRawContacts.keys)
+        assertEquals(ContactsSnapshot.PLATFORM_ANDROID, next.platformMarker)
+    }
+
+    // ------------------------------------------------------------ mapAndroidContactRows
+
+    @Test
+    fun `contact row maps name parts phones emails organization websites and notes`() {
+        val rows = listOf(
+            AndroidContactRow(
+                aggregateContactId = 100L,
+                lookupKey = "lookup-100",
+                displayName = null,
+                photoUri = "content://photo",
+                isFavorite = false
+            )
+        )
+        val data = listOf(
+            androidNameRecord(
+                contactId = 100L,
+                data1 = "سارة أحمد",
+                data2 = "الأستاذة",
+                data3 = "سارة",
+                data4 = "الوسطى",
+                data5 = "أحمد",
+                data6 = "الشريفية",
+                data7 = "سارة الوسطى أحمد"
+            ),
+            androidPhoneRecord(
+                contactId = 100L,
+                data1 = "0777 123 456",
+                data2 = "2",
+                data3 = null,
+                data7 = "+964777123456"
+            ),
+            androidPhoneRecord(
+                contactId = 100L,
+                data1 = "0790 000 111",
+                data2 = "0",
+                data3 = "بيت العم",
+                data7 = null
+            ),
+            androidEmailRecord(contactId = 100L, data1 = "sara@example.com", data2 = "2", data3 = null),
+            androidEmailRecord(contactId = 100L, data1 = "sara.work@example.com", data2 = "4", data3 = null),
+            androidRecord(
+                contactId = 100L,
+                mimeType = AndroidDataMimeTypes.ORGANIZATION,
+                data1 = "شركة الأفق",
+                data3 = "مهندسة برمجيات",
+                data4 = "قسم المحمول"
+            ),
+            androidRecord(
+                contactId = 100L,
+                mimeType = AndroidDataMimeTypes.WEBSITE,
+                data1 = "https://sara.example.com"
+            ),
+            androidRecord(contactId = 100L, mimeType = AndroidDataMimeTypes.NOTE, data1 = "زميلة من العمل")
+        )
+
+        val contacts = mapAndroidContactRows(rows, data)
+        assertEquals(1, contacts.size)
+        val contact = contacts.single()
+
+        // الهوية من LOOKUP_KEY حصراً — لا تخزين لـ Contacts._ID.
+        assertEquals("lookup-100", contact.systemContactId)
+        assertEquals("lookup-100", contact.lookupKey)
+
+        assertEquals("سارة أحمد", contact.name.displayName)
+        assertEquals("الأستاذة", contact.name.prefix)
+        assertEquals("سارة", contact.name.firstName)
+        assertEquals("الوسطى", contact.name.middleName)
+        assertEquals("أحمد", contact.name.lastName)
+        assertEquals("الشريفية", contact.name.suffix)
+        assertEquals("سارة الوسطى أحمد", contact.name.phoneticName)
+
+        assertEquals(2, contact.phones.size)
+        val mobile = contact.phones.first { it.raw == "0777 123 456" }
+        assertEquals("+964777123456", mobile.e164)
+        assertEquals("MOBILE", mobile.type)
+        val custom = contact.phones.first { it.raw == "0790 000 111" }
+        // النوع 0 غير معروف → التسمية المخصصة، وبلا e164 → الخام البديل.
+        assertEquals("بيت العم", custom.type)
+        assertEquals("بيت العم", custom.label)
+        assertEquals("0790 000 111", custom.e164)
+
+        assertEquals(2, contact.emails.size)
+        assertEquals("WORK", contact.emails.first { it.address == "sara@example.com" }.type)
+        assertEquals("MOBILE", contact.emails.first { it.address == "sara.work@example.com" }.type)
+
+        assertNotNull(contact.organization)
+        assertEquals("شركة الأفق", contact.organization?.company)
+        assertEquals("مهندسة برمجيات", contact.organization?.jobTitles?.single())
+        assertEquals("قسم المحمول", contact.organization?.department)
+
+        assertEquals(listOf("https://sara.example.com"), contact.websites)
+        assertEquals("زميلة من العمل", contact.notes)
+    }
+
+    @Test
+    fun `row displays fall back to structured name DATA1 for the display name`() {
+        val contacts = mapAndroidContactRows(
+            contactRows = listOf(
+                AndroidContactRow(
+                    aggregateContactId = 100L,
+                    lookupKey = "lookup-100",
+                    displayName = null,
+                    photoUri = null,
+                    isFavorite = false
+                )
+            ),
+            dataRecords = listOf(androidNameRecord(contactId = 100L, data1 = "الاسم من Data"))
+        )
+        assertEquals("الاسم من Data", contacts.single().name.displayName)
+    }
+
+    @Test
+    fun `row without lookup key or any name is skipped`() {
+        val contacts = mapAndroidContactRows(
+            contactRows = listOf(
+                AndroidContactRow(
+                    aggregateContactId = 100L,
+                    lookupKey = null,
+                    displayName = "بلا مفتاح",
+                    photoUri = null,
+                    isFavorite = false
+                ),
+                AndroidContactRow(
+                    aggregateContactId = 101L,
+                    lookupKey = "lookup-101",
+                    displayName = null,
+                    photoUri = null,
+                    isFavorite = false
+                )
+            ),
+            dataRecords = emptyList()
+        )
+        // الأولى بلا LOOKUP_KEY، والثانية بلا أي اسم — كلتاهما لا تُنتج جهة.
+        assertTrue(contacts.isEmpty())
+    }
+
+    @Test
+    fun `data records of other contacts do not leak across`() {
+        val contacts = mapAndroidContactRows(
+            contactRows = listOf(
+                AndroidContactRow(
+                    aggregateContactId = 100L,
+                    lookupKey = "lookup-100",
+                    displayName = "أحمد",
+                    photoUri = null,
+                    isFavorite = false
+                )
+            ),
+            dataRecords = listOf(
+                androidPhoneRecord(contactId = 999L, data1 = "0500000000", data2 = "2", data3 = null, data7 = null)
+            )
+        )
+        val contact = contacts.single()
+        assertEquals("أحمد", contact.name.displayName)
+        assertTrue(contact.phones.isEmpty())
+        assertTrue(contact.emails.isEmpty())
+        assertNull(contact.organization)
+    }
+
+    // ------------------------------------------------------------ type mappers
+
+    @Test
+    fun `android phone type mapping covers known and unknown types`() {
+        assertEquals("HOME", mapAndroidPhoneType(1, null))
+        assertEquals("MOBILE", mapAndroidPhoneType(2, null))
+        assertEquals("WORK", mapAndroidPhoneType(3, null))
+        assertEquals("MAIN", mapAndroidPhoneType(12, null))
+        assertEquals("PAGER", mapAndroidPhoneType(6, null))
+        assertEquals("مخصص", mapAndroidPhoneType(0, "مخصص"))
+        assertEquals("OTHER", mapAndroidPhoneType(0, null))
+        assertEquals("OTHER", mapAndroidPhoneType(null, "  "))
+    }
+
+    @Test
+    fun `android email type mapping covers known and unknown types`() {
+        assertEquals("HOME", mapAndroidEmailType(1, null))
+        assertEquals("WORK", mapAndroidEmailType(2, null))
+        assertEquals("MOBILE", mapAndroidEmailType(4, null))
+        assertEquals("PERSONAL", mapAndroidEmailType(3, null))
+        assertEquals("مخصص", mapAndroidEmailType(3, "مخصص"))
+        assertEquals("PERSONAL", mapAndroidEmailType(null, null))
+    }
+
+    // ---------------------------------------------------------------- fixtures
+
+    private fun androidRecord(
+        contactId: Long,
+        mimeType: String,
+        data1: String? = null,
+        data2: String? = null,
+        data3: String? = null,
+        data4: String? = null,
+        data5: String? = null,
+        data6: String? = null,
+        data7: String? = null,
+    ): AndroidDataRecord = AndroidDataRecord(
+        aggregateContactId = contactId,
+        mimeType = mimeType,
+        values = mapOf(
+            AndroidContactsColumns.DATA1 to data1,
+            AndroidContactsColumns.DATA2 to data2,
+            AndroidContactsColumns.DATA3 to data3,
+            AndroidContactsColumns.DATA4 to data4,
+            AndroidContactsColumns.DATA5 to data5,
+            AndroidContactsColumns.DATA6 to data6,
+            AndroidContactsColumns.DATA7 to data7
+        )
+    )
+
+    private fun androidNameRecord(
+        contactId: Long,
+        data1: String? = null,
+        data2: String? = null,
+        data3: String? = null,
+        data4: String? = null,
+        data5: String? = null,
+        data6: String? = null,
+        data7: String? = null,
+    ): AndroidDataRecord = androidRecord(
+        contactId = contactId,
+        mimeType = AndroidDataMimeTypes.STRUCTURED_NAME,
+        data1 = data1, data2 = data2, data3 = data3, data4 = data4, data5 = data5, data6 = data6, data7 = data7
+    )
+
+    private fun androidPhoneRecord(
+        contactId: Long,
+        data1: String? = null,
+        data2: String? = null,
+        data3: String? = null,
+        data7: String? = null,
+    ): AndroidDataRecord = androidRecord(
+        contactId = contactId,
+        mimeType = AndroidDataMimeTypes.PHONE,
+        data1 = data1, data2 = data2, data3 = data3, data7 = data7
+    )
+
+    private fun androidEmailRecord(
+        contactId: Long,
+        data1: String? = null,
+        data2: String? = null,
+        data3: String? = null,
+    ): AndroidDataRecord = androidRecord(
+        contactId = contactId,
+        mimeType = AndroidDataMimeTypes.EMAIL,
+        data1 = data1, data2 = data2, data3 = data3
+    )
+}

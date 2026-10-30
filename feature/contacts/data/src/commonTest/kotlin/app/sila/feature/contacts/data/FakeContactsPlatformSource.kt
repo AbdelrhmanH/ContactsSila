@@ -1,7 +1,7 @@
 package app.sila.feature.contacts.data
 
 import app.sila.core.model.ContactName
-import app.sila.core.model.PlatformContact
+import app.sila.feature.contacts.domain.PlatformContact
 import app.sila.feature.contacts.domain.ContactsChangeSignal
 import app.sila.feature.contacts.domain.ContactsDelta
 import app.sila.feature.contacts.domain.ContactsPage

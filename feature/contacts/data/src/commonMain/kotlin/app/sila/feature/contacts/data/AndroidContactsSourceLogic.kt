@@ -6,6 +6,7 @@ import app.sila.core.model.Organization
 import app.sila.core.model.Phone
 import app.sila.feature.contacts.domain.AndroidRawContactState
 import app.sila.feature.contacts.domain.ContactsSnapshot
+import app.sila.feature.contacts.domain.PlatformContact
 
 /**
  * المنطق النقي لمصدر جهات الاتصال على Android — خالٍ تماماً من أنواع `android.*`
