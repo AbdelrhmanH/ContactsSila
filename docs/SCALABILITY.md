@@ -132,19 +132,23 @@ data class ServiceDto(
 
 ## 3. التوسع في المنصات (Platform Scalability)
 
-### 3.1 expect/actual — عقود واضحة
+### 3.1 حدود المنصات — واجهات لا `expect/actual`
+
+> المرجع: [ADR-0009](adr/0009-contacts-platform-boundary.md) — يستبدل المخطط التالي.
+
 ```kotlin
-// في shared/core/platform — لكل قدرة تعتمد على نظام التشغيل
-expect interface ContactsPlatformSource {
-    suspend fun readAll(): List<PlatformContact>
-    suspend fun observeChanges(): Flow<Unit>
-    suspend fun insert(contact: PlatformContact): String
-    suspend fun update(contact: PlatformContact)
-    suspend fun delete(ids: List<String>)
+// في :feature:contacts:domain — بلا أي أنواع منصة
+interface ContactsPlatformSource {
+    suspend fun readAll(): List<PlatformContact>              // الترقيم داخل التنفيذ
+    fun observeChanges(): Flow<ContactsChangeSignal>          // إشارة "قذرة" فقط
+    suspend fun readDelta(snapshot: SyncSnapshot): ContactsDelta
 }
+// في :feature:contacts:data — AndroidContactsPlatformSource / IosContactsPlatformSource، تربطها Koin
 ```
-- **إضافة منصة جديدة (Web/Desktop):** أضف `actual` فقط — لا تعديل على المنطق المشترك.
-- **Interfaces بدلاً من abstract classes** — لمرونة التنفيذ.
+- **إضافة منصة جديدة (Web/Desktop):** تنفيذ جديد للواجهة فقط — لا تعديل على المنطق المشترك.
+- **Interfaces بدلاً من abstract classes** — لمرونة التنفيذ والاستبدال في الاختبارات.
+- **`expect/actual` محصور في الغراء النظامي** (`ContentResolver` / `CNContactStore`) وليس في عقود المصادر.
+- كتابة دفتر الهاتف (إضافة/تعديل/حذف) بعقد منفصل `ContactsPlatformWriter` — لا تخلطها مع المزامنة.
 
 ### 3.2 Design System — مكوّنات مركزية
 ```text

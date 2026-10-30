@@ -156,6 +156,9 @@ flowchart TD
 - iOS: روابط مخصصة (`whatsapp://`, `tg://`) عبر `LSApplicationQueriesSchemes`.
 
 ### 5.3 سجل التفاعل (Recent History)
+> [!NOTE]
+> **حسب [ADR-0006](adr/0006-call-log-strategy.md) (مقبول — B+):** قراءة السجل الكامل غير متاحة في المرحلة 1 ولا تُطلب `READ_CALL_LOG`. المتاح: مكالمات صِلَة المسجلة تلقائياً + رصد خارجي حيث تسمح المنصة (`ROLE_CALL_SCREENING` الاختياري على Android، `CXCallObserver` على iOS) + تأكيد/تسجيل يدوي. البند التالي هو الهدف النهائي، لا المرحلة 1.
+
 - مكالمات صادرة/واردة/فائتة لهذا الرقم تحديداً مع المدة والتاريخ.
 - لجهات "أرحام": مؤشر الوتيرة ("الهدف: أسبوعياً — آخر اتصال قبل 9 أيام").
 - لجهات الخدمات: تقييمك السابق إن وجد.
@@ -376,14 +379,19 @@ $$
 - `0.7 ≤ Urgency < 1.0` ← 🟡 أصفر (قريباً)
 - `Urgency < 0.7` ← 🟢 أخضر (تم الوصال)
 
-### 10.3 التتبع الصامت (Zero-Friction Tracking)
-- مهمة يومية في الخلفية + عند فتح التطبيق: قراءة سجل المكالمات محلياً.
-- **شرط المكالمة الناجحة:** صادرة أو واردة، ومدتها > 0 ثانية (تم الرد).
-- عند تحقق الشرط لرقم من أرحام ← تحديث `lastContactedAt` في Room ← تتغير الحالة تلقائياً.
-- **بدون أي إنترنت** — هذا القسم لا يتصل بالسيرفر إطلاقاً.
+### 10.3 تتبع المكالمات (Multi-Source Tracking)
+> [!IMPORTANT]
+> **القرار:** [ADR-0006](adr/0006-call-log-strategy.md) **مقبول** (2026-10-30) — **B+: تتبع عملي متعدد المصادر مع تأكيد احتياطي**. المصادر: `IN_APP` · `ANDROID_CALL_SCREENING` · `ANDROID_TELEPHONY_OBSERVER` · `IOS_CALL_OBSERVER` · `MANUAL`. **لا تُقرأ `READ_CALL_LOG`**، ولا يُحوَّل صِلَة إلى معالج هاتف افتراضي (`ROLE_DIALER`) ولا يُطلب Apple Default Dialer entitlement.
+
+- **مكالمات صِلَة (`IN_APP`):** تُسجَّل تلقائياً بهوية القريب واتجاه المكالمة من سياق بدء الاتصال (وعند تسليمها للوحة الاتصال تُسجَّل محاولة فقط). البداية/النهاية/المدة تُسجَّل فقط عند توفر إشارات موثوقة؛ المحاولة وحدها لا تُعد محادثة مكتملة.
+- **Android خارجي:** `ROLE_CALL_SCREENING` دور **اختياري** بموافقة صريحة، منفصل عن معالج الهاتف الافتراضي. يعطي رقم/اتجاه المكالمة عند إنشائها فقط، بلا نهاية أو مدة، ولا يحجب/يرفض/يسكت/يعيد توجيه أي مكالمة ويستجيب خلال 5 ثوانٍ برد محايد. `TelephonyCallback` يرصد الحالة فقط (`RINGING/OFFHOOK/IDLE`) بلا هوية أو مدة.
+- **iOS خارجي:** `CXCallObserver` أثناء حياة التطبيق فقط: وجود مكالمة، الاتجاه، وحالة الاتصال/النهاية. لا رقم للطرف الآخر ولا سجل مكالمات ولا مدة مضمونة؛ لا يُشتق رقم من `CXCall.uuid`.
+- **التأكيد الاحتياطي:** أي حدث خارجي بلا هوية أو نتيجة مؤكدة يدخل بطاقة تأكيد معلّقة (اختيار القريب أو «غير متعلقة»، وتأكيد «تم التواصل / لم يرد»). المكالمات غير القابلة للرصد تُسجَّل يدوياً. تُمنع الأحداث المكررة عند دمج الرصد مع التأكيد.
+- **شرط تحديث أرحام:** يُحدَّث `lastContactedAt` فقط من حدث `COMPLETED` بدليل اتصال ونهاية ومدة > 0، أو من تفاعل `CONFIRMED` صراحةً. `ATTEMPTED`/`CONNECTED` بلا نهاية/`UNANSWERED`/`UNKNOWN`/`PENDING`/`REJECTED` لا تُحدّث الحالة.
+- **بدون أي إنترنت** — هذا القسم لا يتصل بالسيرفر إطلاقاً، وكل الأحداث تبقى في Room.
 
 > [!WARNING]
-> **iOS لا يسمح بقراءة سجل المكالمات.** البديل على iOS: (1) تسجيل المكالمات التي تبدأ من داخل التطبيق، (2) `CXCallObserver` أثناء عمل التطبيق، (3) سؤال خفيف عند العودة للتطبيق: "هل تحدثت مع عمك أحمد؟ ✔". وعلى أندرويد انظر تحذير سياسة Google Play في [القسم 18](#18-الصلاحيات-وقيود-الأنظمة).
+> **iOS لا يسمح بقراءة سجل المكالمات.** البديل المعتمد في B+: (1) تسجيل المكالمات التي تبدأ من داخل التطبيق، (2) `CXCallObserver` أثناء عمل التطبيق بلا هوية، (3) تأكيد عند العودة للتطبيق: «هل تحدثت مع عمك أحمد؟ ✔»، (4) تسجيل يدوي للمكالمات غير المرصودة. وعلى أندرويد انظر تحذير سياسة Google Play في [القسم 18](#18-الصلاحيات-وقيود-الأنظمة).
 
 ### 10.4 إعداد بطاقة القريب (Kinship Setup) — Bottom Sheet
 - **صلة القرابة:** أب، أم، جد، جدة، أخ، أخت، ابن، ابنة، زوج/زوجة، عم، عمة، خال، خالة، ابن/ابنة عم، ابن/ابنة خال، صديق مقرب، مخصص.
@@ -773,8 +781,24 @@ data class ArhamEntity(
     val createdAt: Long
 )
 
-@Entity(tableName = "call_events", indices = [Index("e164"), Index("timestamp")])
-data class CallEventEntity(@PrimaryKey val callLogId: String, val e164: String, val direction: String, val durationSec: Int, val timestamp: Long, val source: String /* call_log | in_app | observer | manual */)
+@Entity(tableName = "call_events", indices = [Index("remoteNumber"), Index("timestamp")])
+data class CallEventEntity(
+    @PrimaryKey val id: String,
+    val primarySource: CallEventSource,             // IN_APP | ANDROID_CALL_SCREENING | ANDROID_TELEPHONY_OBSERVER | IOS_CALL_OBSERVER | MANUAL
+    val evidenceSources: Set<CallEventSource>,      // domain Set؛ يُخزَّن JSON في Room (DATA_MODEL: evidenceSourcesJson)
+    val timestamp: Long,
+    val remoteNumber: String?,                      // null = المنصة لم تكشف الرقم
+    val contactId: Long?,
+    val direction: CallDirection?,
+    val startedAt: Long?, val connectedAt: Long?, val endedAt: Long?,
+    val durationSec: Int?,                          // null = مدة غير موثوقة
+    val outcome: CallOutcome,                       // ATTEMPTED | CONNECTED | COMPLETED | UNANSWERED | UNKNOWN
+    val association: CallAssociation,               // UNASSOCIATED | AUTO | MANUAL
+    val confirmation: CallConfirmation,             // NOT_REQUIRED | PENDING | CONFIRMED | REJECTED
+    val confidence: CallConfidence,
+    val dedupeKey: String?,
+    val simSlot: Int?
+)
 
 @Entity(tableName = "services")
 data class ServiceEntity(
@@ -907,8 +931,9 @@ service cloud.firestore {
 | الصلاحية | الغرض | متى تُطلب |
 |---|---|---|
 | `READ_CONTACTS` / `WRITE_CONTACTS` | قراءة وإدارة الأسماء، النغمات، البريد الصوتي، الدمج | Onboarding (أساسية) |
-| `READ_CALL_LOG` | التتبع الصامت لأرحام + سجل التفاعل + شرط التقييم | عند تفعيل أرحام (مع شرح) |
-| `READ_PHONE_STATE` | اكتشاف انتهاء المكالمة للتقييم + الشرائح | عند أول مكالمة خدمية / Onboarding |
+| `READ_CALL_LOG` | ~~التتبع الصامت لأرحام~~ **لا تُطلب** — [ADR-0006](adr/0006-call-log-strategy.md) مقبول (B+) ويعتمد على الرصد والتأكيد بدلاً من قراءة السجل | لا تُطلب |
+| دور فرز المكالمات (`ROLE_CALL_SCREENING`، Android 10+) | رصد رقم/اتجاه المكالمة الخارجية عند بدء المكالمة فقط (بلا نهاية/مدة)، **اختياري** ومنفصل عن معالج الهاتف الافتراضي | عند تفعيل رصد المكالمات الخارجية بعد شرح واضح؛ رفضه يُبقي `IN_APP` + المراقب + التسجيل اليدوي |
+| `READ_PHONE_STATE` | اكتشاف انتهاء المكالمة للتقييم + حالة المكالمة لأرحام + الشرائح | عند أول حاجة (تفعيل أرحام أو أول مكالمة خدمية) بعد شرح |
 | `CALL_PHONE` | الاتصال المباشر بنقرة | عند أول اتصال (أو استخدام `ACTION_DIAL` بدونها) |
 | `POST_NOTIFICATIONS` (13+) | إشعارات أرحام والتقييم | عند تفعيل أرحام |
 | `CAMERA` | مسح QR وصورة جهة الاتصال | عند الاستخدام |
@@ -918,13 +943,13 @@ service cloud.firestore {
 **مبدأ:** كل صلاحية تُطلب **في سياقها** مع شاشة شرح قبلها، والتطبيق يعمل بشكل منقوص ولكن سليم عند الرفض.
 
 > [!CAUTION]
-> **سياسة Google Play للصلاحيات الحساسة:** `READ_CALL_LOG` مقيّدة، ويُسمح بها غالباً فقط للتطبيق المعيَّن **كتطبيق الهاتف الافتراضي (Default Dialer)** أو لفئات استثناء محددة، ويتطلب نموذج إقرار (Permissions Declaration). هذا يؤثر مباشرة على التتبع الصامت لأرحام وشرط التقييم. **انظر القرار المفتوح رقم 1 في القسم 22.**
+> **سياسة Google Play للصلاحيات الحساسة:** `READ_CALL_LOG` مقيّدة، ويُسمح بها غالباً فقط للتطبيق المعيَّن **كتطبيق الهاتف الافتراضي (Default Dialer)** أو لفئات استثناء محددة، ويتطلب نموذج إقرار (Permissions Declaration). كما تمنع السياسة "Contact prioritization" و"SMS and contacts management" لغير المعالج الافتراضي أو معالج جهات الاتصال على مستوى النظام، وتمنع استنتاج سجل المكالمات بطرق بديلة. **قرار [ADR-0006](adr/0006-call-log-strategy.md) مقبول (B+): لا تُطلب `READ_CALL_LOG`، ولا `ROLE_DIALER`، ولا يُستنتج السجل من الإشعارات أو Accessibility أو APIs خاصة.** رصد المكالمات الخارجية يستخدم `ROLE_CALL_SCREENING` الاختياري على Android و`CXCallObserver` على iOS، مع تأكيد/تسجيل يدوي.
 
 ### ملخص فروقات المنصتين
 
 | الميزة | أندرويد | iOS |
 |---|---|---|
-| قراءة سجل المكالمات | ✅ (مع قيد Play) | ❌ — بدائل: مكالمات داخل التطبيق + CXCallObserver + تأكيد خفيف |
+| قراءة سجل المكالمات | ⚠️ مقيّدة بسياسة Play (تتطلب معالج هاتف افتراضي) — **لا تُطلب** في المرحلة 1 ([ADR-0006](adr/0006-call-log-strategy.md) مقبول: لا `READ_CALL_LOG`) | ❌ لا API عام (iOS 26: سجل خلوي فقط كـ default dialer) — داخلي + `CXCallObserver` + تأكيد/يدوي |
 | نغمة لكل جهة اتصال | ✅ | ❌ برمجياً |
 | تحويل للبريد الصوتي | ✅ | ❌ |
 | حظر الرقم | ✅ (إذا كان التطبيق Default Dialer أو عبر Intent للنظام) | ✅ Call Directory Extension |
@@ -1069,11 +1094,11 @@ flowchart LR
 
 ---
 
-## 22. قرارات مفتوحة ومخاطر
+## 22. قرارات محسومة ومخاطر مفتوحة
 
 | # | القرار / الخطر | الخيارات |
 |---|---|---|
-| **1** | **سياسة `READ_CALL_LOG` في Google Play** — جوهر التتبع الصامت والتقييم | (أ) جعل "صِلَة" **تطبيق هاتف افتراضي** (Dialer كامل + `InCallService`) — أقوى تجربة لكنه يوسّع النطاق كثيراً. (ب) الاعتماد على المكالمات التي تبدأ من داخل التطبيق + `READ_PHONE_STATE` + تأكيد خفيف. (ج) نسخة توزيع خارج Play بصلاحية كاملة. **يُنصح بـ (ب) في MVP مع التخطيط لـ (أ) لاحقاً.** |
+| **1** | **تتبع المكالمات من خارج صِلَة** — **محسوم: [ADR-0006](adr/0006-call-log-strategy.md) مقبول (B+) في 2026-10-30** | **المعتمد:** مكالمات صِلَة آلية + `ROLE_CALL_SCREENING` اختياري على Android + `CXCallObserver` على iOS + تأكيد احتياطي + تسجيل يدوي؛ لا `READ_CALL_LOG` ولا `ROLE_DIALER` ولا Apple Default Dialer. **المرفوض:** (أ) تحويل صِلَة إلى تطبيق هاتف افتراضي — نطاق ضخم ومسؤولية جودة مكالمات؛ (ج) توزيع خارج Play — مرفوض؛ (هـ) استنتاج السجل من الإشعارات/Accessibility/APIs خاصة — ممنوع. تبقى limitations: VoIP غير المدمج غير مرئي، وiOS بلا هوية طرف آخر. |
 | 2 | عتبة الانتقال لـ "مجتمعي" | 5 مستخدمين مختلفين مقترحاً — تُضبط عبر Remote Config |
 | 3 | مكتبة Firebase في KMP | GitLive SDK (أسرع) أم SDKs الأصلية خلف expect/actual (أكثر تحكماً) |
 | 4 | البحث الجغرافي/النصي في الدليل | Geohash في Firestore للبداية، ثم Algolia/Typesense عند النمو |

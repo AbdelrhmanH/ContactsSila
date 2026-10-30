@@ -7,6 +7,10 @@
 ### Fixed
 - أخطاء ترجمة Kotlin/Native في `:core:database` على iOS (`'clearAllTables' overrides nothing` و `'close' in 'RoomDatabase' is final`): إدخال جسر `RoomDatabaseLifecycleBridge` بنمط expect/actual (ADR-0008)، حذف `clearAllTables` الميت، واستبدال `close()` بـ `closeConnection()`.
 
+### Changed
+- **اعتماد قرار تتبع المكالمات ([ADR-0006](docs/adr/0006-call-log-strategy.md)):** اعتمد صاحب المنتج في 2026-10-30 الخيار **B+ — التتبع العملي متعدد المصادر مع تأكيد احتياطي**. المصادر: `IN_APP` · `ANDROID_CALL_SCREENING` · `ANDROID_TELEPHONY_OBSERVER` · `IOS_CALL_OBSERVER` · `MANUAL`. المكالمات من صِلَة آلية، والخارجية تُرصد حيث تسمح المنصة وتدخل التأكيد عند نقص الهوية/النتيجة، وغير المرصودة تُسجَّل يدوياً. لا `READ_CALL_LOG`، ولا `ROLE_DIALER`، ولا Apple Default Dialer entitlement، ولا رفع سحابي. حُدِّثت وثائق أرحام وPRD والصلاحيات والخصوصية ونموذج البيانات والمصطلحات.
+- **إعادة فتح قرار تتبع المكالمات ([ADR-0006](docs/adr/0006-call-log-strategy.md)):** سُحب قبول الخيار B (2026-10-29) لأنه ضيّق متطلب أرحام — المكالمات من أي مصدر — دون إثبات أن المنصات تفرض هذا التضييق. أُضيفت مصفوفة قدرات موثقة لكل أصل مكالمة على Android/iOS، وخيارات A/B/B+/C/D/E، وعقد `CallEventSource`. لا تغيير في الكود: `READ_CALL_LOG` لا تُطلب في المرحلة 1.
+
 ### Added
 - مستند متطلبات المنتج (PRD) ومواصفات الميزات والتوثيق الهندسي الكامل (34 ملفاً هندسياً يغطي كل جوانب النظام).
 - مراجع التصميم البصرية وقواعد الـ UI/UX وإمكانية الوصول (WCAG 2.1 AA).

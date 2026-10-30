@@ -194,14 +194,19 @@ sequenceDiagram
     DB-->>UI: Flow emits
 ```
 
-- الربط بين السجل المحلي وجهة الاتصال الأصلية: `systemContactId` + `lookupKey` (أندرويد) / `identifier` (iOS).
+> [!NOTE]
+> المخطط أعلاه يصف التصميم السابق. التسلسل المعتمد في المرحلة 1 هو [ADR-0010](adr/0010-incremental-contacts-sync.md):
+> Android = `ContentObserver` مجمّع (إشارة فقط) + فرق `RawContacts.VERSION` + مصالحة كاملة دورية؛ iOS = `CNChangeHistoryFetchRequest` + رمز محفوظ، وإعادة مزامنة كاملة عند فقدانه.
+> والحذف **ليس فورياً**: تعليم `systemDeletedAt` أولاً ثم تنظيف بعد 30 يوماً.
+
+- الربط بين السجل المحلي وجهة الاتصال الأصلية: `systemContactId` (أندرويد: `LOOKUP_KEY` · iOS: `identifier`) مع `lookupKey` كمرآة أندرويد — [ADR-0009](adr/0009-contacts-platform-boundary.md).
 - بيانات صِلَة (التصنيف، أرحام، الوسوم) تُحفظ في Room فقط، ولا تُكتب في دفتر الهاتف (باستثناء النغمة والبريد الصوتي والمفضلة والحقول القياسية).
 
 ## 7. المهام الخلفية
 
 | المهمة | أندرويد | iOS | التكرار |
 |---|---|---|---|
-| مزامنة سجل المكالمات لأرحام | `CallLogSyncWorker` | — (بدائل) | يومياً + عند فتح التطبيق |
+| مزامنة أحداث المكالمات لأرحام ([ADR-0006](adr/0006-call-log-strategy.md) مقبول — B+؛ لا سجل مكالمات ولا `READ_CALL_LOG`) | `CallEventSyncWorker`: `IN_APP` + `ANDROID_CALL_SCREENING` الاختياري + `ANDROID_TELEPHONY_OBSERVER` (حالة فقط، بلا رقم) | `IN_APP` + `IOS_CALL_OBSERVER` أثناء حياة التطبيق (بلا هوية) | عند المكالمة + تأكيد/تسجيل يدوي |
 | حساب تنبيهات أرحام | `ArhamReminderWorker` | `BGAppRefreshTask` + إشعارات مجدولة مسبقاً | يومياً في الوقت المفضل |
 | فحص المكررات | `DuplicateScanWorker` | `BGProcessingTask` | أسبوعياً |
 | الفلترة الذكية | `SmartCategorizeWorker` | `BGProcessingTask` | بعد Onboarding + عند إضافة دفعة أسماء |

@@ -32,8 +32,8 @@ erDiagram
 | العمود | النوع | ملاحظات |
 |---|---|---|
 | id | Long PK | |
-| systemContactId | String UNIQUE | ID دفتر الهاتف |
-| lookupKey | String? | أندرويد |
+| systemContactId | String UNIQUE | مفتاح المزامنة الدائم: Android `LOOKUP_KEY` / iOS `identifier` (ADR-0009) |
+| lookupKey | String? | أندرويد — مرآة `LOOKUP_KEY` لبناء `CONTENT_LOOKUP_URI` |
 | accountType / accountName | String? | phone / com.google / sim |
 | displayName, fileAs | String | |
 | prefix, firstName, middleName, lastName, suffix, nickname, phoneticName | String? | |
@@ -48,6 +48,7 @@ erDiagram
 | excludeFromSmartFilter | Boolean | |
 | normalizedName | String | للبحث والمكررات (تطبيع عربي) |
 | createdAt, updatedAt | Long | |
+| systemDeletedAt | Long? | **يُضاف في المرحلة 1** ([ADR-0010](adr/0010-incremental-contacts-sync.md)) — تعليم حذف ناعم يُخفى من القائمة ويُنظَّف بعد 30 يوماً |
 
 ### الجداول الفرعية (كلها `contactId` FK + CASCADE)
 | الجدول | الأعمدة |
@@ -77,8 +78,8 @@ erDiagram
 | createdAt | Long |
 
 ### call_events
-`callLogId PK, e164 (Index), direction (IN/OUT/MISSED), durationSec, timestamp (Index), source (CALL_LOG/IN_APP/OBSERVER/MANUAL), simSlot?`
-> يُحتفظ بـ 365 يوماً فقط ثم تُحذف تلقائياً.
+`id PK, primarySource (IN_APP/ANDROID_CALL_SCREENING/ANDROID_TELEPHONY_OBSERVER/IOS_CALL_OBSERVER/MANUAL), evidenceSourcesJson, timestamp (Index), remoteNumber? (Index), contactId? (FK), direction?, startedAt?, connectedAt?, endedAt?, durationSec?, outcome (ATTEMPTED/CONNECTED/COMPLETED/UNANSWERED/UNKNOWN), association, confirmation, confidence, dedupeKey?, simSlot?`
+> عقد الحدث ومصادره في [ADR-0006](adr/0006-call-log-strategy.md). `evidenceSourcesJson` هو التمثيل الفيزيائي لـ `Set<CallEventSource>` عبر TypeConverter؛ التمثيل المنطقي في الـ domain يبقى `Set`. الحقول الاختيارية تعني «المنصة لم تكشفها» ولا تُشتق أو تُخترع. يُحتفظ بالأحداث 365 يوماً ثم تُحذف تلقائياً. المخطط الحالي في المرحلة 0 (`callLogId`, `e164`, `source = CALL_LOG/IN_APP/OBSERVER/MANUAL`) مبدئي ويتطلب هجرة Room في المرحلة 1.
 
 ### services
 `cloudId PK, name, professionId, phoneE164 (Index), previousPhones, visibility, trustScore, uniqueCallers, retentionRate, ratingAvg, ratingCount, isHot, geohash (Index), lat, lng, city, workingHoursJson, ownerVerified, isSavedByUser, myRating, myCallCount, myLastCallAt, possiblyBroken, syncedAt`
