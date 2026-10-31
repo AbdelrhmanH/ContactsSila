@@ -56,4 +56,63 @@
     <!-- Permissions -->
     <string name="permission_contacts_title">Contacts Permission</string>
     <string name="permission_contacts_desc">Sila processes your contacts 100% locally on your device and never uploads your personal data to any server.</string>
+
+    <!-- Onboarding — Welcome (Issue #26 — T5) -->
+    <string name="onboarding_welcome_title_organize">Organize your contacts</string>
+    <string name="onboarding_welcome_body_organize">Smart categories for every contact — family, friends, and work — all on your device.</string>
+    <string name="onboarding_welcome_title_live">Live services</string>
+    <string name="onboarding_welcome_body_live">A trusted directory of nearby plumbers, pharmacies, and service providers — right when you need them.</string>
+    <string name="onboarding_welcome_title_arham">Arham</string>
+    <string name="onboarding_welcome_body_arham">Never lose touch: gentle reminders to reach out to the people who matter to you.</string>
+    <string name="onboarding_action_start">Start</string>
+    <string name="onboarding_action_continue">Next</string>
+
+    <!-- Onboarding — Contacts permission explainer (permission matrix — Issue #20) -->
+    <string name="onboarding_permission_title">Contacts permission</string>
+    <string name="onboarding_permission_body">Sila processes your contacts entirely on your device — names, numbers, and call history are never uploaded to any server. The permission is needed only for smart categorization and Arham.</string>
+    <string name="onboarding_permission_grant_button">Allow access</string>
+    <string name="onboarding_permission_skip_button">Not now</string>
+    <string name="onboarding_permission_denied_once_body">Access wasn\'t granted. You can try again, or continue now and finish later from Settings.</string>
+    <string name="onboarding_permission_denied_forever_body">The permission is permanently denied in your system. It can only be granted from app settings — we will never ask again.</string>
+    <string name="onboarding_permission_open_settings_button">Open app settings</string>
+    <string name="onboarding_permission_limited_body">You chose partial access, so only selected contacts appear. You can expand access anytime from the contacts screen.</string>
+
+    <!-- Onboarding — Guest step (Phase 1: no OTP) -->
+    <string name="onboarding_guest_title">You\'re ready</string>
+    <string name="onboarding_guest_body">You can use Sila as a guest right now — everything stays local on your device, and you can sign up whenever you like later.</string>
+    <string name="onboarding_guest_login_note">No account is needed at this step; sign-up becomes available in a later phase from Settings.</string>
+    <string name="onboarding_guest_skip_button">Continue as guest</string>
+
+    <!-- Onboarding — Top five people -->
+    <string name="onboarding_top_five_title">Your top 5 people</string>
+    <string name="onboarding_top_five_body">Pick people you never want to lose touch with. They\'ll be categorized as \'family\' with a default weekly reminder frequency — editable anytime.</string>
+    <string name="onboarding_top_five_search_hint">Search by name…</string>
+    <string name="onboarding_top_five_loading_label">Loading contacts…</string>
+    <string name="onboarding_top_five_empty_title">Your address book is empty</string>
+    <string name="onboarding_top_five_empty_body">No contacts are available to show right now. You can continue without picking anyone.</string>
+    <string name="onboarding_top_five_permission_missing_body">Contacts access isn\'t available, so \"Top 5 people\" can\'t run right now. You can skip it and continue.</string>
+    <string name="onboarding_top_five_limited_body">You chose limited access, so only selected contacts appear. Missing ones are outside the partial scope and are never treated as deleted.</string>
+    <string name="onboarding_top_five_no_results_label">No results for this name</string>
+    <string name="onboarding_top_five_error_body">We hit a problem loading your contacts. Please try again.</string>
+    <string name="onboarding_error_title">Something went wrong</string>
+    <string name="onboarding_action_try_again">Try again</string>
+    <string name="onboarding_top_five_save_button">Save &amp; continue</string>
+    <string name="onboarding_top_five_skip_button">Skip for now</string>
+    <string name="onboarding_top_five_counter_template">%1$d of 5 selected</string>
+
+    <!-- Quick kinship relations -->
+    <string name="relation_father">Father</string>
+    <string name="relation_mother">Mother</string>
+    <string name="relation_brother">Brother</string>
+    <string name="relation_sister">Sister</string>
+    <string name="relation_spouse">Spouse</string>
+    <string name="relation_son">Son</string>
+    <string name="relation_daughter">Daughter</string>
+    <string name="relation_in_law">In law</string>
+    <string name="relation_close_friend">Close friend</string>
+    <string name="relation_custom">Other</string>
+
+    <!-- Onboarding — Organizing -->
+    <string name="onboarding_organizing_title">Organizing…</string>
+    <string name="onboarding_organizing_body">We\'re arranging your contacts locally on your device — this takes only a few seconds.</string>
 </resources>

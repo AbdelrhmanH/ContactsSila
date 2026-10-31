@@ -3,6 +3,7 @@ package app.sila.di
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
+import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
 import kotlinx.cinterop.ExperimentalForeignApi
 import org.koin.core.Koin
@@ -103,4 +104,10 @@ object IosKoinBootstrap {
      * يسترجع [MainViewModel] المشترك بعد ضمان تهيئة Koin بمسار التخزين الدائم.
      */
     fun getMainViewModel(): MainViewModel = ensureStarted().get()
+
+    /**
+     * يسترجع [OnboardingViewModel] المشترك (Issue #26 — T5) بعد ضمان تهيئة Koin
+     * بمسار التخزين الدائم؛ تستعمله شاشات SwiftUI للتهيئة عبر نمط MainViewModelStore.
+     */
+    fun getOnboardingViewModel(): OnboardingViewModel = ensureStarted().get()
 }

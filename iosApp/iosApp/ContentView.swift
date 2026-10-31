@@ -26,6 +26,24 @@ struct ContentView: View {
     }
 
     var body: some View {
+        Group {
+            if !store.state.preferences.onboardingCompleted {
+                // بوابة التهيئة الأولى (Issue #26 — T5): حتى اكتمال onboardingCompleted
+                // من الحالة المشتركة لا تظهر التبويبات إطلاقاً، ولا تعود التهيئة بعدها.
+                OnboardingView()
+            } else {
+                tabsContent
+            }
+        }
+        .environment(\.layoutDirection, store.state.preferences.language.isRtl ? .rightToLeft : .leftToRight)
+        .environment(\.locale, Locale(identifier: store.state.preferences.language.code))
+        .preferredColorScheme(colorScheme)
+        .task {
+            await store.observeState()
+        }
+    }
+
+    private var tabsContent: some View {
         TabView(selection: activeTabBinding) {
             tabItemView(
                 title: localized("nav_contacts"),
@@ -57,12 +75,6 @@ struct ContentView: View {
             }
             .badge(store.state.overdueArhamCount > 0 ? Int(store.state.overdueArhamCount) : 0)
             .tag(DefaultTab.arham)
-        }
-        .environment(\.layoutDirection, store.state.preferences.language.isRtl ? .rightToLeft : .leftToRight)
-        .environment(\.locale, Locale(identifier: store.state.preferences.language.code))
-        .preferredColorScheme(colorScheme)
-        .task {
-            await store.observeState()
         }
     }
 

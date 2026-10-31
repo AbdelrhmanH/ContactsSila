@@ -21,3 +21,62 @@
 "arham_status_ok" = "Connected 🟢";
 "arham_status_soon" = "Due Soon 🟡";
 "arham_status_overdue" = "Needs Call 🔴";
+
+/* Onboarding — Welcome (Issue #26 — T5) */
+"onboarding_welcome_title_organize" = "Organize your contacts";
+"onboarding_welcome_body_organize" = "Smart categories for every contact — family, friends, and work — all on your device.";
+"onboarding_welcome_title_live" = "Live services";
+"onboarding_welcome_body_live" = "A trusted directory of nearby plumbers, pharmacies, and service providers — right when you need them.";
+"onboarding_welcome_title_arham" = "Arham";
+"onboarding_welcome_body_arham" = "Never lose touch: gentle reminders to reach out to the people who matter to you.";
+"onboarding_action_start" = "Start";
+"onboarding_action_continue" = "Next";
+
+/* Onboarding — Contacts permission explainer (permission matrix — Issue #20) */
+"onboarding_permission_title" = "Contacts permission";
+"onboarding_permission_body" = "Sila processes your contacts entirely on your device — names, numbers, and call history are never uploaded to any server. The permission is needed only for smart categorization and Arham.";
+"onboarding_permission_grant_button" = "Allow access";
+"onboarding_permission_skip_button" = "Not now";
+"onboarding_permission_denied_once_body" = "Access wasn't granted. You can try again, or continue now and finish later from Settings.";
+"onboarding_permission_denied_forever_body" = "The permission is permanently denied in your system. It can only be granted from app settings — we will never ask again.";
+"onboarding_permission_open_settings_button" = "Open app settings";
+"onboarding_permission_limited_body" = "You chose partial access, so only selected contacts appear. You can expand access anytime from the contacts screen.";
+
+/* Onboarding — Guest step (Phase 1: no OTP) */
+"onboarding_guest_title" = "You're ready";
+"onboarding_guest_body" = "You can use Sila as a guest right now — everything stays local on your device, and you can sign up whenever you like later.";
+"onboarding_guest_login_note" = "No account is needed at this step; sign-up becomes available in a later phase from Settings.";
+"onboarding_guest_skip_button" = "Continue as guest";
+
+/* Onboarding — Top five people */
+"onboarding_top_five_title" = "Your top 5 people";
+"onboarding_top_five_body" = "Pick people you never want to lose touch with. They'll be categorized as 'family' with a default weekly reminder frequency — editable anytime.";
+"onboarding_top_five_search_hint" = "Search by name…";
+"onboarding_top_five_loading_label" = "Loading contacts…";
+"onboarding_top_five_empty_title" = "Your address book is empty";
+"onboarding_top_five_empty_body" = "No contacts are available to show right now. You can continue without picking anyone.";
+"onboarding_top_five_permission_missing_body" = "Contacts access isn't available, so 'Top 5 people' can't run right now. You can skip it and continue.";
+"onboarding_top_five_limited_body" = "You chose limited access, so only selected contacts appear. Missing ones are outside the partial scope and are never treated as deleted.";
+"onboarding_top_five_no_results_label" = "No results for this name";
+"onboarding_top_five_error_body" = "We hit a problem loading your contacts. Please try again.";
+"onboarding_error_title" = "Something went wrong";
+"onboarding_action_try_again" = "Try again";
+"onboarding_top_five_save_button" = "Save & continue";
+"onboarding_top_five_skip_button" = "Skip for now";
+"onboarding_top_five_counter_template" = "%1$d of 5 selected";
+
+/* Quick kinship relations */
+"relation_father" = "Father";
+"relation_mother" = "Mother";
+"relation_brother" = "Brother";
+"relation_sister" = "Sister";
+"relation_spouse" = "Spouse";
+"relation_son" = "Son";
+"relation_daughter" = "Daughter";
+"relation_in_law" = "In law";
+"relation_close_friend" = "Close friend";
+"relation_custom" = "Other";
+
+/* Onboarding — Organizing */
+"onboarding_organizing_title" = "Organizing…";
+"onboarding_organizing_body" = "We're arranging your contacts locally on your device — this takes only a few seconds.";

@@ -10,12 +10,15 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.DefaultTab
+import app.sila.core.model.TopFiveSelection
 import app.sila.core.model.UserPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
 
 /**
@@ -35,6 +38,10 @@ interface UserPreferencesDataSource {
     suspend fun setAutoUpdatePhonebookServices(enabled: Boolean)
     suspend fun setSmartFilterEnabled(enabled: Boolean)
     suspend fun setOnboardingCompleted(completed: Boolean)
+    suspend fun setIsGuest(isGuest: Boolean)
+    suspend fun setOnboardingResumeStep(step: String?)
+    suspend fun setOnboardingContactsPermission(permission: String?)
+    suspend fun setOnboardingTopFiveSelections(selections: List<TopFiveSelection>)
 }
 
 class SilaPreferencesDataSource(
@@ -63,7 +70,17 @@ class SilaPreferencesDataSource(
             searchRadiusKm = prefs[KEY_SEARCH_RADIUS] ?: initialPreferences.searchRadiusKm,
             autoUpdatePhonebookServices = prefs[KEY_AUTO_UPDATE_SERVICES] ?: initialPreferences.autoUpdatePhonebookServices,
             smartFilterEnabled = prefs[KEY_SMART_FILTER] ?: initialPreferences.smartFilterEnabled,
-            onboardingCompleted = prefs[KEY_ONBOARDING_COMPLETED] ?: initialPreferences.onboardingCompleted
+            onboardingCompleted = prefs[KEY_ONBOARDING_COMPLETED] ?: initialPreferences.onboardingCompleted,
+            isGuest = prefs[KEY_IS_GUEST] ?: initialPreferences.isGuest,
+            onboardingResumeStep = prefs[KEY_ONBOARDING_RESUME_STEP] ?: initialPreferences.onboardingResumeStep,
+            onboardingContactsPermission =
+                prefs[KEY_ONBOARDING_CONTACTS_PERMISSION] ?: initialPreferences.onboardingContactsPermission,
+            onboardingTopFiveSelections =
+                prefs[KEY_ONBOARDING_TOP_FIVE]?.let { raw ->
+                    runCatching {
+                        json.decodeFromString(ListSerializer(TopFiveSelection.serializer()), raw)
+                    }.getOrNull()
+                } ?: initialPreferences.onboardingTopFiveSelections
         )
     } ?: _memoryState.asStateFlow()
 
@@ -128,6 +145,35 @@ class SilaPreferencesDataSource(
         _memoryState.update { it.copy(onboardingCompleted = completed) }
     }
 
+    override suspend fun setIsGuest(isGuest: Boolean) {
+        dataStore?.edit { it[KEY_IS_GUEST] = isGuest }
+        _memoryState.update { it.copy(isGuest = isGuest) }
+    }
+
+    override suspend fun setOnboardingResumeStep(step: String?) {
+        dataStore?.edit { prefs ->
+            step?.let { prefs[KEY_ONBOARDING_RESUME_STEP] = it } ?: prefs.remove(KEY_ONBOARDING_RESUME_STEP)
+        }
+        _memoryState.update { it.copy(onboardingResumeStep = step) }
+    }
+
+    override suspend fun setOnboardingContactsPermission(permission: String?) {
+        dataStore?.edit { prefs ->
+            permission?.let { prefs[KEY_ONBOARDING_CONTACTS_PERMISSION] = it }
+                ?: prefs.remove(KEY_ONBOARDING_CONTACTS_PERMISSION)
+        }
+        _memoryState.update { it.copy(onboardingContactsPermission = permission) }
+    }
+
+    override suspend fun setOnboardingTopFiveSelections(selections: List<TopFiveSelection>) {
+        val encoded = runCatching { json.encodeToString(ListSerializer(TopFiveSelection.serializer()), selections) }
+        dataStore?.edit { prefs ->
+            encoded.onSuccess { prefs[KEY_ONBOARDING_TOP_FIVE] = it }
+                .onFailure { prefs.remove(KEY_ONBOARDING_TOP_FIVE) }
+        }
+        _memoryState.update { it.copy(onboardingTopFiveSelections = selections) }
+    }
+
     companion object {
         const val DATASTORE_FILE_NAME = "sila_user_preferences.preferences_pb"
 
@@ -153,5 +199,11 @@ class SilaPreferencesDataSource(
         private val KEY_AUTO_UPDATE_SERVICES = booleanPreferencesKey("auto_update_phonebook_services")
         private val KEY_SMART_FILTER = booleanPreferencesKey("smart_filter_enabled")
         private val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        private val KEY_IS_GUEST = booleanPreferencesKey("is_guest")
+        private val KEY_ONBOARDING_RESUME_STEP = stringPreferencesKey("onboarding_resume_step")
+        private val KEY_ONBOARDING_CONTACTS_PERMISSION = stringPreferencesKey("onboarding_contacts_permission")
+        private val KEY_ONBOARDING_TOP_FIVE = stringPreferencesKey("onboarding_top_five_selections")
+
+        private val json = Json { ignoreUnknownKeys = true }
     }
 }
