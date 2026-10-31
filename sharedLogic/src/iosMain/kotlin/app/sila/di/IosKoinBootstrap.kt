@@ -3,9 +3,13 @@ package app.sila.di
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
+import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
 import org.koin.mp.KoinPlatformTools
@@ -24,6 +28,12 @@ import platform.Foundation.NSUserDomainMask
 object IosKoinBootstrap {
 
     private const val APP_SUPPORT_SUBDIRECTORY = "Sila"
+
+    /**
+     * نطاق كائن محفوظ لمهام محرك المزامنة طويلة العمر على Native — كائن `object`
+     * لا يُجمع مهما طال عمر المراقبة (إلا بتفكيك العملية نفسها).
+     */
+    private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
      * يحسم المسار المطلق لمجلد `Application Support/Sila` وينشئه على القرص إن لم يكن موجوداً.
@@ -81,6 +91,8 @@ object IosKoinBootstrap {
             val existingDb = existingKoin.get<LocalSilaDatabase>()
             val existingPrefs = existingKoin.get<UserPreferencesDataSource>() as? SilaPreferencesDataSource
             if (existingDb.dbFilePath == expectedDbPath && existingPrefs?.storageFilePath == expectedPrefsPath) {
+                // start() idempotent — إعادة التشغيل على حاوية قائمة لا تكرر المراقبة.
+                existingKoin.get<ContactsSyncEngine>().start(engineScope)
                 return existingKoin
             }
             stopKoin()
@@ -97,6 +109,7 @@ object IosKoinBootstrap {
             "IosKoinBootstrap persistence check failed: expected DataStore path '$expectedPrefsPath', but got '${prefs?.storageFilePath}'."
         }
 
+        koin.get<ContactsSyncEngine>().start(engineScope)
         return koin
     }
 

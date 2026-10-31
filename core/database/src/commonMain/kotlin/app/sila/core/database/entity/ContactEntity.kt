@@ -45,5 +45,14 @@ data class ContactEntity(
     val excludeFromSmartFilter: Boolean = false,
     val normalizedName: String,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    /**
+     * تعليم حذف ناعم (ADR-0010 §6 — أُضيف في هجرة المرحلة 1 إلى الإصدار 2):
+     * طابع زمني لحظة حذف جهة الاتصال من دفتر النظام؛ `null` = حيّة.
+     * الصفوف المعلَّمة تُخفى من القائمة وتبقى قابلة للاسترجاع 30 يوماً ثم يُحذفها
+     * `DataRetentionCleanupDao.cleanupExpiredData` حذفاً نهائياً.
+     * المزامنة وحدها من تكتبه (حذف مؤكد من المنصة/المصالحة الكاملة) — ولا يكتبه سحب الصلاحية
+     * ولا `.limited` (ADR-0010 §5) أبداً.
+     */
+    val systemDeletedAt: Long? = null
 )

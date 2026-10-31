@@ -7,6 +7,7 @@ import app.sila.core.common.SystemAppClock
 import app.sila.core.database.SilaRoomDatabase
 import app.sila.core.database.dao.ArhamDao
 import app.sila.core.database.dao.ContactDao
+import app.sila.core.database.dao.ContactsSyncDao
 import app.sila.core.database.dao.DataRetentionCleanupDao
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.dao.ServiceDao
@@ -19,6 +20,7 @@ import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
 import app.sila.feature.arham.domain.RecordArhamCallUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
+import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.feature.contacts.data.OnboardingRepositoryImpl
 import app.sila.feature.contacts.domain.ContactsRepository
 import app.sila.feature.contacts.domain.DeleteContactUseCase
@@ -82,6 +84,17 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single<ArhamDao> { get<SilaRoomDatabase>().arhamDao() }
     single<ServiceDao> { get<SilaRoomDatabase>().serviceDao() }
     single<DataRetentionCleanupDao> { get<SilaRoomDatabase>().dataRetentionCleanupDao() }
+    single<ContactsSyncDao> { get<SilaRoomDatabase>().contactsSyncDao() }
+
+    // محرك المزامنة التزايدية لجهات الاتصال (Issue #23 · ADR-0010) — يُشغَّل من مهيئات المنصات
+    // (SilaApplication / IosKoinBootstrap) عبر start(scope) بمعرّف idempotent.
+    single {
+        ContactsSyncEngine(
+            platformSource = get(),
+            syncDao = get(),
+            clock = get()
+        )
+    }
 
     // Core DataStore (Preferences Persistence Singleton)
     single<UserPreferencesDataSource> {
