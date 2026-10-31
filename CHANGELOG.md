@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Added
+- **عقد مصدر جهات الاتصال من المنصة (Issue #22 · ADR-0009/0010):** `ContactsPlatformSource` في `:feature:contacts:domain` مع نماذج نقية (`PlatformContact`, `ContactsPage`, `ContactsDelta`, `ContactsChangeSignal`, `ContactsPermissionState`, `ContactsSnapshot`) تقرأ دفعات كاملة (~500/دفعة) ودلتا وإشارات اتساخ وحالة الصلاحية (GRANTED/LIMITED/DENIED/PERMANENTLY_DENIED). تنفيذ Android (`ContactsContract`: هوية `LOOKUP_KEY`، مقاصفة إصدارات `RawContacts`، مجهود أفضل من `DeletedContacts`، مراقب بتجميع ≥5 ثوانٍ) وتنفيذ iOS (`CNContactStore`: هوية `identifier`، دلتا عبر `CNChangeHistoryFetchRequest`، `.limited` لا يُعامل رفضاً ولا حذفاً) — قراءة فقط، بلا شبكة. ربط Koin عبر expect/actual في `:sharedLogic` وإضافة `READ_CONTACTS` إلى `androidApp`.
+
 ### Fixed
 - أخطاء ترجمة Kotlin/Native في `:core:database` على iOS (`'clearAllTables' overrides nothing` و `'close' in 'RoomDatabase' is final`): إدخال جسر `RoomDatabaseLifecycleBridge` بنمط expect/actual (ADR-0008)، حذف `clearAllTables` الميت، واستبدال `close()` بـ `closeConnection()`.
 
