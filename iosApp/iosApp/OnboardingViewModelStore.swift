@@ -221,6 +221,7 @@ struct OnboardingLocalizedStrings {
     var guestTitle: String { string("onboarding_guest_title") }
     var guestBody: String { string("onboarding_guest_body") }
     var guestLoginNote: String { string("onboarding_guest_login_note") }
+    var guestSkipButton: String { string("onboarding_guest_skip_button") }
 
     // أهم 5 أشخاص
     var topFiveTitle: String { string("onboarding_top_five_title") }
@@ -229,6 +230,7 @@ struct OnboardingLocalizedStrings {
     var topFiveEmptyTitle: String { string("onboarding_top_five_empty_title") }
     var topFiveEmptyBody: String { string("onboarding_top_five_empty_body") }
     var topFivePermissionMissingBody: String { string("onboarding_top_five_permission_missing_body") }
+    var topFiveLimitedBody: String { string("onboarding_top_five_limited_body") }
     var topFiveNoResultsLabel: String { string("onboarding_top_five_no_results_label") }
     var topFiveErrorBody: String { string("onboarding_top_five_error_body") }
     var errorTitle: String { string("onboarding_error_title") }
