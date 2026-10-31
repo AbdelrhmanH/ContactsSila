@@ -2,6 +2,7 @@ package app.sila.core.database.dao
 
 import androidx.room.InvalidationTracker
 import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.SQLiteStatement
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import app.sila.core.common.AppDispatchers
@@ -13,6 +14,7 @@ import app.sila.core.database.entity.ArhamInboxEntity
 import app.sila.core.database.entity.CallEventEntity
 import app.sila.core.database.entity.ContactEntity
 import app.sila.core.database.entity.ContactPhoneEntity
+import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.database.entity.ServiceEntity
 import app.sila.core.database.entity.toContactEntity
@@ -50,12 +52,13 @@ class LocalSilaDatabase(
     val dbFilePath: String = ":memory:",
     private val dispatchers: AppDispatchers = DefaultAppDispatchers(),
     private val converters: SilaTypeConverters = SilaTypeConverters()
-) : SilaRoomDatabase(), ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao {
+) : SilaRoomDatabase(), ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao {
 
     override fun contactDao(): ContactDao = SqliteContactDao(this)
     override fun arhamDao(): ArhamDao = SqliteArhamDao(this)
     override fun serviceDao(): ServiceDao = SqliteServiceDao(this)
     override fun dataRetentionCleanupDao(): DataRetentionCleanupDao = SqliteDataRetentionCleanupDao(this)
+    override fun contactsSyncDao(): ContactsSyncDao = SqliteContactsSyncDao(this)
 
     override fun createInvalidationTracker(): InvalidationTracker = InvalidationTracker(
         this,
@@ -74,6 +77,13 @@ class LocalSilaDatabase(
 
     private val dbMutex = Mutex()
 
+    /**
+     * خطاف حقن فشل داخل معاملة [applySyncBatch] لاختبار التراجع الذرّي (نفس مبدئ
+     * `seedCallEventsForTest` — فجوة اختبار معلنة في `LocalSilaDatabase`).
+     * يُستدعى بعد كتابة الدفعة وقبل `COMMIT`؛ الاستثناء الرمي يُرجِع المعاملة كاملة.
+     */
+    internal var syncBatchFaultHook: (() -> Throwable)? = null
+
     private val sqliteConnection: SQLiteConnection = BundledSQLiteDriver().open(dbFilePath).also { conn ->
         initializeRelationalSchema(conn)
     }
@@ -87,23 +97,68 @@ class LocalSilaDatabase(
             CREATE TABLE IF NOT EXISTS contacts (
                 id INTEGER PRIMARY KEY NOT NULL,
                 systemContactId TEXT NOT NULL,
+                lookupKey TEXT,
+                accountType TEXT,
+                accountName TEXT,
                 displayName TEXT NOT NULL,
+                fileAs TEXT NOT NULL DEFAULT '',
+                prefix TEXT,
                 firstName TEXT,
+                middleName TEXT,
                 lastName TEXT,
+                suffix TEXT,
+                nickname TEXT,
+                phoneticName TEXT,
                 company TEXT,
+                department TEXT,
                 photoUri TEXT,
                 category TEXT NOT NULL,
                 isFavorite INTEGER NOT NULL DEFAULT 0,
+                customRingtoneUri TEXT,
+                sendToVoicemail INTEGER NOT NULL DEFAULT 0,
+                isBlocked INTEGER NOT NULL DEFAULT 0,
+                notes TEXT,
+                linkedServiceCloudId TEXT,
                 excludeFromSmartFilter INTEGER NOT NULL DEFAULT 0,
                 normalizedName TEXT NOT NULL,
                 createdAt INTEGER NOT NULL DEFAULT 0,
-                updatedAt INTEGER NOT NULL DEFAULT 0
+                updatedAt INTEGER NOT NULL DEFAULT 0,
+                systemDeletedAt INTEGER
             )
             """.trimIndent()
         )
+        // ترقية قواعد v1: إضافة أعمدة تكافؤ الكيان + tombstone (Issue #23 — مخطط المخطوطة الكامل في ContactEntity).
+        ensureContactParityColumns(conn)
         conn.execSQL("CREATE INDEX IF NOT EXISTS idx_contacts_category ON contacts(category)")
         conn.execSQL("CREATE INDEX IF NOT EXISTS idx_contacts_norm_name ON contacts(normalizedName)")
         conn.execSQL("CREATE INDEX IF NOT EXISTS idx_contacts_fav ON contacts(isFavorite)")
+        conn.execSQL("CREATE INDEX IF NOT EXISTS idx_contacts_system_id ON contacts(systemContactId)")
+
+        // فهرس بحث FTS4 المستقل (docid = contacts.id) — القرار المثبت بالاختبار: الوضع المستقل
+        // (وليس content=) يدعم حذف docid والمطابقة العربية معاً.
+        conn.execSQL(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS contacts_fts USING fts4(" +
+                "displayName, nickname, company, notes, normalizedName)"
+        )
+        // إعادة تعبئة idempotent لأي صفوف فاتت الفهرس (ترقية v1→v2 أو انقطاع سابق):
+        conn.execSQL(
+            """
+            INSERT INTO contacts_fts (docid, displayName, nickname, company, notes, normalizedName)
+            SELECT id, displayName, nickname, company, notes, normalizedName
+            FROM contacts
+            WHERE systemDeletedAt IS NULL AND id NOT IN (SELECT docid FROM contacts_fts)
+            """.trimIndent()
+        )
+
+        // جدول نقاط استئناف المزامنة (مفتاح/قيمة معتمة — ADR-0010 §4/§8).
+        conn.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS contacts_sync_checkpoints (
+                key TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
 
         conn.execSQL(
             """
@@ -205,6 +260,38 @@ class LocalSilaDatabase(
         )
     }
 
+    /**
+     * ترقية v1→v2: إضافة أعمدة تكافؤ الكيان + tombstone `systemDeletedAt` إلى جدول `contacts`
+     * الموجود (Issue #23 · ADR-0010 §6). القوائم النصية تقبل `null`، والمنطقية تُهيَّأ `0`
+     * و `fileAs` نصاً فارغاً (يُعوَّض بـ displayName عند القراءة) — لا فقدان بيانات ولا إعادة بناء جدول.
+     */
+    private fun ensureContactParityColumns(conn: SQLiteConnection) {
+        val existingColumns = mutableSetOf<String>()
+        conn.prepare("PRAGMA table_info(contacts)").use { stmt ->
+            while (stmt.step()) existingColumns += stmt.getText(1)
+        }
+        listOf(
+            "lookupKey" to "TEXT",
+            "accountType" to "TEXT",
+            "accountName" to "TEXT",
+            "fileAs" to "TEXT NOT NULL DEFAULT ''",
+            "prefix" to "TEXT",
+            "middleName" to "TEXT",
+            "suffix" to "TEXT",
+            "nickname" to "TEXT",
+            "phoneticName" to "TEXT",
+            "department" to "TEXT",
+            "notes" to "TEXT",
+            "customRingtoneUri" to "TEXT",
+            "sendToVoicemail" to "INTEGER NOT NULL DEFAULT 0",
+            "isBlocked" to "INTEGER NOT NULL DEFAULT 0",
+            "linkedServiceCloudId" to "TEXT",
+            "systemDeletedAt" to "INTEGER"
+        ).forEach { (name, ddl) ->
+            if (name !in existingColumns) conn.execSQL("ALTER TABLE contacts ADD COLUMN $name $ddl")
+        }
+    }
+
     private fun loadOrSeedContactsBlocking(): List<Contact> {
         val loaded = readAllContactsFromSqlite()
         if (loaded.isNotEmpty()) return loaded
@@ -241,27 +328,18 @@ class LocalSilaDatabase(
         val contactEntities = mutableListOf<ContactEntity>()
         sqliteConnection.prepare(
             """
-            SELECT id, systemContactId, displayName, firstName, lastName, company, photoUri,
-                   category, isFavorite, excludeFromSmartFilter, normalizedName, createdAt, updatedAt
-            FROM contacts ORDER BY id ASC
+            SELECT id, systemContactId, lookupKey, accountType, accountName, displayName, fileAs,
+                   prefix, firstName, middleName, lastName, suffix, nickname, phoneticName,
+                   company, department, photoUri, category, isFavorite, customRingtoneUri,
+                   sendToVoicemail, isBlocked, notes, linkedServiceCloudId, excludeFromSmartFilter,
+                   normalizedName, createdAt, updatedAt, systemDeletedAt
+            FROM contacts
+            WHERE systemDeletedAt IS NULL
+            ORDER BY id ASC
             """.trimIndent()
         ).use { stmt ->
             while (stmt.step()) {
-                contactEntities += ContactEntity(
-                    id = stmt.getLong(0),
-                    systemContactId = stmt.getText(1),
-                    displayName = stmt.getText(2),
-                    firstName = if (stmt.isNull(3)) null else stmt.getText(3),
-                    lastName = if (stmt.isNull(4)) null else stmt.getText(4),
-                    company = if (stmt.isNull(5)) null else stmt.getText(5),
-                    photoUri = if (stmt.isNull(6)) null else stmt.getText(6),
-                    category = Category.valueOf(stmt.getText(7)),
-                    isFavorite = stmt.getLong(8) != 0L,
-                    excludeFromSmartFilter = stmt.getLong(9) != 0L,
-                    normalizedName = stmt.getText(10),
-                    createdAt = stmt.getLong(11),
-                    updatedAt = stmt.getLong(12)
-                )
+                contactEntities += stmt.readContactEntityRow()
             }
         }
         if (contactEntities.isEmpty()) return emptyList()
@@ -313,38 +391,205 @@ class LocalSilaDatabase(
         }
     }
 
-    private fun writeContactToSqlite(contact: Contact) {
+    /** قراءة صف `contacts` كامل من الموضع الحالي للمؤشر (نفس ترتيب أعمدة SELECT جهات الاتصال). */
+    private fun SQLiteStatement.readContactEntityRow(): ContactEntity {
+        val displayName = getText(5)
+        val fileAs = if (isNull(6)) displayName else getText(6)
+        return ContactEntity(
+            id = getLong(0),
+            systemContactId = getText(1),
+            lookupKey = if (isNull(2)) null else getText(2),
+            accountType = if (isNull(3)) null else getText(3),
+            accountName = if (isNull(4)) null else getText(4),
+            displayName = displayName,
+            fileAs = fileAs.ifEmpty { displayName },
+            prefix = if (isNull(7)) null else getText(7),
+            firstName = if (isNull(8)) null else getText(8),
+            middleName = if (isNull(9)) null else getText(9),
+            lastName = if (isNull(10)) null else getText(10),
+            suffix = if (isNull(11)) null else getText(11),
+            nickname = if (isNull(12)) null else getText(12),
+            phoneticName = if (isNull(13)) null else getText(13),
+            company = if (isNull(14)) null else getText(14),
+            department = if (isNull(15)) null else getText(15),
+            photoUri = if (isNull(16)) null else getText(16),
+            category = Category.valueOf(getText(17)),
+            isFavorite = getLong(18) != 0L,
+            customRingtoneUri = if (isNull(19)) null else getText(19),
+            sendToVoicemail = getLong(20) != 0L,
+            isBlocked = getLong(21) != 0L,
+            notes = if (isNull(22)) null else getText(22),
+            linkedServiceCloudId = if (isNull(23)) null else getText(23),
+            excludeFromSmartFilter = getLong(24) != 0L,
+            normalizedName = getText(25),
+            createdAt = getLong(26),
+            updatedAt = getLong(27),
+            systemDeletedAt = if (isNull(28)) null else getLong(28)
+        )
+    }
+
+    private fun readPhonesForContact(contactId: Long): List<ContactPhoneEntity> {
+        val phones = mutableListOf<ContactPhoneEntity>()
+        sqliteConnection.prepare(
+            "SELECT id, contactId, raw, e164, type, isPrimary FROM contact_phones WHERE contactId = ? ORDER BY id ASC"
+        ).use { stmt ->
+            stmt.bindLong(1, contactId)
+            while (stmt.step()) {
+                phones += ContactPhoneEntity(
+                    id = stmt.getLong(0),
+                    contactId = stmt.getLong(1),
+                    raw = stmt.getText(2),
+                    e164 = stmt.getText(3),
+                    type = stmt.getText(4),
+                    isPrimary = stmt.getLong(5) != 0L
+                )
+            }
+        }
+        return phones
+    }
+
+    private fun readArhamForContact(contactId: Long): ArhamEntity? {
+        sqliteConnection.prepare(
+            """
+            SELECT contactId, relation, layer, parentContactId, frequency, lastContactedAt, pausedUntil, createdAt
+            FROM arham WHERE contactId = ?
+            """.trimIndent()
+        ).use { stmt ->
+            stmt.bindLong(1, contactId)
+            if (stmt.step()) {
+                return ArhamEntity(
+                    contactId = contactId,
+                    relation = Relation.valueOf(stmt.getText(1)),
+                    layer = KinshipLayer.valueOf(stmt.getText(2)),
+                    parentContactId = if (stmt.isNull(3)) null else stmt.getLong(3),
+                    frequency = ArhamFrequency.valueOf(stmt.getText(4)),
+                    lastContactedAt = if (stmt.isNull(5)) null else stmt.getLong(5),
+                    pausedUntil = if (stmt.isNull(6)) null else stmt.getLong(6),
+                    createdAt = stmt.getLong(7)
+                )
+            }
+        }
+        return null
+    }
+
+    /**
+     * قراءة جهة كاملة (صف + هواتف + أرحام) بمعرّف النظام — حتى المقبورة (للمزامنة).
+     * `systemDeletedAt` لا يوجد في نموذج النطاق فيُعاد ضمن حامل منفصل.
+     */
+    private fun readPersistedContactBySystemId(systemContactId: String): PersistedContact? {
+        var entity: ContactEntity? = null
+        sqliteConnection.prepare(
+            """
+            SELECT id, systemContactId, lookupKey, accountType, accountName, displayName, fileAs,
+                   prefix, firstName, middleName, lastName, suffix, nickname, phoneticName,
+                   company, department, photoUri, category, isFavorite, customRingtoneUri,
+                   sendToVoicemail, isBlocked, notes, linkedServiceCloudId, excludeFromSmartFilter,
+                   normalizedName, createdAt, updatedAt, systemDeletedAt
+            FROM contacts WHERE systemContactId = ?
+            """.trimIndent()
+        ).use { stmt ->
+            stmt.bindText(1, systemContactId)
+            if (stmt.step()) entity = stmt.readContactEntityRow()
+        }
+        val e = entity ?: return null
+        return PersistedContact(
+            contact = e.toDomain(readPhonesForContact(e.id), readArhamForContact(e.id)),
+            systemDeletedAt = e.systemDeletedAt
+        )
+    }
+
+    /** جهة مخزّنة مع حالة tombstone (خارج نموذج النطاق عمداً). */
+    private data class PersistedContact(val contact: Contact, val systemDeletedAt: Long?)
+
+    /**
+     * كتابة جهة اتصال كاملة (صف + هواتف + أرحام + FTS) وإرجاع المعرّف المحلول.
+     * `id = 0` يعني إدراجاً بمعرّف تلقائي (يُقرأ من `last_insert_rowid()`).
+     */
+    private fun writeContactToSqlite(contact: Contact): Long {
         val entity = contact.toContactEntity()
+        if (entity.id == 0L) {
+            sqliteConnection.prepare(
+                """
+                INSERT INTO contacts (
+                    id, systemContactId, lookupKey, accountType, accountName, displayName, fileAs,
+                    prefix, firstName, middleName, lastName, suffix, nickname, phoneticName,
+                    company, department, photoUri, category, isFavorite, customRingtoneUri,
+                    sendToVoicemail, isBlocked, notes, linkedServiceCloudId, excludeFromSmartFilter,
+                    normalizedName, createdAt, updatedAt, systemDeletedAt
+                ) VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """.trimIndent()
+            ).use { stmt ->
+                bindContactColumns(stmt, entity, startParam = 1)
+                stmt.step()
+            }
+            var resolvedId = 0L
+            sqliteConnection.prepare("SELECT last_insert_rowid()").use { stmt ->
+                stmt.step()
+                resolvedId = stmt.getLong(0)
+            }
+            writeContactRelationsToSqlite(resolvedId, contact)
+            return resolvedId
+        }
         sqliteConnection.prepare(
             """
             INSERT OR REPLACE INTO contacts (
-                id, systemContactId, displayName, firstName, lastName, company, photoUri,
-                category, isFavorite, excludeFromSmartFilter, normalizedName, createdAt, updatedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                id, systemContactId, lookupKey, accountType, accountName, displayName, fileAs,
+                prefix, firstName, middleName, lastName, suffix, nickname, phoneticName,
+                company, department, photoUri, category, isFavorite, customRingtoneUri,
+                sendToVoicemail, isBlocked, notes, linkedServiceCloudId, excludeFromSmartFilter,
+                normalizedName, createdAt, updatedAt, systemDeletedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { stmt ->
             stmt.bindLong(1, entity.id)
-            stmt.bindText(2, entity.systemContactId)
-            stmt.bindText(3, entity.displayName)
-            entity.firstName?.let { stmt.bindText(4, it) } ?: stmt.bindNull(4)
-            entity.lastName?.let { stmt.bindText(5, it) } ?: stmt.bindNull(5)
-            entity.company?.let { stmt.bindText(6, it) } ?: stmt.bindNull(6)
-            entity.photoUri?.let { stmt.bindText(7, it) } ?: stmt.bindNull(7)
-            stmt.bindText(8, entity.category.name)
-            stmt.bindLong(9, if (entity.isFavorite) 1L else 0L)
-            stmt.bindLong(10, if (entity.excludeFromSmartFilter) 1L else 0L)
-            stmt.bindText(11, entity.normalizedName)
-            stmt.bindLong(12, entity.createdAt)
-            stmt.bindLong(13, entity.updatedAt)
+            bindContactColumns(stmt, entity, startParam = 2)
             stmt.step()
         }
+        writeContactRelationsToSqlite(entity.id, contact)
+        return entity.id
+    }
 
+    /** ربط أعمدة جهة الاتصال بدءاً من [startParam] (بلا `id`). */
+    private fun bindContactColumns(stmt: SQLiteStatement, entity: ContactEntity, startParam: Int) {
+        var i = startParam
+        stmt.bindText(i++, entity.systemContactId)
+        entity.lookupKey?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.accountType?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.accountName?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        stmt.bindText(i++, entity.displayName)
+        stmt.bindText(i++, entity.fileAs)
+        entity.prefix?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.firstName?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.middleName?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.lastName?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.suffix?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.nickname?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.phoneticName?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.company?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.department?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.photoUri?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        stmt.bindText(i++, entity.category.name)
+        stmt.bindLong(i++, if (entity.isFavorite) 1L else 0L)
+        entity.customRingtoneUri?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        stmt.bindLong(i++, if (entity.sendToVoicemail) 1L else 0L)
+        stmt.bindLong(i++, if (entity.isBlocked) 1L else 0L)
+        entity.notes?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        entity.linkedServiceCloudId?.let { stmt.bindText(i++, it) } ?: stmt.bindNull(i++)
+        stmt.bindLong(i++, if (entity.excludeFromSmartFilter) 1L else 0L)
+        stmt.bindText(i++, entity.normalizedName)
+        stmt.bindLong(i++, entity.createdAt)
+        stmt.bindLong(i++, entity.updatedAt)
+        entity.systemDeletedAt?.let { stmt.bindLong(i++, it) } ?: stmt.bindNull(i++)
+    }
+
+    /** الهواتف + أرحام + FTS لجهة تمت كتابة صفها بمعرّف [contactId]. */
+    private fun writeContactRelationsToSqlite(contactId: Long, contact: Contact) {
         sqliteConnection.prepare("DELETE FROM contact_phones WHERE contactId = ?").use { stmt ->
-            stmt.bindLong(1, entity.id)
+            stmt.bindLong(1, contactId)
             stmt.step()
         }
         contact.phones.forEach { phone ->
-            val pe = phone.toEntity(entity.id)
+            val pe = phone.toEntity(contactId)
             sqliteConnection.prepare(
                 "INSERT INTO contact_phones (contactId, raw, e164, type, isPrimary) VALUES (?, ?, ?, ?, ?)"
             ).use { stmt ->
@@ -359,7 +604,7 @@ class LocalSilaDatabase(
 
         val arham = contact.arham
         if (arham != null) {
-            val ae = arham.toEntity(entity.id, entity.createdAt)
+            val ae = arham.toEntity(contactId, contact.createdAt)
             sqliteConnection.prepare(
                 """
                 INSERT OR REPLACE INTO arham (
@@ -379,9 +624,34 @@ class LocalSilaDatabase(
             }
         } else {
             sqliteConnection.prepare("DELETE FROM arham WHERE contactId = ?").use { stmt ->
-                stmt.bindLong(1, entity.id)
+                stmt.bindLong(1, contactId)
                 stmt.step()
             }
+        }
+
+        syncContactFts(contactId, contact)
+    }
+
+    /**
+     * صيانة فهرس FTS المستقل: حذف الصف القديم ثم إعادة الإدراج (docid = contacts.id).
+     * القبور لا تمر من هنا إطلاقاً — تُحذف من الفهرس مباشرة في مسار tombstone،
+     * والاسترجاع يعيد الإدراج عبر [writeContactToSqlite].
+     */
+    private fun syncContactFts(contactId: Long, contact: Contact) {
+        sqliteConnection.prepare("DELETE FROM contacts_fts WHERE docid = ?").use { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        sqliteConnection.prepare(
+            "INSERT INTO contacts_fts (docid, displayName, nickname, company, notes, normalizedName) VALUES (?, ?, ?, ?, ?, ?)"
+        ).use { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.bindText(2, contact.name.displayName)
+            contact.name.nickname?.let { stmt.bindText(3, it) } ?: stmt.bindNull(3)
+            contact.organization?.company?.let { stmt.bindText(4, it) } ?: stmt.bindNull(4)
+            contact.notes?.let { stmt.bindText(5, it) } ?: stmt.bindNull(5)
+            stmt.bindText(6, contact.normalizedName)
+            stmt.step()
         }
     }
 
@@ -394,8 +664,180 @@ class LocalSilaDatabase(
             stmt.bindLong(1, contactId)
             stmt.step()
         }
+        sqliteConnection.prepare("DELETE FROM contacts_fts WHERE docid = ?").use { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
         sqliteConnection.prepare("DELETE FROM contacts WHERE id = ?").use { stmt ->
             stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+    }
+
+    // ===== ContactsSyncDao (Issue #23 · ADR-0010 §4/§7/§8) =====
+
+    override suspend fun loadSyncSnapshotJson(): String? = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            readCheckpoint(ContactsSyncCheckpointEntity.KEY_SNAPSHOT)
+        }
+    }
+
+    override suspend fun loadLastReconcileAtMillis(): Long? = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            readCheckpoint(ContactsSyncCheckpointEntity.KEY_LAST_FULL_RECONCILE_AT)?.toLongOrNull()
+        }
+    }
+
+    override suspend fun getSyncIndexRows(): List<ContactSyncIndexRow> = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            val rows = mutableListOf<ContactSyncIndexRow>()
+            sqliteConnection.prepare(
+                "SELECT id, systemContactId, systemDeletedAt FROM contacts"
+            ).use { stmt ->
+                while (stmt.step()) {
+                    rows += ContactSyncIndexRow(
+                        id = stmt.getLong(0),
+                        systemContactId = stmt.getText(1),
+                        systemDeletedAt = if (stmt.isNull(2)) null else stmt.getLong(2)
+                    )
+                }
+            }
+            rows
+        }
+    }
+
+    override suspend fun applySyncBatch(
+        upserts: List<Contact>,
+        tombstones: List<String>,
+        snapshotJson: String?,
+        reconcileStampMillis: Long?,
+        nowMillis: Long
+    ): ContactsSyncBatchResult = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            var upserted = 0
+            var tombstoned = 0
+            var restored = 0
+            val cacheUpserts = mutableListOf<Contact>()
+            val removedCacheIds = mutableListOf<Long>()
+
+            sqliteConnection.execSQL("BEGIN TRANSACTION")
+            try {
+                // 1) الـ upserts — merge-read-write: أعمدة المنصة تُعكَس، وأعمدة صِلَة تُحفَظ حرفياً
+                //    (category, isFavorite, ringtone, voicemail, blocked, arham) — ADR-0010 §7.
+                upserts.forEach { incoming ->
+                    val normalizedIncoming = incoming.copy(
+                        normalizedName = incoming.normalizedName.ifEmpty {
+                            ArabicTextNormalizer.normalize(incoming.name.displayName)
+                        }
+                    )
+                    val persisted = readPersistedContactBySystemId(incoming.systemContactId)
+                    val merged: Contact
+                    if (persisted == null) {
+                        merged = normalizedIncoming.copy(updatedAt = nowMillis)
+                    } else {
+                        if (persisted.systemDeletedAt != null) restored++
+                        merged = persisted.contact.copy(
+                            // أعمدة المنصة المعكوسة:
+                            lookupKey = normalizedIncoming.lookupKey,
+                            name = normalizedIncoming.name,
+                            photoUri = normalizedIncoming.photoUri,
+                            phones = normalizedIncoming.phones,
+                            organization = normalizedIncoming.organization,
+                            notes = normalizedIncoming.notes,
+                            account = normalizedIncoming.account,
+                            normalizedName = normalizedIncoming.normalizedName,
+                            updatedAt = nowMillis
+                        )
+                    }
+                    val resolvedId = writeContactToSqlite(merged)
+                    cacheUpserts += merged.copy(id = resolvedId)
+                    upserted++
+                }
+
+                // 2) القبور — حذف ناعم بإثبات من المنصة حصراً، بلا أي حذف فعلي (ADR-0010 §3/§6).
+                tombstones.forEach { systemId ->
+                    val persisted = readPersistedContactBySystemId(systemId) ?: return@forEach
+                    if (persisted.systemDeletedAt != null) return@forEach // مقبورة سلفاً (idempotent)
+                    sqliteConnection.prepare(
+                        "UPDATE contacts SET systemDeletedAt = ?, updatedAt = ? WHERE id = ?"
+                    ).use { stmt ->
+                        stmt.bindLong(1, nowMillis)
+                        stmt.bindLong(2, nowMillis)
+                        stmt.bindLong(3, persisted.contact.id)
+                        stmt.step()
+                    }
+                    sqliteConnection.prepare("DELETE FROM contacts_fts WHERE docid = ?").use { stmt ->
+                        stmt.bindLong(1, persisted.contact.id)
+                        stmt.step()
+                    }
+                    removedCacheIds += persisted.contact.id
+                    tombstoned++
+                }
+
+                // 3) اللقطة/الأختام — داخل نفس المعاملة حصراً: لا تُقدَّم لقطة قبل تثبيت بياناتها.
+                snapshotJson?.let { json ->
+                    writeCheckpoint(ContactsSyncCheckpointEntity.KEY_SNAPSHOT, json)
+                }
+                reconcileStampMillis?.let { stamp ->
+                    writeCheckpoint(ContactsSyncCheckpointEntity.KEY_LAST_FULL_RECONCILE_AT, stamp.toString())
+                }
+
+                syncBatchFaultHook?.let { hook -> throw hook() }
+
+                sqliteConnection.execSQL("COMMIT")
+            } catch (t: Throwable) {
+                sqliteConnection.execSQL("ROLLBACK")
+                throw t
+            }
+
+            // تحديث كاش الذاكرة بعد نجاح COMMIT حصراً (SSOT — لا انحراف بين الكاش والقرص).
+            contactsState.update { current ->
+                val upsertIds = cacheUpserts.map { it.id }.toSet()
+                val remaining = current.filterNot { it.id in removedCacheIds || it.id in upsertIds }
+                if (cacheUpserts.isEmpty()) remaining else (remaining + cacheUpserts).sortedBy { it.id }
+            }
+            ContactsSyncBatchResult(upserted = upserted, tombstoned = tombstoned, restored = restored)
+        }
+    }
+
+    override suspend fun clearSyncSnapshot(): Unit = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            sqliteConnection.prepare(
+                "DELETE FROM contacts_sync_checkpoints WHERE key = ?"
+            ).use { stmt ->
+                stmt.bindText(1, ContactsSyncCheckpointEntity.KEY_SNAPSHOT)
+                stmt.step()
+            }
+        }
+    }
+
+    /**
+     * استعلام فهرس FTS بمعرّفات الجهات المطابقة (docid = contacts.id).
+     * فجوة اختبار معلنة للتحقق من كتابة الفهرس داخل معاملات المزامنة (Issue #23)،
+     * وسيمهّد مسار البحث في T3 — `internal` حتى يُبرز كواجهة بحث عامة.
+     */
+    internal fun queryFtsContactIds(matchQuery: String): List<Long> {
+        val ids = mutableListOf<Long>()
+        sqliteConnection.prepare("SELECT docid FROM contacts_fts WHERE contacts_fts MATCH ?").use { stmt ->
+            stmt.bindText(1, matchQuery)
+            while (stmt.step()) ids += stmt.getLong(0)
+        }
+        return ids
+    }
+
+    private fun readCheckpoint(key: String): String? {        sqliteConnection.prepare("SELECT value FROM contacts_sync_checkpoints WHERE key = ?").use { stmt ->
+            stmt.bindText(1, key)
+            if (stmt.step()) return stmt.getText(0)
+        }
+        return null
+    }
+
+    private fun writeCheckpoint(key: String, value: String) {
+        sqliteConnection.prepare(
+            "INSERT OR REPLACE INTO contacts_sync_checkpoints (key, value) VALUES (?, ?)"
+        ).use { stmt ->
+            stmt.bindText(1, key)
+            stmt.bindText(2, value)
             stmt.step()
         }
     }
@@ -500,13 +942,14 @@ class LocalSilaDatabase(
             normalizedName = ArabicTextNormalizer.normalize(contact.name.displayName)
         )
         dbMutex.withLock {
-            writeContactToSqlite(normalized)
+            val resolvedId = writeContactToSqlite(normalized)
+            val persisted = normalized.copy(id = resolvedId)
             contactsState.update { current ->
-                val existingIndex = current.indexOfFirst { it.id == normalized.id }
+                val existingIndex = current.indexOfFirst { it.id == persisted.id }
                 if (existingIndex >= 0) {
-                    current.toMutableList().apply { set(existingIndex, normalized) }
+                    current.toMutableList().apply { set(existingIndex, persisted) }
                 } else {
-                    current + normalized
+                    current + persisted
                 }
             }
         }
@@ -663,6 +1106,7 @@ class LocalSilaDatabase(
             val callCutoff = nowMillis - (365L * dayMillis)
             val inboxCutoff = nowMillis - (30L * dayMillis)
             val disputeCutoff = nowMillis - (90L * dayMillis)
+            val tombstoneCutoff = nowMillis - (30L * dayMillis)
 
             val deletedCalls = countRowsWhere("SELECT COUNT(*) FROM call_events WHERE timestamp < ?", callCutoff)
             sqliteConnection.prepare("DELETE FROM call_events WHERE timestamp < ?").use { stmt ->
@@ -690,10 +1134,26 @@ class LocalSilaDatabase(
                 stmt.step()
             }
 
+            // قبر أقدم من 30 يوماً ← حذف نهائي (صف + هواتف + أرحام + FTS) — ADR-0010 §6.
+            val expiredTombstoneIds = mutableListOf<Long>()
+            sqliteConnection.prepare(
+                "SELECT id FROM contacts WHERE systemDeletedAt IS NOT NULL AND systemDeletedAt < ?"
+            ).use { stmt ->
+                stmt.bindLong(1, tombstoneCutoff)
+                while (stmt.step()) expiredTombstoneIds += stmt.getLong(0)
+            }
+            expiredTombstoneIds.forEach { deleteContactFromSqlite(it) }
+            if (expiredTombstoneIds.isNotEmpty()) {
+                contactsState.update { current ->
+                    current.filterNot { it.id in expiredTombstoneIds }
+                }
+            }
+
             CleanupReport(
                 deletedCallEvents = deletedCalls,
                 deletedInboxMessages = deletedInbox,
-                archivedDisputes = archivedDisputes
+                archivedDisputes = archivedDisputes,
+                deletedTombstonedContacts = expiredTombstoneIds.size
             )
         }
     }

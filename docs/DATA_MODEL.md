@@ -48,7 +48,14 @@ erDiagram
 | excludeFromSmartFilter | Boolean | |
 | normalizedName | String | للبحث والمكررات (تطبيع عربي) |
 | createdAt, updatedAt | Long | |
-| systemDeletedAt | Long? | **يُضاف في المرحلة 1** ([ADR-0010](adr/0010-incremental-contacts-sync.md)) — تعليم حذف ناعم يُخفى من القائمة ويُنظَّف بعد 30 يوماً |
+| systemDeletedAt | Long? | **مُنفَّذ في المرحلة 1 (v2 — Issue #23)** ([ADR-0010](adr/0010-incremental-contacts-sync.md)) — تعليم حذف ناعم يُخفى من القائمة ويُنظَّف بعد 30 يوماً؛ تكتبه المزامنة حصراً (حذف مؤكد من المنصة/مصالحة كاملة) ولا تكتبه إبطال الصلاحية ولا `.limited` أبداً |
+
+> **حالة تنفيذ المخطط (v2):** أعمدة `contacts` أعلاه كلها مُنفَّذة في المخطط الفعلي،
+> مع ترقية v1→v2 عبر `ALTER TABLE ADD COLUMN` (بلا إعادة بناء ولا فقدان بيانات) وفهرس
+> بحث FTS مُعاد تعبئته idempotently للصفوف القديمة. جداول `contact_emails` /
+> `contact_addresses` / `contact_dates` / `contact_custom_fields` / `contact_websites` /
+> `contact_tags` **غير مخزّنة بعد** (قيد مخطط مخفَّض — القيم تُسقَط عند المزامنة وتُوثَّق
+> هنا عند إضافتها).
 
 ### الجداول الفرعية (كلها `contactId` FK + CASCADE)
 | الجدول | الأعمدة |
@@ -63,7 +70,23 @@ erDiagram
 | contact_tags | tag (Index) — وسوم مستخرجة/يدوية |
 
 ### contacts_fts (FTS4)
-`displayName, nickname, company, notes, normalizedName` — محتوى مرتبط بـ `contacts`.
+`displayName, nickname, company, notes, normalizedName` — **جدول FTS4 مستقل** بـ `docid = contacts.id`
+(القرار مثبَّت بالاختبار: الوضع المستقل يدعم الحذف بـ docid والمطابقة العربية معاً، بينما فشل
+وضع `content=` الخارجي في الحذف — انظر اختبارات `ContactsSyncDaoTest`). صيانته داخل نفس
+معاملة كتابة/قبور المزامنة حصراً: الإدراج/التحديث في `writeContactToSqlite`، والحذف عند
+القبر والحذف النهائي، وإعادة تعبئة idempotent عند الترقية للصفوف القديمة. تُخفى المقبورة
+من الفهرس. قراءته عبر `LocalSilaDatabase.queryFtsContactIds` (داخلية حتى يمهد T3 مسار البحث).
+
+### contacts_sync_checkpoints (Issue #23 · ADR-0010 §4/§8)
+جدول مفتاح/قيمة لتخزين نقاط استئناف المزامنة — القيم معتمة (String) وفكّها مسؤولية
+`:feature:contacts:data` عبر `ContactsSnapshotCodec`:
+| المفتاح | القيمة |
+|---|---|
+| `contacts_snapshot` | JSON مغلف v1: علامة المنصة + بايتات رمز iOS (Base64) + خريطة نُسَخ Android الخام |
+| `last_full_reconcile_at` | ختم آخر مصالحة كاملة ناجحة (مللي ثانية كنص) — بوابة المصالحة الأسبوعية |
+
+**قيد ذرّية صارم:** اللقطة/الختم تُكتبان داخل **نفس معاملة** كتابة دفعة الدلتا (أو الدفعة
+الأخيرة من الاستيراد الكامل) حصراً — فشل أي دفعة يُرجِع كل شيء ولا يُقدَّم رمز/لقطة أبداً.
 
 ### arham
 | العمود | النوع |
