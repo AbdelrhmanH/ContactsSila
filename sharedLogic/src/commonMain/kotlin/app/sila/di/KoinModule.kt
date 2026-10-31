@@ -69,6 +69,9 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single<AppClock> { SystemAppClock }
     single<AppDispatchers> { DefaultAppDispatchers() }
 
+    // مصدر جهات الاتصال من المنصة (Issue #22 · ADR-0009 §3) — actuals per-platform.
+    includes(platformContactsSourceModule)
+
     // Core Room KMP Database + Segregated DAOs (SRP & ISP)
     single {
         val dbPath = storageDirPath?.let { "$it/sila_local.db" } ?: ":memory:"
@@ -178,7 +181,7 @@ val silaSharedModule: Module = createSilaSharedModule(storageDirPath = null)
 
 fun initKoin(
     storageDirPath: String? = null,
-    appDeclaration: KoinAppDeclaration = {}
+    appDeclaration: KoinAppDeclaration = {},
 ): KoinApplication = startKoin {
     appDeclaration()
     modules(createSilaSharedModule(storageDirPath))
@@ -186,7 +189,10 @@ fun initKoin(
 
 /**
  * تضمن تشغيل Koin مرة واحدة فقط في دورة حياة التطبيق (Idempotent).
+ * [appDeclaration] يُمرَّر لـ [initKoin] (على Android يستخدمه SilaApplication لتزويد androidContext).
  */
-fun ensureKoinStarted(storageDirPath: String? = null): Koin =
-    KoinPlatformTools.defaultContext().getOrNull()
-        ?: initKoin(storageDirPath = storageDirPath).koin
+fun ensureKoinStarted(
+    storageDirPath: String? = null,
+    appDeclaration: KoinAppDeclaration = {},
+): Koin = KoinPlatformTools.defaultContext().getOrNull()
+    ?: initKoin(storageDirPath = storageDirPath, appDeclaration = appDeclaration).koin

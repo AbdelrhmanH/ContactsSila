@@ -50,7 +50,9 @@ class KonsistArchitectureTest {
             "app.sila.core.datastore",
             "app.sila.core.designsystem",
             "androidx.compose",
-            "androidx.room"
+            "androidx.room",
+            "android",
+            "platform"
         ) + FORBIDDEN_PRIVACY_PACKAGE_PREFIXES
 
         private val FORBIDDEN_PRESENTATION_IMPORT_PREFIXES = listOf(
@@ -247,7 +249,8 @@ class KonsistArchitectureTest {
     /**
      * Rule 4 — Complete Clean Architecture layer purity:
      * - طبقة `domain` لا تستورد `data` أو `presentation` أو `app.sila.core.database..` أو `app.sila.core.datastore..`
-     *   أو `app.sila.core.designsystem..` أو `androidx.compose..` أو `androidx.room..` أو حزم الشبكة/Firebase.
+     *   أو `app.sila.core.designsystem..` أو `androidx.compose..` أو `androidx.room..` أو `android..` (أنواع المنصة)
+     *   أو `platform..` (أنواع ObjC/Kotlin Native) أو حزم الشبكة/Firebase.
      * - طبقة `presentation` وموديول `sharedUI` لا يستوردان حزم `data` أو `app.sila.core.database..` أو `app.sila.core.datastore..`
      *   ولا يشيران إلى `*RepositoryImpl` أو `*Dao`.
      */
