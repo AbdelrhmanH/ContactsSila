@@ -1,4 +1,5 @@
 import SwiftUI
+import ContactsUI
 import SharedLogic
 
 /**
@@ -14,10 +15,11 @@ struct OnboardingView: View {
     var body: some View {
         OnboardingStepView(store: store)
             .environment(\.locale, Locale(identifier: store.state.language.code))
-            .task {
-                await store.observeState()
-                await store.observeEffects()
-            }
+            // مهمتان منفصلتان لا متتاليتان: observeState تنتظر تدفقاً لا نهائياً
+            // (StateFlow) — أي انتظار متتابع بعدها يبقى بلا أثر أبداً، فتضيع
+            // كل الـ Effects (طلب الصلاحية / فتح الإعدادات) على iOS.
+            .task { await store.observeState() }
+            .task { await store.observeEffects() }
     }
 }
 
@@ -232,6 +234,15 @@ private struct TopFiveView: View {
                     Text(strings.topFiveLimitedBody)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    // عنصر التوسيع النظامي (معيار القبول — Issue #26): يعرض جهاتٍ
+                    // لم يُمنح التطبيق الوصول إليها بعد وعلى الضغط يفتح مُنتقي
+                    // النظام لتوسيع الوصول (iOS 18+)؛ بعد أي إضافة تُعاد مزامنة
+                    // قائمة المرشحين (ADR-0010) عبر إعادة تحميل جهات الاتصال.
+                    if #available(iOS 18.0, *) {
+                        ContactAccessButton(queryString: localSearchQuery) { _ in
+                            store.retryContactsLoad()
+                        }
+                    }
                 }
                 if !store.state.selections.isEmpty {
                     selectedRows

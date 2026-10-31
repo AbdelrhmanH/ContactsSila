@@ -124,11 +124,15 @@ final class OnboardingViewModelStore {
      */
     private func requestContactsAccess() async {
         let status = CNContactStore.authorizationStatus(for: .contacts)
+        // .limited حصري لـ iOS 18+ (هدف النشر 17.0) — لا يصح ذكره في switch مباشرة
+        //، فيُعالَج قبلها بفحص توافر صريح.
+        if #available(iOS 18.0, *), status == .limited {
+            send(OnboardingIntentPermissionResult(state: OnboardingPermissionState.limited))
+            return
+        }
         switch status {
         case .authorized:
             send(OnboardingIntentPermissionResult(state: OnboardingPermissionState.granted))
-        case .limited:
-            send(OnboardingIntentPermissionResult(state: OnboardingPermissionState.limited))
         case .notDetermined:
             let store = CNContactStore()
             let granted = await withCheckedContinuation { continuation in
@@ -136,9 +140,26 @@ final class OnboardingViewModelStore {
                     continuation.resume(returning: granted)
                 }
             }
+            // إعادة فحص حالة النظام بعد انتهاء الطلب: على iOS 18+ يؤكد المستخدم
+            // «اختيار جهات الاتصال…» فيعود granted=true مع حالة .limited —
+            // لا يُصنَّف منحاً كاملاً أبداً (مصفوفة الأذونات — Issue #20).
+            if #available(iOS 18.0, *) {
+                switch CNContactStore.authorizationStatus(for: .contacts) {
+                case .limited:
+                    send(OnboardingIntentPermissionResult(state: OnboardingPermissionState.limited))
+                    return
+                case .authorized:
+                    send(OnboardingIntentPermissionResult(state: OnboardingPermissionState.granted))
+                    return
+                default:
+                    break
+                }
+            }
             send(
                 OnboardingIntentPermissionResult(
-                    state: granted ? OnboardingPermissionState.granted : OnboardingPermissionState.deniedForever
+                    state: granted
+                        ? OnboardingPermissionState.granted
+                        : OnboardingPermissionState.deniedForever
                 )
             )
         case .denied, .restricted:
