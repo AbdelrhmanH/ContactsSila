@@ -190,9 +190,15 @@ class AndroidContactsPlatformSource(
             currentRows = currentRows
         )
         // أفضل جهد: سجل حذف من DeletedContacts يُربط بقيم اللقطة (بلا تكرار).
+        // F4 (جولة 4): قراءة `DeletedContacts` أفضل جهد (ADR-0010 §3 — يُحفظ ~30 يوماً):
+        // فشلها (مزود غير متاح/مؤشر null) لا يُبطل الدلتا كلها — كان يرمي فيُمسك بـ
+        // runCatching الخارجي فتُلغى الدلتا وتُفقد upserts جاهزة أيضاً. الفقد الآن بلاغات
+        // حذف هذه الدورة فقط، والحذف الأساسي يبقى عبر diff (DELETED=1/اختفاء السجل).
+        val providerDeletedRecords = runCatching { queryRecentDeletedAggregateContacts() }
+            .getOrElse { emptyList() }
         val deletedSystemContactIds = (
             diff.deletedSystemContactIds +
-                resolveProviderDeletedContacts(queryRecentDeletedAggregateContacts(), previousSnapshot.androidRawContacts)
+                resolveProviderDeletedContacts(providerDeletedRecords, previousSnapshot.androidRawContacts)
             ).distinct()
 
         val changedRawIds = diff.changedRawContactIds
@@ -226,11 +232,17 @@ class AndroidContactsPlatformSource(
 
         return ContactsDelta(
             upserted = mapAndroidContactRows(contactRows, dataRecords),
-            // + المفاتيح الملغاة: سجل خام متغير حُدّث مفتاحه (إعادة تجميع/مزامن) —
-            // القديم هوية ماتت تُحذف من Room مع upsert الجديد، وإلا تكرار (D1 جولة 3).
+            // + المفاتيح الملغاة: سجل خام متغير حُدّث مفتاحه داخل تجمّعته (إعادة توليد
+            // مفتاح/مزامن) — القديم هوية ماتت تُحذف من Room مع upsert الجديد وإلا تكرار
+            // (D1 جولة 3). بدلالة التجمّعة (F1 جولة 4): إعادة ربط سجل بتجمّعة أخرى لا
+            // تُبطل مفتاح القديمة — الشقيقات غير المتغيرة تحمله حية فلا يُبلَغ عنه.
             deletedSystemContactIds = (
                 deletedSystemContactIds +
-                    supersededLookupKeys(resolvedLookupKeys, previousSnapshot.androidRawContacts)
+                    supersededLookupKeys(
+                        resolvedLookupKeys = resolvedLookupKeys,
+                        changedAggregatesById = changedAggregatesById,
+                        savedRawContacts = previousSnapshot.androidRawContacts
+                    )
                 ).distinct(),
             newSnapshot = buildNextAndroidSnapshot(currentRows, resolvedLookupKeys, previousSnapshot),
             isFullResync = false

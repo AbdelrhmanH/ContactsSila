@@ -201,7 +201,7 @@ class IosContactsPlatformSourceMappingTest {
     }
 
     @Test
-    fun assembleIosDelta_suppressesAllDeletesOnDropEverythingAndForcesFullResync() {
+    fun assembleIosDelta_suppressesDeletesOnDropEverythingAndLeavesFullResyncToSource() {
         val snapshot = ContactsSnapshot(platformMarker = ContactsSnapshot.PLATFORM_IOS)
         val delta = assembleIosDelta(
             events = listOf(
@@ -212,8 +212,10 @@ class IosContactsPlatformSourceMappingTest {
             ),
             newSnapshot = snapshot
         )
-        // `.dropEverything` يُلغي الحذف نهائياً ويفرض إعادة مزامنة كاملة (ADR-0010 §4).
-        assertTrue(delta.isFullResync)
+        // `.dropEverything` يُبطل أحداث الحذف في الدفعة دفاعياً فقط — الدالة النقية لا
+        // تُصدر `isFullResync` أبداً: المنصة لا تُعيد جهات القائمة بعد الإسقاط (TN3149)،
+        // فالتحويل إلى إعادة مزامنة كاملة حقيقية مسؤولية المصدر (F2 في مراجعة PR #32).
+        assertFalse(delta.isFullResync)
         assertTrue(delta.deletedSystemContactIds.isEmpty())
         assertEquals(setOf("fresh-1", "fresh-2"), delta.upserted.map { it.systemContactId }.toSet())
         assertSame(snapshot, delta.newSnapshot)
@@ -257,8 +259,9 @@ class IosContactsPlatformSourceMappingTest {
         val decoded = source.decodeIosHistoryToken(garbage)
         assertNotNull(decoded)
         assertEquals(garbage.size, decoded.length.toInt())
-        // البايتات التالفة تُمرَّر كما هي؛ المخزن يردّها بـ `.dropEverything` + إضافات
-        // كاملة (TN3149) فتتحقق دلالات "رمز غير صالح → إعادة مزامنة كاملة بلا حذف".
+        // البايتات التالفة تُمرَّر كما هي؛ المخزن يردّ عليها بـ `.dropEverything` (TN3149):
+        // إعادة ضبط السجل لا تُعيد جهات المزود بعدها — والمصدر يحوّل الحدث إلى إعادة
+        // مزامنة كاملة حقيقية تجلب كل الجهات (F2 في مراجعة PR #32).
         assertTrue(garbage.contentEquals(source.encodeIosHistoryToken(decoded)))
     }
 }

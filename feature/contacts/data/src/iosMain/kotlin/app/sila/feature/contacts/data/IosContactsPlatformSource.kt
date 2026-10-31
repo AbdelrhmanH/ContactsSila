@@ -245,38 +245,57 @@ class IosContactsPlatformSource(
         )
     }
 
-    private fun incrementalDelta(previousSnapshot: ContactsSnapshot, token: NSData): ContactsDelta =
-        memScoped {
-            val request = CNChangeHistoryFetchRequest()
-            request.startingToken = token
-            // TN3149: دون هذه الإعدادات تردّ أحداث السجل بجهات غير موحّدة وبأحقاص بلا مفاتيح،
-            // فيُلقى CNPropertyNotFetchedException عند قراءة خصائص حدث contact وتفشل كل دلتا
-            // (تبقى بلا تقدم أبداً). shouldUnifyResults يوحّد الجهات، وadditionalContactKeyDescriptors
-            // يجلب حقول [FULL_CONTACT_KEYS] كاملة لأحداث إضافة/تحديث.
-            request.shouldUnifyResults = true
-            request.additionalContactKeyDescriptors = FULL_CONTACT_KEYS
-            val error = alloc<ObjCObjectVar<NSError?>>()
-            val result = store.enumeratorForChangeHistoryFetchRequest(request, error.ptr)
-            throwIfError(error.value, context = "enumeratorForChangeHistoryFetchRequest")
-            val enumerator = result?.value as? NSEnumerator
-                ?: error("CNFetchResult.value did not expose an events NSEnumerator.")
-
-            val events = buildList {
-                while (true) {
-                    val next = enumerator.nextObject() ?: break
-                    val event = toIosHistoryEvent(next)
-                    if (event is IosHistoryEvent.Ignored) continue
-                    add(event)
-                }
-            }
-
-            // رمز الاستئناف الجديد من نتيجة جلب السجل نفسها.
-            val newSnapshot = ContactsSnapshot(
-                platformMarker = ContactsSnapshot.PLATFORM_IOS,
-                iosHistoryTokenBytes = encodeIosHistoryToken(result?.currentHistoryToken)
-            )
-            assembleIosDelta(events, newSnapshot)
+    private fun incrementalDelta(previousSnapshot: ContactsSnapshot, token: NSData): ContactsDelta {
+        // F3 (جولة 4): جلب السجل قد يفشل — أبرزه رمز ميت/منتهٍ بعد إعادة ضبط المخزن (لا
+        // يعيده صالحاً أبداً)؛ كان الفشل يُمسك خارجياً فتُعاد المحاولة على الرمز نفسه بلا
+        // تقدم إلى ما لا نهاية. الهبوط إلى إعادة مزامنة كاملة حقيقية يكسر الحلقة؛ وفشلُها
+        // يُمسك خارجياً بلقطة null (لا تطبيق جزئي — ADR-0010 §8).
+        val batch = runCatching { fetchHistoryBatch(token) }.getOrNull()
+            ?: return fullResyncDelta(previousSnapshot)
+        if (batch.events.any { it is IosHistoryEvent.DropEverything }) {
+            // F2 (جولة 4): `.dropEverything` = إعادة ضبط سجل التغييرات؛ المنصة لا تُعيد
+            // بعده جهات القائمة (TN3149 — لا "إضافات كاملة" تُشغَّل)، فالتعامل مع الدفعة
+            // نفسها بوصفها "إعادة مزامنة" كان ينتج دلتا فارغة بترقية لقطة (لا استيراد
+            // أبداً). التحويل هنا إلى إعادة مزامنة كاملة حقيقية تجلب كل الجهات.
+            return fullResyncDelta(previousSnapshot)
         }
+        return assembleIosDelta(
+            events = batch.events,
+            // رمز الاستئناف الجديد من نتيجة جلب السجل نفسها.
+            newSnapshot = ContactsSnapshot(
+                platformMarker = ContactsSnapshot.PLATFORM_IOS,
+                iosHistoryTokenBytes = encodeIosHistoryToken(batch.nextToken)
+            )
+        )
+    }
+
+    /** دفعة سجل تغييرات واحدة: الأحداث النقية + رمز الاستئناف التالي. */
+    private class IosHistoryBatch(val events: List<IosHistoryEvent>, val nextToken: NSData?)
+
+    private fun fetchHistoryBatch(token: NSData): IosHistoryBatch = memScoped {
+        val request = CNChangeHistoryFetchRequest()
+        request.startingToken = token
+        // TN3149: دون هذه الإعدادات تردّ أحداث السجل بجهات غير موحّدة وبأحقاص بلا مفاتيح،
+        // فيُلقى CNPropertyNotFetchedException عند قراءة خصائص حدث contact وتفشل كل دلتا
+        // (تبقى بلا تقدم أبداً). shouldUnifyResults يوحّد الجهات، وadditionalContactKeyDescriptors
+        // يجلب حقول [FULL_CONTACT_KEYS] كاملة لأحداث إضافة/تحديث.
+        request.shouldUnifyResults = true
+        request.additionalContactKeyDescriptors = FULL_CONTACT_KEYS
+        val error = alloc<ObjCObjectVar<NSError?>>()
+        val result = store.enumeratorForChangeHistoryFetchRequest(request, error.ptr)
+        throwIfError(error.value, context = "enumeratorForChangeHistoryFetchRequest")
+        val enumerator = result?.value as? NSEnumerator
+            ?: error("CNFetchResult.value did not expose an events NSEnumerator.")
+        val events = buildList {
+            while (true) {
+                val next = enumerator.nextObject() ?: break
+                val event = toIosHistoryEvent(next)
+                if (event is IosHistoryEvent.Ignored) continue
+                add(event)
+            }
+        }
+        IosHistoryBatch(events = events, nextToken = result?.currentHistoryToken)
+    }
 
     /** لقطة نقطة الاستئناف من رمز المخزن الحالي - إن كان مفقوداً تسجل بايتات null لإعادة المزامنة لاحقاً. */
     private fun freshSnapshot(): ContactsSnapshot = ContactsSnapshot(

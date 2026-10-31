@@ -161,8 +161,12 @@ private fun mapIosLabelType(label: String?, defaultType: String, fallback: Strin
  * تجميع أحداث سجل التغييرات إلى [ContactsDelta] (ADR-0010 §4).
  *
  * القانون:
- * - **`.dropEverything` يُلغي الحذف نهائياً**: إذا ظهر في الدفعة فالرمز القديم فقد دوره،
- *   تُهمل كل أحداث الحذف، وتُحسب النتيجة إعادة مزامنة كاملة مع إضافة كل جهات القائمة.
+ * - **`.dropEverything` يُعامَل كـ [IosHistoryEvent.Ignored] هنا دفاعياً**: إعادة ضبط
+ *   السجل تجعل أحداث الحذف في نفس الدفعة لا تصف الحالة فتُبطل. التحويل الفعلي إلى إعادة
+ *   مزامنة كاملة **حقيقية** مسؤولية المصدر (يكشف الحدث ويجلب كل جهات المزود بنفسه):
+ *   المنصة لا تُعيد جهات القائمة بعد الإسقاط (TN3149)، لذا هذه الدالة لا تُصدر
+ *   `isFullResync = true` في أي حال — دلتا فارغة بترقية لقطة تُقدَّم كـ"مزامنة كاملة"
+ *   تعني ألا استيراد أبداً (F2 في مراجعة PR #32).
  * - أحداث إضافة/تحديث تحمل الحالة النهائية الكاملة (upsert idempotent بمفتاح
  *   `systemContactId`)؛ الحذف يُعالج بالهوية الموحّدة (`CNContact.identifier`).
  * - [newSnapshot] تُكتَب داخل نفس معاملة Room مع تطبيق الدلتا.
@@ -188,6 +192,6 @@ fun assembleIosDelta(
         upserted = upserted,
         deletedSystemContactIds = deletedSystemContactIds,
         newSnapshot = newSnapshot,
-        isFullResync = hadDropEverything
+        isFullResync = false
     )
 }

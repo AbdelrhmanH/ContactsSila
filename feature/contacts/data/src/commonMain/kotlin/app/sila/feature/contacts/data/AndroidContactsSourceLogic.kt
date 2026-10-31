@@ -167,21 +167,40 @@ internal fun resolveProviderDeletedContacts(
 }
 
 /**
- * المفاتيح القديمة الملغاة (superseded) لسجلات خام تغيّر `LOOKUP_KEY` لها بعد آخر لقطة.
+ * المفاتيح القديمة الملغاة (superseded) لسجلات خام تغيّر `LOOKUP_KEY` لها بعد آخر لقطة —
+ * بدلالة التجمّعة (aggregate-centric).
  *
  * المزود يُعيد توليد `LOOKUP_KEY` عند إعادة التجميع/بعض المزامنات (ADR-0009 §4 يعترف
  * بتغيره)، والهوية في Room فريدة على `systemContactId` — فدلتا تُفسّر upsert بالمفتاح
  * الجديد دون بلاغ عن القديم تُراكم صفوف مكررة لنفس الشخص. المفتاح القديم هنا «هوية ماتت»
- * تُبلَّغ في `deletedSystemContactIds` مع upsert المفتاح الجديد. المفاتيح تأتي من
- * [diffRawContactVersions] المسح الكامل، فلا يُبلَّغ إلا عن مفاتيح سجلات متغيرة فعلاً —
- * المسح الناقص لا يمس هذا المسار (مصالحة المسح الكامل مؤجلة لعنصر المزامنة — ADR-0010 §3).
+ * تُبلَّغ في `deletedSystemContactIds` مع upsert المفتاح الجديد.
+ *
+ * الحيوية تُحسم لكل سجل خام متغير: مفتاحه القديم لا يُبلَّغ محذوفاً إلا إن كان ميتاً
+ * فعلاً — لا يحمله سجل خام **غير متغير** تجمّعته لم تُجلب من جديد (مفتاحه المحفوظ ما يزال
+ * مفتاح المزود الحالي). إعادة ربط سجل بتجمّعة أخرى (F1 في مراجعة PR #32) لا تُبطل مفتاح
+ * التجمّعة القديمة: الشقيقات غير المتغيرة تحمله حية، والإبلاغ عنه كان يمحو جهة حيّة من
+ * Room. المفاتيح تأتي من [diffRawContactVersions] المسح الكامل، فلا يُبلَّغ إلا عن مفاتيح
+ * سجلات متغيرة فعلاً — المسح الناقص لا يمس هذا المسار (مصالحة المسح الكامل مؤجلة لعنصر
+ * المزامنة — ADR-0010 §3).
  */
 internal fun supersededLookupKeys(
     resolvedLookupKeys: Map<String, String>,
+    changedAggregatesById: Map<String, Long?>,
     savedRawContacts: Map<String, AndroidRawContactState>,
-): List<String> = resolvedLookupKeys.mapNotNull { (rawId, currentKey) ->
-    savedRawContacts[rawId]?.lookupKey?.takeIf { it != currentKey }
-}.distinct()
+): List<String> {
+    val changedRawIds = changedAggregatesById.keys
+    val changedAggregateIds = changedAggregatesById.values.filterNotNull().toSet()
+    // المفاتيح الحيّة الموثوقة: سجلات خام لم تتغير إصدارها وتجمّعتها لم تُجلب من جديد.
+    val trustedLiveKeys = savedRawContacts
+        .filterKeys { it !in changedRawIds }
+        .filterValues { it.aggregateContactId == null || it.aggregateContactId !in changedAggregateIds }
+        .values.mapNotNull { it.lookupKey }
+        .toSet()
+    return resolvedLookupKeys.mapNotNull { (rawId, currentKey) ->
+        val savedKey = savedRawContacts[rawId]?.lookupKey
+        savedKey?.takeIf { it != currentKey && it !in trustedLiveKeys }
+    }.distinct()
+}
 
 /**
  * بناء اللقطة الجديدة (تُحفظ داخل نفس معاملة Room مع الدلتا — ADR-0010 §7).

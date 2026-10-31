@@ -161,6 +161,7 @@ class AndroidContactsSourceLogicTest {
         )
         val superseded = supersededLookupKeys(
             resolvedLookupKeys = mapOf("10" to "new-10"),
+            changedAggregatesById = mapOf("10" to 100L),
             savedRawContacts = saved
         )
         assertEquals(listOf("old-10"), superseded)
@@ -176,6 +177,7 @@ class AndroidContactsSourceLogicTest {
                 "10" to "lookup-10", // نفس المفتاح — لا تغيير هوية.
                 "77" to "lookup-77" // سجل خام جديد بلا حالة محفوظة.
             ),
+            changedAggregatesById = mapOf("10" to 100L, "77" to 102L),
             savedRawContacts = saved
         )
         assertTrue(superseded.isEmpty())
@@ -189,9 +191,42 @@ class AndroidContactsSourceLogicTest {
         )
         val superseded = supersededLookupKeys(
             resolvedLookupKeys = mapOf("10" to "new-A", "11" to "new-A"),
+            changedAggregatesById = mapOf("10" to 100L, "11" to 100L),
             savedRawContacts = saved
         )
         assertEquals(listOf("old-A"), superseded)
+    }
+
+    @Test
+    fun `reparenting raw to another aggregate keeps the shared old key live`() {
+        // F1 (جولة 4): سجل خام أعيد ربطه بتجمّعة أخرى لا يُبطل مفتاح التجمّعة القديمة —
+        // الشقيق غير المتغير ما يزال حياً بالمفتاح نفسه، والإبلاغ عنه كان يمحو جهة حيّة.
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-A", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 2L, lookupKey = "lookup-A", aggregateContactId = 100L)
+        )
+        val superseded = supersededLookupKeys(
+            resolvedLookupKeys = mapOf("11" to "lookup-B"),
+            changedAggregatesById = mapOf("11" to 101L),
+            savedRawContacts = saved
+        )
+        assertTrue(superseded.isEmpty())
+    }
+
+    @Test
+    fun `joining aggregates emits both dissolved keys`() {
+        // تجمّعتان تنضمان إلى واحدة بمفتاح جديد: كلا المفتاحين القديمين مات (لا سجل
+        // غير متغير يحملهما) فيُبلَغان محذوفين مع upsert المفتاح الجديد.
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-A", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 2L, lookupKey = "lookup-B", aggregateContactId = 101L)
+        )
+        val superseded = supersededLookupKeys(
+            resolvedLookupKeys = mapOf("10" to "lookup-K", "11" to "lookup-K"),
+            changedAggregatesById = mapOf("10" to 100L, "11" to 100L),
+            savedRawContacts = saved
+        )
+        assertEquals(setOf("lookup-A", "lookup-B"), superseded.toSet())
     }
 
     // ------------------------------------------------- resolveProviderDeletedContacts
