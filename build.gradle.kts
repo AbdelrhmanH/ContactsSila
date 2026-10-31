@@ -102,7 +102,11 @@ tasks.register("checkArchitectureBoundaries") {
                         violations += "PRIVACY VIOLATION: Network/Firebase import found in local-only module file $path"
                     }
                     // القاعدة 6 (SOLID DIP): طبقة العرض (presentation / sharedUI) لا تستورد RepositoryImpl أو Dao مباشرة أبداً
-                    if ((path.contains("/presentation/") || path.startsWith("sharedUI/")) &&
+                    // تستثنى مصادر اختبار المضيف (androidHostTest): اختبارات Koin الحقيقية تُصلح عناصرها عبر الـ Dao/الـ DB الفعلي،
+                    // والقاعدة تستهدف كود الإنتاج (اتساقاً مع قاعدة Konsist 4b المحصورة بنطاق الإنتاج).
+                    val isTestSourcePath = path.contains("/commonTest/") || path.contains("/androidHostTest/")
+                    if (!isTestSourcePath &&
+                        (path.contains("/presentation/") || path.startsWith("sharedUI/")) &&
                         (Regex("""\b\w+RepositoryImpl\b""").containsMatchIn(text) || Regex("""\b\w+Dao\b""").containsMatchIn(text))
                     ) {
                         violations += "SOLID DIP VIOLATION: Presentation/UI file $path references concrete RepositoryImpl or Dao directly."
