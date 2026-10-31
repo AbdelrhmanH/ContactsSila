@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -86,7 +87,15 @@ class ContactsSyncEngine(
         if (started) return
         started = true
         permissionJob = scope.launch {
-            platformSource.observePermissionState().collectLatest { permission ->
+            // distinctUntilChanged إلزامية: مصادر المنصة تُعيد إبعاث القيمة نفسها في حلقات
+            // استطلاع دورية (Android كل ثانيتين، iOS كل 5 ثوانٍ) — بلا التمييز، كان كل
+            // انبعاث استطلاع يُلغي عبر collectLatest المزامنة الجارية ويُعيد تشغيلها:
+            // استيرادٌ أطول من فترة الاستطلاع لا ينتهي أبداً، والخمول يُنفِّذ دورة دلتا
+            // كاملة كل فترة (مراجعة PR #35 — F1). الاختبار الموجّه:
+            // `permissionLoop_duplicateEmissions_doNotRestartInFlightSync`.
+            platformSource.observePermissionState()
+                .distinctUntilChanged()
+                .collectLatest { permission ->
                 val previous = lastPermission
                 lastPermission = permission
                 when (permission) {

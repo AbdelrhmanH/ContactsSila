@@ -15,13 +15,16 @@ import app.sila.core.model.Relation
 import app.sila.feature.contacts.domain.AndroidRawContactState
 import app.sila.feature.contacts.domain.ContactsDelta
 import app.sila.feature.contacts.domain.ContactsPermissionState
+import app.sila.feature.contacts.domain.ContactsPlatformSource
 import app.sila.feature.contacts.domain.ContactsSnapshot
 import app.sila.feature.contacts.domain.ContactsSyncState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.math.max
@@ -558,6 +561,55 @@ class ContactsSyncEngineTest {
             val silaRow = db.getSyncIndexRows().first { it.systemContactId == "sila_prop" }
             assertTrue(silaRow.systemDeletedAt != null)
         } finally {
+            db.closeConnection()
+        }
+    }
+
+    /**
+     * F1 (مراجعة PR #35): يقلّد حلقة استطلاع الصلاحية الحقيقية — `Flow` عادي يُعيد إبعاث
+     * **القيمة نفسها** دورياً (خلافاً للـ `MutableStateFlow` في [FakeContactsPlatformSource]
+     * الذي يخفي التكرار فيخفي العيب عن الاختبارات). غلاف حصري: باقي العقد من الـ fake.
+     */
+    private class PollingPermissionSource(
+        private val delegate: FakeContactsPlatformSource,
+        private val repeatedPermission: ContactsPermissionState,
+    ) : ContactsPlatformSource by delegate {
+        override fun observePermissionState(): Flow<ContactsPermissionState> = flow {
+            // ثلاث انبعاثات للقيمة نفسها كحلقة استطلاع (Android 2s / iOS 5s) بلا تمييز.
+            repeat(3) { emit(repeatedPermission) }
+        }
+    }
+
+    @Test
+    fun permissionLoop_duplicateEmissions_doNotRestartInFlightSync() = runTest {
+        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        val fake = FakeContactsPlatformSource().withPages(listOf(contact("d1")))
+        fake.snapshotForDelta = androidSnapshot("r1" to 1L)
+        val polling = PollingPermissionSource(fake, ContactsPermissionState.GRANTED)
+        val gated = GatedSyncDao(db).apply { pauseAtCall = 1 }
+        val clock = FakeClock()
+        val engine = ContactsSyncEngine(
+            platformSource = polling,
+            syncDao = gated,
+            clock = clock
+        )
+        val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            engine.start(engineScope)
+            // المزامنة الأولى معلّقة على بوابة الدفعة الأولى؛ بدون distinctUntilChanged
+            // كان انبعاثا الاستطلاع اللاحقان (القيمة نفسها) يُلقيانها عبر collectLatest
+            // ويُعيدان تشغيلها بلا نهاية (استيراد أطول من فترة الاستطلاع لا ينتهي أبداً).
+            assertEquals(
+                1,
+                gated.enteredCount,
+                "re-emission of an unchanged permission must not cancel/restart the in-flight sync"
+            )
+
+            gated.releaseGate.complete(Unit)
+            assertEquals(ContactsSyncState.READY, engine.state.first { it == ContactsSyncState.READY })
+            assertEquals(1, gated.enteredCount, "three identical emissions → exactly one sync cycle")
+        } finally {
+            engine.stop()
             db.closeConnection()
         }
     }
