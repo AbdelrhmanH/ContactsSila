@@ -19,16 +19,28 @@ import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
 import app.sila.feature.arham.domain.RecordArhamCallUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
+import app.sila.feature.contacts.data.ContactsListPreferencesRepositoryImpl
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.feature.contacts.data.OnboardingRepositoryImpl
+import app.sila.feature.contacts.data.SyncStateSourceAdapter
+import app.sila.feature.contacts.domain.BulkCategorizeUseCase
+import app.sila.feature.contacts.domain.BulkSetFavoriteUseCase
+import app.sila.feature.contacts.domain.ContactsListPreferencesRepository
 import app.sila.feature.contacts.domain.ContactsRepository
 import app.sila.feature.contacts.domain.DeleteContactUseCase
+import app.sila.feature.contacts.domain.DeleteContactsUseCase
 import app.sila.feature.contacts.domain.DetectDuplicatesUseCase
 import app.sila.feature.contacts.domain.ObserveCategoryCountsUseCase
+import app.sila.feature.contacts.domain.ObserveContactsPagedUseCase
 import app.sila.feature.contacts.domain.ObserveContactsUseCase
 import app.sila.feature.contacts.domain.ObserveFavoriteContactsUseCase
+import app.sila.feature.contacts.domain.ObserveSuggestionsUseCase
+import app.sila.feature.contacts.domain.RecordInAppCallUseCase
+import app.sila.feature.contacts.domain.SearchContactsUseCase
 import app.sila.feature.contacts.domain.SmartCategorizeContactUseCase
+import app.sila.feature.contacts.domain.SyncStateSource
+import app.sila.feature.contacts.domain.ToggleFavoriteUseCase
 import app.sila.feature.contacts.domain.UpdateContactCategoryUseCase
 import app.sila.feature.contacts.domain.onboarding.CompleteOnboardingStepUseCase
 import app.sila.feature.contacts.domain.onboarding.CompleteOnboardingUseCase
@@ -104,21 +116,42 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
 
     // :feature:contacts (Domain UseCases + Data Repository + Presentation ViewModel)
     single<ContactsRepository> { ContactsRepositoryImpl(contactDao = get()) }
+
+    // T3 (Issue #24): تفضيلات القائمة (استبعاد الاقتراحات + أفعال السحب) ومصدر حالة المزامنة.
+    single<ContactsListPreferencesRepository> { ContactsListPreferencesRepositoryImpl(dataSource = get()) }
+    single<SyncStateSource> { SyncStateSourceAdapter(engine = get()) }
+
     factory { ObserveContactsUseCase(repository = get()) }
     factory { ObserveFavoriteContactsUseCase(repository = get()) }
     factory { ObserveCategoryCountsUseCase(repository = get()) }
+    factory { SearchContactsUseCase(repository = get()) }
+    factory { ObserveContactsPagedUseCase(repository = get()) }
+    factory { ObserveSuggestionsUseCase(repository = get(), listPreferences = get()) }
     factory { UpdateContactCategoryUseCase(repository = get()) }
     factory { DeleteContactUseCase(repository = get()) }
     factory { SmartCategorizeContactUseCase() }
     factory { DetectDuplicatesUseCase() }
+    // T3 (Issue #24): أفعال الاختيار المتعدد + تسجيل محاولات الاتصال IN_APP.
+    factory { BulkCategorizeUseCase(repository = get()) }
+    factory { BulkSetFavoriteUseCase(repository = get()) }
+    factory { DeleteContactsUseCase(repository = get()) }
+    factory { ToggleFavoriteUseCase(repository = get()) }
+    factory { RecordInAppCallUseCase(repository = get(), clock = get()) }
     single {
         ContactsViewModel(
-            observeContacts = get(),
+            observeContactsPaged = get(),
             observeFavorites = get(),
             observeCategoryCounts = get(),
-            updateContactCategory = get(),
+            changeContactCategory = get(),
+            bulkCategorize = get(),
             deleteContact = get(),
-            detectDuplicates = get()
+            deleteContacts = get(),
+            toggleFavorite = get(),
+            bulkSetFavorite = get(),
+            recordInAppCall = get(),
+            observeSuggestions = get(),
+            listPreferences = get(),
+            syncStateSource = get()
         )
     }
 

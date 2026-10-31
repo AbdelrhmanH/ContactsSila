@@ -70,12 +70,24 @@ erDiagram
 | contact_tags | tag (Index) — وسوم مستخرجة/يدوية |
 
 ### contacts_fts (FTS4)
-`displayName, nickname, company, notes, normalizedName` — **جدول FTS4 مستقل** بـ `docid = contacts.id`
+`displayName, nickname, company, department, notes, normalizedName` — **جدول FTS4 مستقل** بـ `docid = contacts.id`
 (القرار مثبَّت بالاختبار: الوضع المستقل يدعم الحذف بـ docid والمطابقة العربية معاً، بينما فشل
 وضع `content=` الخارجي في الحذف — انظر اختبارات `ContactsSyncDaoTest`). صيانته داخل نفس
 معاملة كتابة/قبور المزامنة حصراً: الإدراج/التحديث في `writeContactToSqlite`، والحذف عند
 القبر والحذف النهائي، وإعادة تعبئة idempotent عند الترقية للصفوف القديمة. تُخفى المقبورة
-من الفهرس. قراءته عبر `LocalSilaDatabase.queryFtsContactIds` (داخلية حتى يمهد T3 مسار البحث).
+من الفهرس. يقرأه مسار البحث الإنتاجي عبر `ContactDao.searchContacts` (T3 — Issue #24).
+
+**عمود `department` (T3 — Issue #24):** أُضيف للفهرس (بحث المسمى الوظيفي/القسم). جداول FTS4
+لا تدعم `ALTER TABLE ADD COLUMN` — فالترحيل موجَّه بالشكل (`ensureFtsDepartmentColumn`):
+فحص وجود العمود، وعند غيابه يُدرَب ويُعاد إنشاء الجدول ثم تُعاد تعبئته idempotent من
+`contacts` (بلا ترقية إصدار Room ولا فقدان بيانات — انظر اختبار الترحيل في `ContactsSearchDaoTest`).
+
+**توكنة الفهرس (T3 — قرارات البحث):** كل الأعمدة تُخزَّن **بنص معايَر عبر `ArabicTextNormalizer`**
+(توحيد الهمزات أإآ→ا، ة→ه، ى→ي، الأرقام العربية-الهندية→غربية، إسقاط التشكيل، أحرف لاتينية
+صغيرة) — نفس تعريب الاستعلام في `searchContacts`؛ تخزين النص الخام يجعل الاستعلامات المتعاربة
+لا تطابق (مثال مثبت بالاختبار: «المالية» تُطبَّع «الماليه» فلا تطابق توكن «الماليه» المخزَّن خاماً).
+الاستعلام: توكنات مطهرة من محارف FTS المشغّلة + `*` بادئي، مربوطة بـ AND، مع اتحاد مسار ثانٍ
+`LIKE` على أجزاء الأرقام في `contact_phones`؛ الاستعلام الفارغ يعيد كل الجهات الحيّة.
 
 ### contacts_sync_checkpoints (Issue #23 · ADR-0010 §4/§8)
 جدول مفتاح/قيمة لتخزين نقاط استئناف المزامنة — القيم معتمة (String) وفكّها مسؤولية
@@ -289,6 +301,13 @@ fun Double.toStatus() = when { this >= 1.0 -> OVERDUE; this >= 0.7 -> SOON; else
 
 ## 6. DataStore — `UserPreferences`
 انظر [features/07-ringtones-preferences.md](features/07-ringtones-preferences.md#مفاتيح-التخزين) للمفاتيح والقيم الافتراضية.
+
+**مفاتيح أضيفت في T3 (Issue #24):**
+| المفتاح | النوع | الافتراضي | الغرض |
+|---|---|---|---|
+| `dismissed_suggestion_ids` | `Set<String>` | `∅` | استبعاد بطاقات الاقتراح المُغلقة (المعرّف مشتق من هوية العناصر: `stableSuggestionId(kind, sortedSystemContactIds)`) — لا تعود البطاقة لنفس العناصر، وتعود عند تغيّرها |
+| `swipe_start_action` | `String` | `CALL` | فعل السحب من البداية على صف جهة (منطقياً — M3 يعكسه في RTL) |
+| `swipe_end_action` | `String` | `MESSAGE` | فعل السحب من النهاية (واجهة الإعداد في T9) |
 
 ## 7. سياسة الـ Migrations
 - `exportSchema = true` وحفظ ملفات المخطط في `shared/core/database/schemas/`.
