@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.sp
 import app.sila.core.designsystem.SilaDimens
 import app.sila.core.model.Relation
+import app.sila.feature.contacts.domain.onboarding.OnboardingPermissionState
 
 /**
  * خطوة "أهم 5 أشخاص" — بحث + اختيار حتى خمسة + صلة قرابة سريعة.
@@ -89,13 +90,17 @@ internal fun TopFiveScreen(
 
         // حالات تحميل / خطأ / فارع / مرفوض.
         when {
-            state.isLoading -> LoadingContent(strings.topFiveLoadingLabel)
+            state.isLoading -> LoadingContent(
+                label = strings.topFiveLoadingLabel,
+                modifier = Modifier.weight(1f)
+            )
             state.hasContactsError -> {
                 ErrorContent(
                     title = strings.errorTitle,
                     body = strings.topFiveErrorBody,
                     retryLabel = strings.errorRetryButton,
-                    onRetry = { onIntent(OnboardingIntent.RetryContactsLoad) }
+                    onRetry = { onIntent(OnboardingIntent.RetryContactsLoad) },
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -103,7 +108,8 @@ internal fun TopFiveScreen(
                 PermissionMissingContent(
                     body = strings.topFivePermissionMissingBody,
                     openSettingsLabel = strings.permissionOpenSettingsButton,
-                    onOpenSettings = { onIntent(OnboardingIntent.OpenAppSettings) }
+                    onOpenSettings = { onIntent(OnboardingIntent.OpenAppSettings) },
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -128,7 +134,8 @@ internal fun TopFiveScreen(
                     state.candidates.isEmpty() && state.searchQuery.isBlank() ->
                         EmptyContactsContent(
                             title = strings.topFiveEmptyTitle,
-                            body = strings.topFiveEmptyBody
+                            body = strings.topFiveEmptyBody,
+                            modifier = Modifier.weight(1f)
                         )
 
                     state.candidates.isEmpty() ->
@@ -261,11 +268,14 @@ private fun SelectedRows(
 }
 
 @Composable
-private fun LoadingContent(label: String) {
+private fun LoadingContent(
+    label: String,
+    modifier: Modifier = Modifier
+) {
     Column(
-        modifier = Modifier
-            .weight(1f)
-            .fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = SilaDimens.Space16),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -280,11 +290,11 @@ private fun ErrorContent(
     title: String,
     body: String,
     retryLabel: String,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
-            .weight(1f)
+        modifier = modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(SilaDimens.Space16),
@@ -310,11 +320,11 @@ private fun ErrorContent(
 private fun PermissionMissingContent(
     body: String,
     openSettingsLabel: String,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
-            .weight(1f)
+        modifier = modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center,
@@ -336,11 +346,11 @@ private fun PermissionMissingContent(
 @Composable
 private fun EmptyContactsContent(
     title: String,
-    body: String
+    body: String,
+    modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = Modifier
-            .weight(1f)
+        modifier = modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center,

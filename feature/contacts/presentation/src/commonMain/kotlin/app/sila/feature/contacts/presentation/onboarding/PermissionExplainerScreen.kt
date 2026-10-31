@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import app.sila.core.designsystem.SilaDimens
+import app.sila.feature.contacts.domain.onboarding.OnboardingPermissionState
 
 /**
  * خطوة شرح صلاحية جهات الاتصال ثم النتيجة (مصفوفة الأذونات في Issue #20):

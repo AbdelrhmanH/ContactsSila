@@ -8,7 +8,8 @@ plugins {
 
 /**
  * موديول طبقة البيانات لميزة جهات الاتصال (:feature:contacts:data)
- * 🔒 محلي 100%: ينفذ عقود :feature:contacts:domain ويعتمد على :core:database فقط (بلا شبكة).
+ * 🔒 محلي 100%: ينفذ عقود :feature:contacts:domain ويعتمد على :core:database
+ * و :core:datastore فقط (بلا شبكة ولا سحابة — مستودع التهيئة محلي بالكامل).
  */
 kotlin {
     iosArm64()
@@ -31,6 +32,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":feature:contacts:domain"))
             implementation(project(":core:database"))
+            implementation(project(":core:datastore"))
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.androidx.sqlite.bundled.jvm)

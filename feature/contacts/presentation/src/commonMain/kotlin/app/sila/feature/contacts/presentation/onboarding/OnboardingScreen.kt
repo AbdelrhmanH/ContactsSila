@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import app.sila.feature.contacts.domain.onboarding.OnboardingStep
 
 /**
  * شاشة التهيئة الأولى (المرحلة 1 — ضيف فقط) — مضيف يوجّه بين الخطوات حسب الحالة:

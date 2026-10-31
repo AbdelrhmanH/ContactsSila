@@ -21,3 +21,62 @@
 "arham_status_ok" = "متواصل 🟢";
 "arham_status_soon" = "اقترب الموعد 🟡";
 "arham_status_overdue" = "يحتاج اتصال 🔴";
+
+/* التهيئة الأولى — الترحيب (Issue #26 — T5) */
+"onboarding_welcome_title_organize" = "نظّم جهات اتصالك";
+"onboarding_welcome_body_organize" = "تصنيف ذكي لجميع جهات اتصالك عائلة وأصدقاء وعمل — كل ذلك على جهازك.";
+"onboarding_welcome_title_live" = "خدمات حية";
+"onboarding_welcome_body_live" = "دليل موثق لأقرب السباكين والصيادلة وأصحاب الخدمات حول ما تحتاج متى احتجتهم.";
+"onboarding_welcome_title_arham" = "أرحام";
+"onboarding_welcome_body_arham" = "لا تُقطع صلة أحد: تذكيرات لطيفة لتواصل بمن تحب في مواعيدهم.";
+"onboarding_action_start" = "ابدأ";
+"onboarding_action_continue" = "التالي";
+
+/* التهيئة الأولى — شرح صلاحية جهات الاتصال (مصفوفة الأذونات — Issue #20) */
+"onboarding_permission_title" = "صلاحية جهات الاتصال";
+"onboarding_permission_body" = "تعالج صِلَة جهات اتصالك محلياً بالكامل على جهازك — لا ترفع أسماء ولا أرقاماً ولا سجل مكالمات لأي خادم أبداً. تحتاج الصلاحية فقط للتصنيف الذكي ولأرحام.";
+"onboarding_permission_grant_button" = "السماح بالوصول";
+"onboarding_permission_skip_button" = "ليس الآن";
+"onboarding_permission_denied_once_body" = "لم تُمنح الصلاحية. يمكنك إعادة المحاولة، أو المتابعة الآن وإتمامها لاحقاً من الإعدادات.";
+"onboarding_permission_denied_forever_body" = "الصلاحية مرفوضة نهائياً في نظامك. يمكن منحها فقط من إعدادات التطبيق دون إعادة الطلب.";
+"onboarding_permission_open_settings_button" = "فتح إعدادات التطبيق";
+"onboarding_permission_limited_body" = "اخترت عدة جهات فقط. ستظهر المحددَ منها الآن، ويمكن توسيع الوصول من شاشة جهات الاتصال في أي وقت.";
+
+/* التهيئة الأولى — خطوة الضيف (المرحلة 1: بدون OTP) */
+"onboarding_guest_title" = "أنت جاهز";
+"onboarding_guest_body" = "يمكنك الاستخدام كضيف الآن — كل شيء محلي على جهازك، والتسجيل متاح متى شئت لاحقاً.";
+"onboarding_guest_login_note" = "لا حاجة لحساب في هذه الخطوة؛ التسجيل يُتاح في مرحلة لاحقة من الإعدادات.";
+"onboarding_guest_skip_button" = "متابعة كضيف";
+
+/* التهيئة الأولى — أهم 5 أشخاص */
+"onboarding_top_five_title" = "أهم 5 أشخاص";
+"onboarding_top_five_body" = "اختر أشخاصاً لا تريد أن تُقطع بهم الصلة. سيصنّفون تلقائياً كـ«عائلة» مع توتّر أسبوعي افتراضي — قابل للتعديل.";
+"onboarding_top_five_search_hint" = "ابحث بالاسم…";
+"onboarding_top_five_loading_label" = "جارٍ تحميل جهات الاتصال…";
+"onboarding_top_five_empty_title" = "دفترك فارغ";
+"onboarding_top_five_empty_body" = "لا توجد جهات اتصال متاحة للعرض الآن. يمكنك المتابعة دون اختيار.";
+"onboarding_top_five_permission_missing_body" = "لا توجد صلاحية للوصول لجهات الاتصال، لذا لا يمكن تفعيل «أهم 5 أشخاص» الآن. يمكنك التخطي والمتابعة.";
+"onboarding_top_five_limited_body" = "اخترت الوصول الجزئي، لذا تظهر جهات محددة فقط. الجهات غير المحددة مفقودة بسبب النطاق الجزئي ولن تُحذف أبداً.";
+"onboarding_top_five_no_results_label" = "لا توجد نتائج لهذا الاسم";
+"onboarding_top_five_error_body" = "فقدنا الوصول لجهات اتصالك أثناء التحميل. حاول مرة أخرى.";
+"onboarding_error_title" = "حدث خطأ";
+"onboarding_action_try_again" = "إعادة المحاولة";
+"onboarding_top_five_save_button" = "حفظ ومتابعة";
+"onboarding_top_five_skip_button" = "التخطي للحال";
+"onboarding_top_five_counter_template" = "تم اختيار %1$d من 5";
+
+/* صلة القرابة السريعة */
+"relation_father" = "أب";
+"relation_mother" = "أم";
+"relation_brother" = "أخ";
+"relation_sister" = "أخت";
+"relation_spouse" = "زوج/زوجة";
+"relation_son" = "ابن";
+"relation_daughter" = "ابنة";
+"relation_in_law" = "من الأسرة بالزواج";
+"relation_close_friend" = "صديق حميم";
+"relation_custom" = "أخرى";
+
+/* التهيئة الأولى — جارٍ التنظيم */
+"onboarding_organizing_title" = "جارٍ التنظيم…";
+"onboarding_organizing_body" = "نرتب جهات اتصالك محلياً على جهازك الآن — لن يزيد ذلك عن ثوانٍ.";

@@ -1,5 +1,6 @@
 package app.sila.feature.contacts.domain.onboarding
 
+import app.sila.core.model.Relation
 import app.sila.core.model.TopFiveSelection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow

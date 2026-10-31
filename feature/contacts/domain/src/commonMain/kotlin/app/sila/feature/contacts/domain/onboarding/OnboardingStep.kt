@@ -16,4 +16,4 @@ enum class OnboardingStep {
 
 /** الخطوة التالية في الترتيب، أو null إذا كانت هذه الأخيرة (ORGANIZING يعني الاكتمال التام). */
 fun OnboardingStep.nextStep(): OnboardingStep? =
-    entries.getOrNull(ordinal + 1)
+    OnboardingStep.entries.getOrNull(ordinal + 1)
