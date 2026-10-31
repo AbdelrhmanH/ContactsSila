@@ -136,19 +136,16 @@ class LocalSilaDatabase(
 
         // فهرس بحث FTS4 المستقل (docid = contacts.id) — القرار المثبت بالاختبار: الوضع المستقل
         // (وليس content=) يدعم حذف docid والمطابقة العربية معاً.
+        // T3 (Issue #24): أُضيف `department` (المسمى الوظيفي — عمود مكافئ الكيان المُزامَن في T2)
+        // مع ترحيل مُوجَّه بالشكل أدناه لقواعد ما قبل T3.
         conn.execSQL(
             "CREATE VIRTUAL TABLE IF NOT EXISTS contacts_fts USING fts4(" +
-                "displayName, nickname, company, notes, normalizedName)"
+                "displayName, nickname, company, department, notes, normalizedName)"
         )
-        // إعادة تعبئة idempotent لأي صفوف فاتت الفهرس (ترقية v1→v2 أو انقطاع سابق):
-        conn.execSQL(
-            """
-            INSERT INTO contacts_fts (docid, displayName, nickname, company, notes, normalizedName)
-            SELECT id, displayName, nickname, company, notes, normalizedName
-            FROM contacts
-            WHERE systemDeletedAt IS NULL AND id NOT IN (SELECT docid FROM contacts_fts)
-            """.trimIndent()
-        )
+        ensureFtsDepartmentColumn(conn)
+        // إعادة تعبئة idempotent (ترقية v1→v2 أو انقطاع سابق) — بنص معايَر حصراً
+        // (نفس توكنة الاستعلام؛ SQL لا يستطيع تطبيق ArabicTextNormalizer):
+        backfillFtsFromContacts(conn)
 
         // جدول نقاط استئناف المزامنة (مفتاح/قيمة معتمة — ADR-0010 §4/§8).
         conn.execSQL(
@@ -290,6 +287,29 @@ class LocalSilaDatabase(
         ).forEach { (name, ddl) ->
             if (name !in existingColumns) conn.execSQL("ALTER TABLE contacts ADD COLUMN $name $ddl")
         }
+    }
+
+    /**
+     * ترقية T3 لقواعد ما قبل T3 (Issue #24): فهرس `contacts_fts` القديم (5 أعمدة بلا
+     * `department`) يُستبدل بالمخطط الجديد — جداول FTS4 لا تدعم `ALTER TABLE ADD COLUMN`
+     * فالترحيل الوحيد الآمن هو إعادة الإنشاء ثم إعادة التعبئة الكاملة من `contacts`
+     * (المصدر الحقيقي — لا فقدان بيانات؛ الفهرس مشتق حصراً). الكشف موجَّه بالشكل
+     * (نفس مبدئ `ensureContactParityColumns`) لا بإصدار مخطط.
+     */
+    private fun ensureFtsDepartmentColumn(conn: SQLiteConnection) {
+        val hasDepartment = runCatching {
+            conn.prepare("SELECT department FROM contacts_fts LIMIT 1").use { stmt ->
+                stmt.step()
+                true
+            }
+        }.getOrDefault(false)
+        if (hasDepartment) return
+
+        conn.execSQL("DROP TABLE IF EXISTS contacts_fts")
+        conn.execSQL(
+            "CREATE VIRTUAL TABLE contacts_fts USING fts4(" +
+                "displayName, nickname, company, department, notes, normalizedName)"
+        )
     }
 
     private fun loadOrSeedContactsBlocking(): List<Contact> {
@@ -636,6 +656,10 @@ class LocalSilaDatabase(
      * صيانة فهرس FTS المستقل: حذف الصف القديم ثم إعادة الإدراج (docid = contacts.id).
      * القبور لا تمر من هنا إطلاقاً — تُحذف من الفهرس مباشرة في مسار tombstone،
      * والاسترجاع يعيد الإدراج عبر [writeContactToSqlite].
+     *
+     * **توكنة الفهرس:** كل الأعمدة تُخزَّن **معايَرة** عبر [ArabicTextNormalizer]
+     * (توحيد الهمزات، إسقاط التشكيل، أرقام غربية) — نفس تعريب استعلام البحث،
+     * وإلا فلن تطابق الاستعلامات المتعاربة النص الخام (فرق ة/ه و أ/إ/آ).
      */
     private fun syncContactFts(contactId: Long, contact: Contact) {
         sqliteConnection.prepare("DELETE FROM contacts_fts WHERE docid = ?").use { stmt ->
@@ -643,15 +667,54 @@ class LocalSilaDatabase(
             stmt.step()
         }
         sqliteConnection.prepare(
-            "INSERT INTO contacts_fts (docid, displayName, nickname, company, notes, normalizedName) VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO contacts_fts (docid, displayName, nickname, company, department, notes, normalizedName) VALUES (?, ?, ?, ?, ?, ?, ?)"
         ).use { stmt ->
             stmt.bindLong(1, contactId)
-            stmt.bindText(2, contact.name.displayName)
-            contact.name.nickname?.let { stmt.bindText(3, it) } ?: stmt.bindNull(3)
-            contact.organization?.company?.let { stmt.bindText(4, it) } ?: stmt.bindNull(4)
-            contact.notes?.let { stmt.bindText(5, it) } ?: stmt.bindNull(5)
-            stmt.bindText(6, contact.normalizedName)
+            stmt.bindText(2, ArabicTextNormalizer.normalize(contact.name.displayName))
+            contact.name.nickname?.let { stmt.bindText(3, ArabicTextNormalizer.normalize(it)) } ?: stmt.bindNull(3)
+            contact.organization?.company?.let { stmt.bindText(4, ArabicTextNormalizer.normalize(it)) } ?: stmt.bindNull(4)
+            contact.organization?.department?.let { stmt.bindText(5, ArabicTextNormalizer.normalize(it)) } ?: stmt.bindNull(5)
+            contact.notes?.let { stmt.bindText(6, ArabicTextNormalizer.normalize(it)) } ?: stmt.bindNull(6)
+            stmt.bindText(
+                7,
+                contact.normalizedName.ifEmpty { ArabicTextNormalizer.normalize(contact.name.displayName) }
+            )
             stmt.step()
+        }
+    }
+
+    /**
+     * إعادة تعبئة الفهرس من صفوف `contacts` غير المفهرسة (idempotent) — بنص معايَر
+     * عبر [ArabicTextNormalizer] (تنسيق SQL لا يستطيع ذلك). تُستدعى وقت تهيئة
+     * المخطط قبل تخصيص `sqliteConnection` — لذا تقرأ من [conn] مباشرة.
+     */
+    private fun backfillFtsFromContacts(conn: SQLiteConnection) {
+        val alreadyIndexed = mutableSetOf<Long>()
+        conn.prepare("SELECT docid FROM contacts_fts").use { stmt ->
+            while (stmt.step()) alreadyIndexed += stmt.getLong(0)
+        }
+        conn.prepare(
+            """
+            SELECT id, displayName, nickname, company, department, notes, normalizedName
+            FROM contacts WHERE systemDeletedAt IS NULL
+            """.trimIndent()
+        ).use { stmt ->
+            while (stmt.step()) {
+                val contactId = stmt.getLong(0)
+                if (contactId in alreadyIndexed) continue
+                conn.prepare(
+                    "INSERT INTO contacts_fts (docid, displayName, nickname, company, department, notes, normalizedName) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                ).use { insert ->
+                    insert.bindLong(1, contactId)
+                    insert.bindText(2, ArabicTextNormalizer.normalize(stmt.getText(1)))
+                    if (stmt.isNull(2)) insert.bindNull(3) else insert.bindText(3, ArabicTextNormalizer.normalize(stmt.getText(2)))
+                    if (stmt.isNull(3)) insert.bindNull(4) else insert.bindText(4, ArabicTextNormalizer.normalize(stmt.getText(3)))
+                    if (stmt.isNull(4)) insert.bindNull(5) else insert.bindText(5, ArabicTextNormalizer.normalize(stmt.getText(4)))
+                    if (stmt.isNull(5)) insert.bindNull(6) else insert.bindText(6, ArabicTextNormalizer.normalize(stmt.getText(5)))
+                    insert.bindText(7, ArabicTextNormalizer.normalize(stmt.getText(6)))
+                    insert.step()
+                }
+            }
         }
     }
 
@@ -975,6 +1038,145 @@ class LocalSilaDatabase(
         dbMutex.withLock {
             deleteContactFromSqlite(contactId)
             contactsState.update { current -> current.filterNot { it.id == contactId } }
+        }
+    }
+
+    // ===== البحث والإجراءات الجماعية (Issue #24 · T3) =====
+
+    override fun searchContacts(query: String): Flow<List<Contact>> {
+        val normalizedQuery = ArabicTextNormalizer.normalize(query).trim()
+        val digitsQuery = if (normalizedQuery.isEmpty()) {
+            ""
+        } else {
+            normalizedQuery.filter(Char::isDigit)
+        }
+
+        return contactsState.map { list ->
+            if (normalizedQuery.isEmpty()) {
+                // عقد الاستعلام الفارغ: كل الجهات الحيّة (نفس دلالات observeContacts).
+                list.sortedBy { it.name.displayName }
+            } else {
+                val matchedIds = resolveSearchContactIds(normalizedQuery, digitsQuery)
+                list.filter { it.id in matchedIds }.sortedBy { it.name.displayName }
+            }
+        }.flowOn(dispatchers.io)
+    }
+
+    /** معرّفات المطابقات: FTS MATCH (معامل مُقيَّد) ∪ أجزاء الهواتف — بلا قبور. */
+    private fun resolveSearchContactIds(normalizedQuery: String, digitsQuery: String): Set<Long> {
+        val ids = mutableSetOf<Long>()
+        buildFtsMatchExpression(normalizedQuery)?.let { matchExpression ->
+            sqliteConnection.prepare("SELECT docid FROM contacts_fts WHERE contacts_fts MATCH ?").use { stmt ->
+                stmt.bindText(1, matchExpression)
+                while (stmt.step()) ids += stmt.getLong(0)
+            }
+        }
+        if (digitsQuery.isNotEmpty()) {
+            val like = "%$digitsQuery%"
+            sqliteConnection.prepare(
+                "SELECT DISTINCT contactId FROM contact_phones WHERE e164 LIKE ? OR raw LIKE ?"
+            ).use { stmt ->
+                stmt.bindText(1, like)
+                stmt.bindText(2, like)
+                while (stmt.step()) ids += stmt.getLong(0)
+            }
+        }
+        return ids
+    }
+
+    /**
+     * تعبير `MATCH` مُقيد آمن: كل رمز للاستعلام يُنقّى من محارف مشغّلات FTS
+     * (`"`, `*`, `(`, `)`, `:`, `,`, `-`) ثم يُلوح بـ `*` (بادئة جزئية)، والرموز تُربط
+     * بـ AND. استعلام بلا رموز (محارف خاصة حصراً) ⇒ `null` = لا تطابق FTS.
+     */
+    private fun buildFtsMatchExpression(normalizedQuery: String): String? {
+        val tokens = normalizedQuery.split(Regex("\\s+")).mapNotNull { token ->
+            token.filter(Char::isLetterOrDigit).takeIf(String::isNotEmpty)
+        }
+        if (tokens.isEmpty()) return null
+        return tokens.joinToString(separator = " AND ") { token -> "$token*" }
+    }
+
+    override suspend fun setFavorite(contactId: Long, isFavorite: Boolean): Unit = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            var updatedContact: Contact? = null
+            contactsState.update { current ->
+                current.map {
+                    if (it.id == contactId) {
+                        it.copy(isFavorite = isFavorite).also { updated -> updatedContact = updated }
+                    } else {
+                        it
+                    }
+                }
+            }
+            updatedContact?.let { writeContactToSqlite(it) }
+        }
+    }
+
+    override suspend fun updateCategories(contactIds: Collection<Long>, category: Category): Unit =
+        withContext(dispatchers.io) {
+            val targets = contactIds.toSet()
+            if (targets.isEmpty()) return@withContext
+            dbMutex.withLock {
+                val updated = mutableListOf<Contact>()
+                contactsState.update { current ->
+                    current.map {
+                        if (it.id in targets) {
+                            it.copy(category = category).also { updatedContact -> updated += updatedContact }
+                        } else {
+                            it
+                        }
+                    }
+                }
+                updated.forEach { writeContactToSqlite(it) }
+            }
+        }
+
+    override suspend fun setFavorites(contactIds: Collection<Long>, isFavorite: Boolean): Unit =
+        withContext(dispatchers.io) {
+            val targets = contactIds.toSet()
+            if (targets.isEmpty()) return@withContext
+            dbMutex.withLock {
+                val updated = mutableListOf<Contact>()
+                contactsState.update { current ->
+                    current.map {
+                        if (it.id in targets) {
+                            it.copy(isFavorite = isFavorite).also { updatedContact -> updated += updatedContact }
+                        } else {
+                            it
+                        }
+                    }
+                }
+                updated.forEach { writeContactToSqlite(it) }
+            }
+        }
+
+    override suspend fun deleteContacts(contactIds: Collection<Long>): Unit = withContext(dispatchers.io) {
+        val targets = contactIds.toSet()
+        if (targets.isEmpty()) return@withContext
+        dbMutex.withLock {
+            targets.forEach { targetId -> deleteContactFromSqlite(targetId) }
+            contactsState.update { current -> current.filterNot { it.id in targets } }
+        }
+    }
+
+    override suspend fun recordInAppCallAttempt(
+        callLogId: String,
+        e164: String,
+        timestampMillis: Long,
+    ): Unit = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            sqliteConnection.prepare(
+                """
+                INSERT INTO call_events (callLogId, e164, direction, durationSec, timestamp, source)
+                VALUES (?, ?, 'OUT', 0, ?, 'IN_APP')
+                """.trimIndent()
+            ).use { stmt ->
+                stmt.bindText(1, callLogId)
+                stmt.bindText(2, e164)
+                stmt.bindLong(3, timestampMillis)
+                stmt.step()
+            }
         }
     }
 
