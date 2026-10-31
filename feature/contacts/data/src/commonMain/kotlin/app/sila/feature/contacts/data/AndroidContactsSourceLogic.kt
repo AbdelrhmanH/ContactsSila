@@ -191,11 +191,13 @@ internal fun supersededLookupKeys(
     val changedRawIds = changedAggregatesById.keys
     val changedAggregateIds = changedAggregatesById.values.filterNotNull().toSet()
     // المفاتيح الحيّة الموثوقة: سجلات خام لم تتغير إصدارها وتجمّعتها لم تُجلب من جديد.
-    val trustedLiveKeys = savedRawContacts
-        .filterKeys { it !in changedRawIds }
-        .filterValues { it.aggregateContactId == null || it.aggregateContactId !in changedAggregateIds }
-        .values.mapNotNull { it.lookupKey }
-        .toSet()
+    val trustedLiveKeys = (
+        resolvedLookupKeys.values +
+            savedRawContacts
+                .filterKeys { it !in changedRawIds }
+                .filterValues { it.aggregateContactId == null || it.aggregateContactId !in changedAggregateIds }
+                .values.mapNotNull { it.lookupKey }
+        ).toSet()
     return resolvedLookupKeys.mapNotNull { (rawId, currentKey) ->
         val savedKey = savedRawContacts[rawId]?.lookupKey
         savedKey?.takeIf { it != currentKey && it !in trustedLiveKeys }

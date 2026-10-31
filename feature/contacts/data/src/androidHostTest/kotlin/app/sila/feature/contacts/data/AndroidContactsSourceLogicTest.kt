@@ -214,6 +214,23 @@ class AndroidContactsSourceLogicTest {
     }
 
     @Test
+    fun `reparent with sibling edit in same window keeps the shared live key`() {
+        // D1 (جولة 5): الشقيق 10 تغيّر أيضاً في نفس النافذة وبقي بتجمّعته 100 بمفتاح
+        // lookup-A الحي — مفتاحه الحالي ضمن upserts الدلتا، فلا يصح أن يظهر lookup-A
+        // محذوفاً في نفس الدلتا التي تُعيد تأكيده.
+        val saved = mapOf(
+            "10" to AndroidRawContactState(version = 4L, lookupKey = "lookup-A", aggregateContactId = 100L),
+            "11" to AndroidRawContactState(version = 2L, lookupKey = "lookup-A", aggregateContactId = 100L)
+        )
+        val superseded = supersededLookupKeys(
+            resolvedLookupKeys = mapOf("10" to "lookup-A", "11" to "lookup-B"),
+            changedAggregatesById = mapOf("10" to 100L, "11" to 101L),
+            savedRawContacts = saved
+        )
+        assertTrue(superseded.isEmpty())
+    }
+
+    @Test
     fun `joining aggregates emits both dissolved keys`() {
         // تجمّعتان تنضمان إلى واحدة بمفتاح جديد: كلا المفتاحين القديمين مات (لا سجل
         // غير متغير يحملهما) فيُبلَغان محذوفين مع upsert المفتاح الجديد.

@@ -229,6 +229,11 @@ class IosContactsPlatformSource(
     // ------------------------------------------------------------- Delta
 
     private fun fullResyncDelta(previousSnapshot: ContactsSnapshot?): ContactsDelta {
+        // D3 (جولة 5): رمز الاستئناف يُلتقط **قبل** تعداد الجهات — الرمز الأقدم يجعل
+        // الدلتا التزايدية التالية تُعيد تشغيل upserts idempotent فقط (بلا خسارة)، أما
+        // التقاطه بعد الاستيراد فيُشير إلى ما بعد تغييرات نافذة الاستيراد فيُفقدها
+        // إلى غير مدى (لا في هذه الدلتا ولا في ما بعدها).
+        val historyToken = store.currentHistoryToken
         // تعداد واحد للمعرفات ثم دفعات ثابتة — ترتيب مستقر عبر كل صفحات إعادة المزامنة (بلا تكرار/نقص).
         val upserted = fetchAllContactIdentifiers()
             .chunked(DEFAULT_PAGE_LIMIT)
@@ -240,7 +245,10 @@ class IosContactsPlatformSource(
             upserted = upserted,
             // القراءة الكاملة لا تحذف أبداً — المصالحة الدورية تبقى مسار الحذف الآمن (ADR-0010 §3).
             deletedSystemContactIds = emptyList(),
-            newSnapshot = freshSnapshot(),
+            newSnapshot = ContactsSnapshot(
+                platformMarker = ContactsSnapshot.PLATFORM_IOS,
+                iosHistoryTokenBytes = encodeIosHistoryToken(historyToken)
+            ),
             isFullResync = true
         )
     }

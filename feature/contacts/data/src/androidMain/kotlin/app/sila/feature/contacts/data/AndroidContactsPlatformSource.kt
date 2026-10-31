@@ -158,6 +158,13 @@ class AndroidContactsPlatformSource(
     // ---------------------------------------------------------------- Delta
 
     private suspend fun fullResyncDelta(previousSnapshot: ContactsSnapshot?): ContactsDelta {
+        // D2 (جولة 5): مسح الإصدارات وحل المفاتيح **أولاً** — اللقطة تُختَم بلحظة T0
+        // سابقة لقراءة البيانات، فأي تعديل يقع أثناء الاستيراد (بين المسح وقراءة الصفحات)
+        // يُرى كفارق إصدار في الدلتا التزايدية التالية ويُعاد رفعه idempotent. الترتيب
+        // المعاكس (صفحات ثم مسح) كان يطبع اللقطة بإصدارات أحدث من البيانات المقروءة
+        // فيفقِد التعديلات المتزامنة إلى الأبد.
+        val scanRows = scanRawContacts()
+        val resolvedLookupKeys = resolveLookupKeysForRecentScan(scanRows)
         val upserted = buildList {
             var offset = 0
             while (true) {
@@ -172,8 +179,6 @@ class AndroidContactsPlatformSource(
                 offset += contactRows.size
             }
         }
-        val scanRows = scanRawContacts()
-        val resolvedLookupKeys = resolveLookupKeysForRecentScan(scanRows)
         return ContactsDelta(
             upserted = upserted,
             // القراءة الكاملة لا تحذف أبداً — الحذف يبقى مصالحة كاملة دورية (ADR-0010 §3).
