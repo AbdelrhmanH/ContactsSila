@@ -59,11 +59,11 @@ private struct WelcomePagerView: View {
     var body: some View {
         VStack(spacing: 16) {
             TabView(selection: $page) {
-                welcomePage(title: strings.welcomeTitleOrganize, body: strings.welcomeBodyOrganize)
+                welcomePage(title: strings.welcomeTitleOrganize, bodyText: strings.welcomeBodyOrganize)
                     .tag(0)
-                welcomePage(title: strings.welcomeTitleLive, body: strings.welcomeBodyLive)
+                welcomePage(title: strings.welcomeTitleLive, bodyText: strings.welcomeBodyLive)
                     .tag(1)
-                welcomePage(title: strings.welcomeTitleArham, body: strings.welcomeBodyArham)
+                welcomePage(title: strings.welcomeTitleArham, bodyText: strings.welcomeBodyArham)
                     .tag(2)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
@@ -369,7 +369,7 @@ private struct CandidateRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(candidate.name.displayName)
                         .font(.body)
-                    if let primaryPhone = candidate.phones?.first?.raw {
+                    if let primaryPhone = candidate.phones.first?.raw {
                         // أرقام الهواتف تظهر LTR دائماً حتى في تخطيط RTL.
                         Text("\u{200E}\(primaryPhone)")
                             .font(.caption)
@@ -446,6 +446,8 @@ extension OnboardingLocalizedStrings {
     }
 }
 
-private extension Color {
-    static let emeraldSila = Color(red: 15 / 255, green: 157 / 255, blue: 115 / 255)
+private extension ShapeStyle where Self == Color {
+    /// `.emeraldSila` يُستخدم عبر البحث الضمني للعضو على ShapeStyle
+    /// (foregroundStyle(.emeraldSila)) وعبر Color.emeraldSila صراحة.
+    static var emeraldSila: Color { Color(red: 15 / 255, green: 157 / 255, blue: 115 / 255) }
 }
