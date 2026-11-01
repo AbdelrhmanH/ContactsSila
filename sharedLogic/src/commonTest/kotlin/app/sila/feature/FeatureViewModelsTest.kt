@@ -16,6 +16,7 @@ import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.services.presentation.ServicesViewModel
 import app.sila.feature.settings.presentation.SettingsViewModel
+import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -86,6 +87,10 @@ class FeatureViewModelsTest {
                 )
             )
         )
+
+        // F-02: مشغِّل صيانة الاستبقاء مُسجَّل في حاوية الإنتاج (يُطلقه مهيئا المنصتين
+        // SilaApplication / IosKoinBootstrap مرة واحدة لكل عملية) — إسقاط التسجيل يُفشل هنا.
+        assertNotNull(koin.get<RetentionCleanupCoordinator>())
 
         val contactsVm = koin.get<ContactsViewModel>()
         val arhamVm = koin.get<ArhamViewModel>()

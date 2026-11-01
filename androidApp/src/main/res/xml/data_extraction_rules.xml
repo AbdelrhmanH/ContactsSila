@@ -12,10 +12,11 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- قاعدة بيانات Room المحلية + ملفات WAL/SHM المرافقة (filesDir الجذر) -->
+        <!-- قاعدة بيانات Room المحلية + ملفات WAL/SHM/JOURNAL المرافقة (filesDir الجذر) -->
         <exclude domain="file" path="sila_local.db" />
         <exclude domain="file" path="sila_local.db-wal" />
         <exclude domain="file" path="sila_local.db-shm" />
+        <exclude domain="file" path="sila_local.db-journal" />
         <!-- تفضيلات المستخدم (DataStore Preferences) -->
         <exclude domain="file" path="sila_user_preferences.preferences_pb" />
     </cloud-backup>
@@ -25,6 +26,7 @@
         <exclude domain="file" path="sila_local.db" />
         <exclude domain="file" path="sila_local.db-wal" />
         <exclude domain="file" path="sila_local.db-shm" />
+        <exclude domain="file" path="sila_local.db-journal" />
         <exclude domain="file" path="sila_user_preferences.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>

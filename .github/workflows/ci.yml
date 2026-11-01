@@ -103,7 +103,7 @@ jobs:
 
       - name: Verify Effective iOS Privacy Config (F-03)
         run: |
-          APP="iosApp/build/dd/Build/Products/Debug-iphonesimulator/iosApp.app"
+          APP="iosApp/build/dd/Build/Products/Debug-iphonesimulator/ContactsSila.app"
           [ -d "$APP" ] || { echo "Built app bundle not found at $APP"; exit 1; }
           USAGE_DESC="$(plutil -extract NSContactsUsageDescription raw "$APP/Info.plist")" \
             || { echo "NSContactsUsageDescription missing in the BUILT Info.plist"; exit 1; }

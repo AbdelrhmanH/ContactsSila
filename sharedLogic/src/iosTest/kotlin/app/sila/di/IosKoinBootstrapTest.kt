@@ -6,16 +6,16 @@ import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.core.model.DefaultTab
 import app.sila.feature.main.MainIntent
 import app.sila.maintenance.RetentionCleanupCoordinator
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.context.stopKoin
 import platform.Foundation.NSFileManager
+import platform.posix.usleep
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -110,19 +110,25 @@ class IosKoinBootstrapTest {
         assertEquals(DefaultTab.ARHAM, vm.state.value.activeTab)
     }
 
+    @OptIn(ExperimentalForeignApi::class)
     @Test
-    fun ensureStarted_launchesRetentionCleanupCoordinator_andPublishesReport() = runTest {
+    fun ensureStarted_launchesRetentionCleanupCoordinator_andPublishesReport() {
         // F-02: مسار الإنتاج على iOS يشغّل صيانة الاستبقاء من كلا مساري ensureStarted —
         // التنظيف مرة واحدة لكل عملية، والتقرير يُنشر على lastReport بعد نجاح المعاملة.
         val koin = IosKoinBootstrap.ensureStarted()
         val coordinator = koin.get<RetentionCleanupCoordinator>()
 
-        val report = withTimeoutOrNull(15_000) {
-            coordinator.lastReport.first { it != null }
+        // الانتظار على الزمن الحقيقي حصراً (وليس الزمن الافتراضي لـ runTest): التنظيف
+        // ينفَّذ على خيوط إنتاجية حقيقية (engineScope + Dispatchers.io في الـ DAO)
+        // خارج نطاق الاختبار — لذا استطلاع دوري بسقف زمني 15 ثانية.
+        var waitedMillis = 0L
+        while (coordinator.lastReport.value == null && waitedMillis < 15_000L) {
+            usleep(100_000u) // 100ms
+            waitedMillis += 100L
         }
 
         assertNotNull(
-            report,
+            coordinator.lastReport.value,
             "Retention cleanup must execute from IosKoinBootstrap.ensureStarted() and publish its report."
         )
     }
