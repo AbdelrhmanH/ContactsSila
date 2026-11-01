@@ -1,9 +1,9 @@
 package app.sila.core.database
 
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import androidx.sqlite.execSQL
+import androidx.sqlite.async.executeSQL
 import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.LocalSilaDatabase
+import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
@@ -261,7 +261,7 @@ class ContactsSearchDaoTest {
 
     @Test
     fun setFavorite_persistsOnDisk_andSurvivesReopen() = runTest {
-        val tempDbPath = "build/tmp_test_fav_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_fav_${Random.nextLong(100_000, 999_999)}.db")
         val db = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
         try {
             db.upsertContact(contact("t3_fav", "أحمد"))
@@ -369,46 +369,34 @@ class ContactsSearchDaoTest {
         }
     }
 
-    // ===== ترحيل فهرس T3 (إضافة عمود department بإعادة الإنشاء) =====
+    // ===== اعتماد L1 (PR B · ADR-0011): FTS بخمسة أعمدة يُعاد إنشاؤه بستة أعمدة =====
 
     @Test
-    fun migration_preT3Fts_recreatesWithDepartment_andBackfillsFromContacts() = runTest {
-        val tempDbPath = "build/tmp_test_fts_t3_${Random.nextLong(100_000, 999_999)}.db"
+    fun adoption_L1Fixture_recreatesFtsWithDepartment_andBackfillsFromContacts() = runTest {
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_l1_${Random.nextLong(100_000, 999_999)}.db")
 
-        // 1) قاعدة حديثة (مخطط T3) — بذور العرض تُكتب في الملف + جهة لها قسم:
-        val fresh = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
-        try {
-            fresh.upsertContact(
-                contact("t3_dept", "هشام عبد الحميد", company = "مكتب النور", department = "الحسابات المالية")
+        // 1) قاعدة L1 تاريخية (v2 المكتملة — FTS بخمسة أعمدة قبل T3) بجهة لها قسم:
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, displayName, company, department, " +
+                    "category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) " +
+                    "VALUES (1, 't3_dept', 'هشام عبد الحميد', 'مكتب النور', 'الحسابات المالية', " +
+                    "'WORK', 0, 'هشام عبد الحميد', 10, 20, '')"
             )
-        } finally {
-            fresh.closeConnection()
+            conn.executeSQL(
+                "INSERT INTO contact_phones (contactId, raw, e164, type, isPrimary) VALUES (1, '01033334444', '+201033334444', 'MOBILE', 1)"
+            )
         }
 
-        // 2) تقليض الفهرس يدوياً إلى مخطط ما قبل T3 (5 أعمدة بلا department):
-        val old = BundledSQLiteDriver().open(tempDbPath)
-        try {
-            old.execSQL("DROP TABLE contacts_fts")
-            old.execSQL(
-                "CREATE VIRTUAL TABLE contacts_fts USING fts4(" +
-                    "displayName, nickname, company, notes, normalizedName)"
-            )
-            old.execSQL(
-                "INSERT INTO contacts_fts (docid, displayName, nickname, company, notes, normalizedName) " +
-                    "SELECT id, displayName, nickname, company, notes, normalizedName FROM contacts"
-            )
-        } finally {
-            old.close()
-        }
-
-        // 3) إعادة الفتح: الكشف موجَّه بالشكل ⇒ إسقاط وإعادة إنشاء وإعادة تعبئة idempotent:
+        // 2) إعادة الفتح عبر LocalSilaDatabase: الشيم تسقط FTS الخمسي وتعيد إنشاءه بستة أعمدة
+        //    وتُعيد تعبئته idempotently من contacts، ثم يتحقق Room ويختم الإصدار:
         val db = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
         try {
             val loaded = db.observeContacts().first()
-            assertTrue(loaded.any { it.systemContactId == "t3_dept" }, "لا فقدان بيانات في الترحيل")
+            assertTrue(loaded.any { it.systemContactId == "t3_dept" }, "لا فقدان بيانات في الاعتماد")
 
             val byDepartment = db.fixtureResults("المالية", setOf("t3_dept"))
-            assertTrue(byDepartment.any { it.systemContactId == "t3_dept" }, "عمود department مُفهرس بعد الترحيل")
+            assertTrue(byDepartment.any { it.systemContactId == "t3_dept" }, "عمود department مُفهرس بعد الاعتماد")
             val byName = db.fixtureResults("هشام", setOf("t3_dept"))
             assertTrue(byName.any { it.systemContactId == "t3_dept" }, "بقية الأعمدة تعمل بعد إعادة الإنشاء")
         } finally {

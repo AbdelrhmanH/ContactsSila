@@ -1,30 +1,34 @@
 # نموذج البيانات (Data Model)
 
 > المرجع: [PRD §16](PRD.md#16-نماذج-البيانات). السحابة: [BACKEND_FIREBASE.md](BACKEND_FIREBASE.md).
+>
+> **PR B ([ADR-0011](adr/0011-room3-single-schema-authority.md)):** Room 3 KMP (`androidx.room3`, KSP) هو **صاحب المخطط الوحيد** — الكيانات في
+> `:core:database/entity/` هي المرجع الحرفي للواقع الفيزيائي (`@Database(version = 1)` + مخططات مولَّدة في
+> `core/database/schemas/`). هذا الملف يوثّق الجداول **الفعلية** حصراً؛ ما لم يُنشأ فيزيائياً يُوسَم «تصميم مستقبلي».
 
 ## 1. مخطط العلاقات (Room)
+
+الجداول الفعلية التسعة (8 مُدارة من Room + `contacts_fts` عبر Callback): `contacts`, `contact_phones`,
+`contacts_fts`, `arham`, `services`, `call_events`, `arham_inbox`, `dispute_logs`, `contacts_sync_checkpoints`.
 
 ```mermaid
 erDiagram
     CONTACTS ||--o{ CONTACT_PHONES : has
-    CONTACTS ||--o{ CONTACT_EMAILS : has
-    CONTACTS ||--o{ CONTACT_ADDRESSES : has
-    CONTACTS ||--o{ CONTACT_JOB_TITLES : has
-    CONTACTS ||--o{ CONTACT_DATES : has
-    CONTACTS ||--o{ CONTACT_CUSTOM_FIELDS : has
-    CONTACTS ||--o{ CONTACT_WEBSITES : has
-    CONTACTS ||--o{ CONTACT_TAGS : tagged
     CONTACTS ||--o| ARHAM : "may have"
     ARHAM ||--o{ ARHAM : "parentContactId"
+    CONTACTS ||--o{ CONTACTS_FTS : "docid == contacts.id"
     CONTACTS }o--o| SERVICES : "linkedServiceCloudId"
     CALL_EVENTS }o--|| CONTACT_PHONES : "by e164"
     CONTACTS ||--o{ DISPUTE_LOGS : "has disputes"
-    CONTACTS ||--o{ SCHEDULED_MESSAGES : "has automation"
+    CONTACTS_SYNC_CHECKPOINTS
     ARHAM_INBOX
-    EMERGENCY_RINGING_SESSIONS }o--|| CONTACTS : "emergency only"
-    CATEGORY_RINGTONES
-    DUPLICATE_DISMISSALS
 ```
+
+> القيود المرجعية (FK) **توثيقية فقط** — لا قيود FK فيزيائية في المخطط (ADR-0011 · Decision 5)،
+> والسلامة المرجعية تُدار داخل معاملات الكتابة المركّبة.
+> جداول التصميم المستقبلي (contact_emails/addresses/dates/custom_fields/websites/tags,
+> scheduled_messages, emergency_ringing_sessions, category_ringtones, duplicate_dismissals…)
+> **لا وجود فيزيائياً لها** — تُضاف مع كيانات Room وترحيلات عند تنفيذ ميزاتها.
 
 ## 2. الجداول
 
@@ -32,7 +36,7 @@ erDiagram
 | العمود | النوع | ملاحظات |
 |---|---|---|
 | id | Long PK | |
-| systemContactId | String UNIQUE | مفتاح المزامنة الدائم: Android `LOOKUP_KEY` / iOS `identifier` (ADR-0009) |
+| systemContactId | String, **Index غير فريد** | مفتاح المزامنة الدائم: Android `LOOKUP_KEY` / iOS `identifier` (ADR-0009). **بلا قيد UNIQUE فيزيائياً** — التفرد المنطقي يُدار في طبقة التطبيق، والسجلات المكررة تُحفظ كما هي (ADR-0011 · Decision 5) |
 | lookupKey | String? | أندرويد — مرآة `LOOKUP_KEY` لبناء `CONTENT_LOOKUP_URI` |
 | accountType / accountName | String? | phone / com.google / sim |
 | displayName, fileAs | String | |
@@ -57,17 +61,14 @@ erDiagram
 > `contact_tags` **غير مخزّنة بعد** (قيد مخطط مخفَّض — القيم تُسقَط عند المزامنة وتُوثَّق
 > هنا عند إضافتها).
 
-### الجداول الفرعية (كلها `contactId` FK + CASCADE)
-| الجدول | الأعمدة |
-|---|---|
-| contact_phones | raw, **e164 (Index)**, type, label, isPrimary, preferredSimSlot? |
-| contact_emails | address, type, label |
-| contact_addresses | street, city, region, postalCode, country, type |
-| contact_job_titles | title |
-| contact_dates | type (BIRTHDAY, ANNIVERSARY, CUSTOM), label, month, day, year? |
-| contact_custom_fields | label, value |
-| contact_websites | url, type |
-| contact_tags | tag (Index) — وسوم مستخرجة/يدوية |
+### الجداول الفرعية
+جدول فرعي فعلي واحد فقط: **contact_phones** (الأعمدة الفيزيائية):
+`id (PK autoincrement), contactId (Index), raw, e164 (Index), type (افتراضي 'MOBILE'), isPrimary (افتراضي 0)`.
+
+> لا حقول `label`/`preferredSimSlot` فيزيائياً — قيم الـ Domain النظيفة تُسقَط عند الكتابة
+> (`EntityMappers`). بقية جداول التصميم المستقبلي (contact_emails/addresses/dates/
+> custom_fields/websites/tags/job_titles) **غير مخزّنة بعد** (قيد مخطط مخفَّض — القيم
+> تُسقَط عند المزامنة وتُوثَّق هنا عند إضافتها).
 
 ### contacts_fts (FTS4)
 `displayName, nickname, company, department, notes, normalizedName` — **جدول FTS4 مستقل** بـ `docid = contacts.id`
@@ -77,10 +78,17 @@ erDiagram
 القبر والحذف النهائي، وإعادة تعبئة idempotent عند الترقية للصفوف القديمة. تُخفى المقبورة
 من الفهرس. يقرأه مسار البحث الإنتاجي عبر `ContactDao.searchContacts` (T3 — Issue #24).
 
-**عمود `department` (T3 — Issue #24):** أُضيف للفهرس (بحث المسمى الوظيفي/القسم). جداول FTS4
-لا تدعم `ALTER TABLE ADD COLUMN` — فالترحيل موجَّه بالشكل (`ensureFtsDepartmentColumn`):
-فحص وجود العمود، وعند غيابه يُدرَب ويُعاد إنشاء الجدول ثم تُعاد تعبئته idempotent من
-`contacts` (بلا ترقية إصدار Room ولا فقدان بيانات — انظر اختبار الترحيل في `ContactsSearchDaoTest`).
+> **آلية الإنشاء في Room 3 (PR B — ADR-0011 القرار 1):** الجدول ليس كياناً مُداراً من Room —
+> KSP على أهداف Native (iOS) لا يعالج كيانات `@Fts4` المستقلة (خلل Room 3.0.3: فشل حلّ
+> القيمة الافتراضية لـ `contentEntity` من klib). يُنشأ عبر `RoomDatabase.Callback.onOpen`
+> بعبارة DDL موحّدة حرفية (`LegacyFtsDdl.CREATE_CONTACTS_FTS` — مستقل بلا `content=`،
+> توكنِزِر SIMPLE، بلا مشغّلات) مع `IF NOT EXISTS`، ولا يظهر في مخطط `schemas/1.json`
+> المُصدَّر — مرجعيته العبارة الموحّدة + بصمة الاعتماد + اختبارات التشغيل.
+
+**عمود `department` (T3 — Issue #24):** موجود في الفهرس الفيزيائي (بحث المسمى الوظيفي/القسم).
+جداول FTS4 لا تدعم `ALTER TABLE ADD COLUMN` — فمسار الاعتماد (ADR-0011) يُعيد إنشاء الجدول
+ويُعيد تعبئته idempotently من `contacts` عند غياب أي من الأعمدة الستة المستهدفة (بلا ترقية
+إصدار Room ولا فقدان بيانات — انظر اختبار الترحيل في `ContactsSearchDaoTest`).
 
 **توكنة الفهرس (T3 — قرارات البحث):** كل الأعمدة تُخزَّن **بنص معايَر عبر `ArabicTextNormalizer`**
 (توحيد الهمزات أإآ→ا، ة→ه، ى→ي، الأرقام العربية-الهندية→غربية، إسقاط التشكيل، أحرف لاتينية
@@ -112,75 +120,51 @@ erDiagram
 | pausedUntil | Long? |
 | createdAt | Long |
 
-### call_events
-`id PK, primarySource (IN_APP/ANDROID_CALL_SCREENING/ANDROID_TELEPHONY_OBSERVER/IOS_CALL_OBSERVER/MANUAL), evidenceSourcesJson, timestamp (Index), remoteNumber? (Index), contactId? (FK), direction?, startedAt?, connectedAt?, endedAt?, durationSec?, outcome (ATTEMPTED/CONNECTED/COMPLETED/UNANSWERED/UNKNOWN), association, confirmation, confidence, dedupeKey?, simSlot?`
-> عقد الحدث ومصادره في [ADR-0006](adr/0006-call-log-strategy.md). `evidenceSourcesJson` هو التمثيل الفيزيائي لـ `Set<CallEventSource>` عبر TypeConverter؛ التمثيل المنطقي في الـ domain يبقى `Set`. الحقول الاختيارية تعني «المنصة لم تكشفها» ولا تُشتق أو تُخترع. يُحتفظ بالأحداث 365 يوماً ثم تُحذف تلقائياً. المخطط الحالي في المرحلة 0 (`callLogId`, `e164`, `source = CALL_LOG/IN_APP/OBSERVER/MANUAL`) مبدئي ويتطلب هجرة Room في المرحلة 1.
+### call_events (6 أعمدة فعلية)
+`callLogId PK, e164, direction, durationSec, timestamp (Index), source (CALL_LOG/IN_APP/OBSERVER/MANUAL)`
+> عقد الحدث ومصادره في [ADR-0006](adr/0006-call-log-strategy.md). هذه هي الصورة الفيزيائية
+> الحرفية بفهرس واحد على `timestamp` (ADR-0011)؛ حقول عقد ADR-0006 الغنية (evidenceSources,
+> contactId, startedAt/connectedAt/endedAt, outcome…) تصميم مستقبلي يُضاف مع كيان Room
+> وترحيل عند تنفيذ المرحلة 1. يُحتفظ بالأحداث 365 يوماً ثم تُحذف تلقائياً (F-02).
 
-### services
-`cloudId PK, name, professionId, phoneE164 (Index), previousPhones, visibility, trustScore, uniqueCallers, retentionRate, ratingAvg, ratingCount, isHot, geohash (Index), lat, lng, city, workingHoursJson, ownerVerified, isSavedByUser, myRating, myCallCount, myLastCallAt, possiblyBroken, syncedAt`
+### services (16 عموداً فعلياً)
+`cloudId PK, name, professionId (Index), professionNameAr, professionNameEn, phoneE164 (Index), visibility, trustScore, uniqueCallers, retentionRate, ratingAvg, ratingCount, isHot (افتراضي 0), city?, ownerVerified (افتراضي 0), isSavedByUser (افتراضي 0)`
+> حقول العرض/التعلم (geohash, lat/lng, workingHoursJson, previousPhones, myRating,
+> myCallCount, myLastCallAt, possiblyBroken, syncedAt) **غير مخزّنة فيزيائياً** — قيم الـ
+> Domain المحايدة تُشتق في المappers (ADR-0011).
 
-### professions (Cache)
-`id PK, nameAr, nameEn, icon, keywordsJson, parentId, suppliersJson, isB2B`
-
-### أخرى
-- `duplicate_dismissals(contactIdA, contactIdB)` PK مركب.
-- `category_ringtones(category PK, ringtoneUri)`.
-- `smart_filter_feedback(normalizedToken, category, accepted)` للتعلم المحلي.
-- `pending_uploads(id, type, payloadJson, createdAt, attempts)` — Outbox لعمليات السحابة (اقتراح خدمة، تقييم، إشارة اتصال) لضمان الإرسال عند عودة الإنترنت.
-
-### dispute_logs
+### dispute_logs (7 أعمدة فعلية)
 | العمود | النوع | ملاحظات |
 |---|---|---|
 | id | Long PK | |
 | serviceCloudId | String | FK للخدمة المعنية |
 | description | String | نص المشكلة (حتى 500 حرف) |
-| imageUris | String? | JSON array لمسارات الصور المحلية (حتى 3) |
-| cloudImageUrls | String? | JSON array لروابط Firebase Storage |
 | status | DisputeStatus | `OPEN` → `RESOLVED` → `ARCHIVED` |
-| cloudDisputeId | String? | معرّف Firestore بعد المزامنة |
 | createdAt | Long | |
 | updatedAt | Long | |
 | resolvedAt | Long? | |
+> حقول المرفقات والمزامنة السحابية (`imageUris`, `cloudImageUrls`, `cloudDisputeId`) **غير مخزّنة فيزيائياً بعد** — قيم الـ Domain المحايدة تُشتق في `EntityMappers` (ADR-0011).
 
-### scheduled_messages
+### scheduled_messages — **تصميم مستقبلي (لا جدول فيزيائياً)**
+> لم يُنشأ هذا الجدول إطلاقاً؛ كيانه التجميعي الشبحي أُزيل نهائياً في PR B (ADR-0011 · Decision 1)
+> بعد التحقق من انعدام مستهلكيه. تُعاد صياغته عند تنفيذ ميزة الأتمتة.
+
+### arham_inbox (8 أعمدة فعلية)
 | العمود | النوع | ملاحظات |
 |---|---|---|
 | id | Long PK | |
-| contactId | Long FK | القريب المستهدف |
-| type | AutomationType | `IN_APP_MESSAGE` · `AUTO_RING` |
-| messageText | String? | نص الرسالة (للرسائل فقط) |
-| recurrence | RecurrenceRule | JSON: نوع التكرار + الأيام + الوقت |
-| nextFireAt | Long (Index) | الموعد القادم للتنفيذ |
-| isEnabled | Boolean | |
-| createdAt | Long | |
-| updatedAt | Long | |
-
-### arham_inbox
-| العمود | النوع | ملاحظات |
-|---|---|---|
-| id | Long PK | |
-| cloudMessageId | String? UNIQUE | معرّف Firestore |
 | senderUid | String | |
 | senderName | String | |
 | recipientUid | String | |
 | messageText | String | |
-| reaction | String? | ❤️ 🤲 👍 😊 |
 | direction | MessageDirection | `SENT` · `RECEIVED` |
 | status | MessageStatus | `PENDING` · `SENT` · `DELIVERED` · `READ` |
 | sentAt | Long (Index) | |
-| readAt | Long? | |
+> حقول المزامنة والتفاعل (`cloudMessageId`, `reaction`, `readAt`) **غير مخزّنة فيزيائياً بعد** — قيم الـ Domain المحايدة تُشتق في `EntityMappers` (ADR-0011).
 
-### emergency_ringing_sessions
-| العمود | النوع | ملاحظات |
-|---|---|---|
-| id | Long PK | |
-| contactId | Long FK | جهة اتصال طوارئ فقط |
-| phoneE164 | String | |
-| attempts | Int | عدد المحاولات |
-| maxAttempts | Int | الحد الأقصى (افتراضي 10) |
-| status | RingingStatus | `IN_PROGRESS` · `ANSWERED` · `STOPPED_BY_USER` · `MAX_REACHED` · `BLOCKED` |
-| startedAt | Long | |
-| endedAt | Long? | |
+### emergency_ringing_sessions — **تصميم مستقبلي (لا جدول فيزيائياً)**
+> لم يُنشأ هذا الجدول إطلاقاً؛ كيانه التجميعي الشبحي أُزيل نهائياً في PR B (ADR-0011 · Decision 1)
+> بعد التحقق من انعدام مستهلكيه. تُعاد صياغته عند تنفيذ ميزة طوابير الاتصال الطارئ.
 
 ## 3. التعدادات (Enums)
 
@@ -309,7 +293,18 @@ fun Double.toStatus() = when { this >= 1.0 -> OVERDUE; this >= 0.7 -> SOON; else
 | `swipe_start_action` | `String` | `CALL` | فعل السحب من البداية على صف جهة (منطقياً — M3 يعكسه في RTL) |
 | `swipe_end_action` | `String` | `MESSAGE` | فعل السحب من النهاية (واجهة الإعداد في T9) |
 
-## 7. سياسة الـ Migrations
-- `exportSchema = true` وحفظ ملفات المخطط في `shared/core/database/schemas/`.
-- كل تغيير = Migration + اختبار `MigrationTestHelper`.
-- ممنوع `fallbackToDestructiveMigration` في الإنتاج.
+## 7. سياسة المخطط والـ Migrations (PR B · ADR-0011)
+- **Room 3 KSP هو صاحب المخطط الوحيد:** `@Database(version = 1, exportSchema = true)`، وملفات
+  المخطط المولَّدة تُراجَع في `core/database/schemas/`.
+- **قواعد `user_version = 0` القائمة** تُعتمَد مرة واحدة عبر مسار التوأمة الآمن (شيم idempotent
+  داخل معاملة واحدة + نسخة واقية `sila_local.pre-room-backup` + تحقق ثم ختم الإصدار عبر مسار
+  الإنشاء/التحقق لـ Room) — **ممنوع** `Migration(0,1)`؛ التفاصيل في [ADR-0011](adr/0011-room3-single-schema-authority.md).
+- **جداول FTS غير المُدارة (`contacts_fts`) لا ترصدها ترحيلات Room الآلية** — أي تعديل مستقبلي
+  عليها (أعمدة/توكنِزِر/نقل إلى FTS5) يُدار يدوياً ضمن كود الـ `Migration` نفسه + إعادة تعبئة
+  idempotent، مع تحديث عبارة `LegacyFtsDdl` الموحّدة (وإلا ينشئها الـ Callback بشكل قديم عند
+  التثبيت الجديد) — انظر [ADR-0011](adr/0011-room3-single-schema-authority.md).
+- كل تغيير مستقبلي على المخطط (بعد الإصدار 1) = إصدار `@Database` جديد + `Migration` رسمية
+  + اختبار `MigrationTestHelper` + ملف مخطط مُراجَع في الـ PR.
+- ممنوع `fallbackToDestructiveMigration` في الإنتاج؛ ممنوع إنشاء أي جدول خارج الكيانات
+  المصرَّحة — الاستثناء الوحيد `contacts_fts` (FTS4 المستقل) المُنشأ حصراً عبر
+  `RoomDatabase.Callback` بعبارة DDL الموحّدة (`LegacyFtsDdl`) — انظر [ADR-0011](adr/0011-room3-single-schema-authority.md).

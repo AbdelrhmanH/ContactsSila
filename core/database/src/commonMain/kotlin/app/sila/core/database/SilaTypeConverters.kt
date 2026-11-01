@@ -1,8 +1,7 @@
 package app.sila.core.database
 
-import androidx.room.TypeConverter
+import androidx.room3.ColumnTypeConverter
 import app.sila.core.model.ArhamFrequency
-import app.sila.core.model.AutomationType
 import app.sila.core.model.CallDirection
 import app.sila.core.model.CallSource
 import app.sila.core.model.Category
@@ -11,83 +10,74 @@ import app.sila.core.model.KinshipLayer
 import app.sila.core.model.MessageDirection
 import app.sila.core.model.MessageStatus
 import app.sila.core.model.Relation
-import app.sila.core.model.RingingStatus
 import app.sila.core.model.ServiceVisibility
 
 /**
- * محولات الأنواع الخاصة بـ Room KMP (DATA_MODEL.md §2).
+ * محولات الأعمدة الخاصة بـ Room 3 KMP (DATA_MODEL.md §2 · ADR-0011).
+ *
+ * كل تعداد يُخزَّن كنص `name` مطابقةً لطريقة التخزين الفعلية في قواعد المستخدمين
+ * القائمة (adoption) وقواعد التثبيت الجديدة على السواء.
+ * (محولا `AutomationType`/`RingingStatus` تابعان للكيانتين الشبحتين المحذوفتين — ADR-0011.)
  */
 class SilaTypeConverters {
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromCategory(value: Category): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toCategory(value: String): Category = Category.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromRelation(value: Relation): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toRelation(value: String): Relation = Relation.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromKinshipLayer(value: KinshipLayer): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toKinshipLayer(value: String): KinshipLayer = KinshipLayer.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromArhamFrequency(value: ArhamFrequency): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toArhamFrequency(value: String): ArhamFrequency = ArhamFrequency.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromCallDirection(value: CallDirection): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toCallDirection(value: String): CallDirection = CallDirection.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromCallSource(value: CallSource): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toCallSource(value: String): CallSource = CallSource.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromServiceVisibility(value: ServiceVisibility): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toServiceVisibility(value: String): ServiceVisibility = ServiceVisibility.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromDisputeStatus(value: DisputeStatus): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toDisputeStatus(value: String): DisputeStatus = DisputeStatus.valueOf(value)
 
-    @TypeConverter
-    fun fromAutomationType(value: AutomationType): String = value.name
-
-    @TypeConverter
-    fun toAutomationType(value: String): AutomationType = AutomationType.valueOf(value)
-
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromMessageDirection(value: MessageDirection): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toMessageDirection(value: String): MessageDirection = MessageDirection.valueOf(value)
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun fromMessageStatus(value: MessageStatus): String = value.name
 
-    @TypeConverter
+    @ColumnTypeConverter
     fun toMessageStatus(value: String): MessageStatus = MessageStatus.valueOf(value)
-
-    @TypeConverter
-    fun fromRingingStatus(value: RingingStatus): String = value.name
-
-    @TypeConverter
-    fun toRingingStatus(value: String): RingingStatus = RingingStatus.valueOf(value)
 }

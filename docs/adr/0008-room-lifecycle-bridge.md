@@ -1,6 +1,8 @@
 # ADR-0008: جسر expect/actual لدورة حياة RoomDatabase عبر المنصات
-- **الحالة:** مقبول
+- **الحالة:** مستبدل بـ [ADR-0011](0011-room3-single-schema-authority.md)
 - **التاريخ:** 2026-10-26
+
+> **ملاحظة (2026-11-01):** هذا القرار **مستبدل** بـ ADR-0011 — مع تبني Room 3 KMP بمولّد KSP ومحرك `BundledSQLiteDriver` الموحّد، انتفى سبب الجسر (اختلاف أعضاء `RoomDatabase` بين المنصتين عند الوراثة اليدوية) وحُذف الجسر بكوده. يُحفظ النص أدناه للأرشيف التاريخي.
 
 ## السياق
 وحدة `:core:database` تستخدم Room KMP 2.7.0 كمزوّد أنواع/واجهات فقط (بدون مُولِّد KSP)، بينما التخزين الفعلي يُدار عبر اتصال `BundledSQLiteDriver` مستقل داخل `LocalSilaDatabase`. كان `SilaRoomDatabase` يرث `RoomDatabase()` مباشرة، وكان `LocalSilaDatabase` يعيد تعريف `clearAllTables()` و `close()`.

@@ -81,6 +81,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Run Kotlin/Native Database Adoption Tests (PR B — ADR-0011)
+        run: ./gradlew :core:database:iosSimulatorArm64Test --console=plain
+
       - name: Run Kotlin/Native iOS Simulator Tests (SharedLogic)
         run: ./gradlew :sharedLogic:iosSimulatorArm64Test --console=plain
 
@@ -123,6 +126,10 @@ jobs:
         with:
           name: ios-simulator-test-reports
           path: |
+            core/database/build/test-results/
+            core/database/build/reports/tests/
+            feature/contacts/data/build/test-results/
+            feature/contacts/data/build/reports/tests/
             sharedLogic/build/test-results/
             sharedLogic/build/reports/tests/
           if-no-files-found: ignore

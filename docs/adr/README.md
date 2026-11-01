@@ -9,9 +9,10 @@
 | [0005](0005-navigation.md) | Navigation Compose و NavigationStack | مقبول |
 | [0006](0006-call-log-strategy.md) | التتبع العملي متعدد المصادر لمكالمات أرحام (B+ مع تأكيد احتياطي) | مقبول |
 | [0007](0007-hybrid-feature-modularization.md) | التقسيم الهجين: طبقات داخل الميزات | مقبول |
-| [0008](0008-room-lifecycle-bridge.md) | جسر دورة حياة Room بين المنصتين | مقبول |
+| [0008](0008-room-lifecycle-bridge.md) | جسر دورة حياة Room بين المنصتين | مستبدل بـ [0011](0011-room3-single-schema-authority.md) |
 | [0009](0009-contacts-platform-boundary.md) | حدود تكامل جهات الاتصال مع المنصات | مقبول |
 | [0010](0010-incremental-contacts-sync.md) | المزامنة التزايدية لجهات الاتصال إلى Room | مقبول |
+| [0011](0011-room3-single-schema-authority.md) | Room 3 مرجع المخطط الوحيد مع اعتمادٍ آمنٍ لقواعد ما قبل Room | مقبول |
 
 ## القالب
 ```markdown

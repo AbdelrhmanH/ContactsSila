@@ -30,6 +30,7 @@ class BackupConfigVerificationTest {
         "sila_local.db-wal",
         "sila_local.db-shm",
         "sila_local.db-journal",
+        "sila_local.pre-room-backup",
         "sila_user_preferences.preferences_pb"
     )
 

@@ -1,10 +1,13 @@
 package app.sila.core.database
 
+import androidx.sqlite.async.executeSQL
+import androidx.sqlite.async.prepare
+import androidx.sqlite.async.step
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
-import androidx.sqlite.execSQL
 import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.ContactsSyncBatchResult
 import app.sila.core.database.dao.LocalSilaDatabase
+import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamInfo
@@ -284,76 +287,51 @@ class ContactsSyncDaoTest {
     }
 
     @Test
-    fun migration_v1ToV2_addsParityColumns_preservesData_andBackfillsFts() = runTest {
-        val tempDbPath = "build/tmp_test_sync_v1_${Random.nextLong(100_000, 999_999)}.db"
+    fun adoption_L0Fixture_addsParityColumnsAndCheckpoints_preservesData_andBackfillsFts() = runTest {
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_l0_${Random.nextLong(100_000, 999_999)}.db")
 
-        // 1) أنشئ ملف v1 بالمخطط القديم المخفَّض وبيانات فيه:
-        val old = BundledSQLiteDriver().open(tempDbPath)
-        try {
-            old.execSQL(
-                """
-                CREATE TABLE contacts (
-                    id INTEGER PRIMARY KEY NOT NULL,
-                    systemContactId TEXT NOT NULL,
-                    displayName TEXT NOT NULL,
-                    firstName TEXT,
-                    lastName TEXT,
-                    company TEXT,
-                    photoUri TEXT,
-                    category TEXT NOT NULL,
-                    isFavorite INTEGER NOT NULL DEFAULT 0,
-                    excludeFromSmartFilter INTEGER NOT NULL DEFAULT 0,
-                    normalizedName TEXT NOT NULL,
-                    createdAt INTEGER NOT NULL DEFAULT 0,
-                    updatedAt INTEGER NOT NULL DEFAULT 0
-                )
-                """.trimIndent()
-            )
-            old.execSQL(
-                """
-                CREATE TABLE contact_phones (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    contactId INTEGER NOT NULL,
-                    raw TEXT NOT NULL,
-                    e164 TEXT NOT NULL,
-                    type TEXT NOT NULL DEFAULT 'MOBILE',
-                    isPrimary INTEGER NOT NULL DEFAULT 0
-                )
-                """.trimIndent()
-            )
-            old.execSQL(
+        // 1) قاعدة L0 تاريخية (user_version=0 — مخطط 84b530a الحرفي بسبعة جداول) وبيانات فيها:
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL(
                 "INSERT INTO contacts (id, systemContactId, displayName, firstName, lastName, company, " +
                     "category, isFavorite, normalizedName, createdAt, updatedAt) " +
                     "VALUES (1, 'old_1', 'خالد سامي', 'خالد', 'سامي', 'مكتب خالد', 'WORK', 1, 'خالد سامي', 10, 20)"
             )
-            old.execSQL(
-                "INSERT INTO contact_phones (contactId, raw, e164, type, isPrimary) VALUES (1, '01033334444', '+201033334444', 'MOBILE', 1)"
+            // id غير تلافي (7) — يُثبت أن إعادة بناء الجدول تحفظ هويات الصفوف حرفياً:
+            conn.executeSQL(
+                "INSERT INTO contact_phones (id, contactId, raw, e164, type, isPrimary) VALUES (7, 1, '01033334444', '+201033334444', 'MOBILE', 1)"
             )
-        } finally {
-            old.close()
         }
 
-        // 2) افتح عبر LocalSilaDatabase (الترقية تحدث في تهيئة المخطط):
+        // 2) افتح عبر LocalSilaDatabase — شيم الاعتماد (ADR-0011) توائم المخطط ثم يتحقق Room:
         val db = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
         try {
             // لا بذور: الصفوف المحمّلة من الملف هي كل ما في القاعدة.
             val loaded = db.observeContacts().first()
             assertEquals(1, loaded.size)
-            val migrated = loaded.single()
-            assertEquals("old_1", migrated.systemContactId)
-            assertEquals("خالد سامي", migrated.name.displayName)
-            assertEquals(Category.WORK, migrated.category)
-            assertTrue(migrated.isFavorite)
-            assertEquals("+201033334444", migrated.phones.single().e164)
-            assertNull(migrated.lookupKey, "v1 rows carry no parity columns yet")
+            val adopted = loaded.single()
+            assertEquals("old_1", adopted.systemContactId)
+            assertEquals("خالد سامي", adopted.name.displayName)
+            assertEquals(Category.WORK, adopted.category)
+            assertTrue(adopted.isFavorite)
+            assertEquals("+201033334444", adopted.phones.single().e164)
+            assertNull(adopted.lookupKey, "L0 rows carry no parity-column values yet")
 
-            // الفهرس مُعاد تعبئته idempotently للصفوف القديمة:
+            // هوية صف الهاتف حُفظت حرفياً عبر إعادة بناء الجدول (نسخ id صريح — شيم الاعتماد):
+            val phoneIdAfterAdoption = BundledSQLiteDriver().open(tempDbPath).use { conn ->
+                conn.prepare("SELECT id FROM contact_phones").use { stmt ->
+                    if (stmt.step()) stmt.getLong(0) else -1L
+                }
+            }
+            assertEquals(7L, phoneIdAfterAdoption, "هوية صف الهاتف محفوظة بعد إعادة البناء")
+
+            // الفهرس أعيد تعبئته idempotently بواسطة الشيم (FTS لم يكن موجوداً في L0 أصلاً):
             assertTrue(db.queryFtsContactIds("خالد").contains(1L))
 
-            // المزامنة تعمل فوق الجدول المُرقّى:
+            // المزامنة تعمل فوق الجدول المعتمد:
             val now = 1_800_000_000_000L
             val result: ContactsSyncBatchResult = db.applySyncBatch(
-                upserts = listOf(syncContact("new_1", "جهة بعد الترقية")),
+                upserts = listOf(syncContact("new_1", "جهة بعد الاعتماد")),
                 tombstones = emptyList(),
                 snapshotJson = "{\"v\":2}",
                 reconcileStampMillis = now,

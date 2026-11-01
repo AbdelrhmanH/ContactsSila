@@ -71,12 +71,13 @@ import org.koin.core.context.startKoin
 import org.koin.core.module.Module
 import org.koin.dsl.KoinAppDeclaration
 import org.koin.dsl.module
+import org.koin.dsl.onClose
 import org.koin.mp.KoinPlatformTools
 
 /**
  * وحدة حقن التبعيات المشتركة لتطبيق صِلَة (ARCHITECTURE.md §1-2 & ADR-0007).
  * تطبق مبادئ SOLID:
- * - SRP & ISP: ربط كل واجهة DAO بكلاس مستقل أحادي المسؤولية (SqliteContactDao, SqliteArhamDao, SqliteServiceDao, SqliteDataRetentionCleanupDao).
+ * - SRP & ISP: واجهات DAO مجزّأة لكل نطاق (ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao) تنفّذها [LocalSilaDatabase] مباشرة (PR B · ADR-0011).
  * - SRP: تسجيل كل حالة استخدام (UseCase) بمسؤولية واحدة.
  * - DIP: حقن التجريدات (Interfaces & UseCases) في الـ ViewModels عبر Koin.
  */
@@ -87,18 +88,24 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // مصدر جهات الاتصال من المنصة (Issue #22 · ADR-0009 §3) — actuals per-platform.
     includes(platformContactsSourceModule)
 
-    // Core Room KMP Database + Segregated DAOs (SRP & ISP)
-    // F-01: بلا بذرة تجريبية في الإنتاج — `seedDemoData` افتراضياً `false` حصراً.
+    // قاعدة Room KMP الوحيدة (PR B · ADR-0011): [LocalSilaDatabase] هي واجهة الوصول
+    // الموحّدة — تنفّذ واجهات DAO الخمس مباشرة (كتابات مركّبة بـ SQL خام داخل معاملات
+    // Room، وقراءات عبر DAOs الكيانات المولَّدة)، و[SilaRoomDatabase] صاحبة المخطط.
+    // F-01: بلا بذرة تجريبية في الإنتاج — `seedDemoData` غير مُمرَّرة (افتراضياً `false` حصراً).
+    // `":memory:"` عند غياب المسار حاضنة اختبارات فقط؛ مهيّئا الإنتاج
+    // (SilaApplication / IosKoinBootstrap) يمرّران مساراً ملفياً حقيقياً دائماً.
     single {
         val dbPath = storageDirPath?.let { "$it/sila_local.db" } ?: ":memory:"
         LocalSilaDatabase(dbFilePath = dbPath, dispatchers = get())
+    } onClose {
+        it?.closeConnection()
     }
-    single<SilaRoomDatabase> { get<LocalSilaDatabase>() }
-    single<ContactDao> { get<SilaRoomDatabase>().contactDao() }
-    single<ArhamDao> { get<SilaRoomDatabase>().arhamDao() }
-    single<ServiceDao> { get<SilaRoomDatabase>().serviceDao() }
-    single<DataRetentionCleanupDao> { get<SilaRoomDatabase>().dataRetentionCleanupDao() }
-    single<ContactsSyncDao> { get<SilaRoomDatabase>().contactsSyncDao() }
+    single<SilaRoomDatabase> { get<LocalSilaDatabase>().room }
+    single<ContactDao> { get<LocalSilaDatabase>() }
+    single<ArhamDao> { get<LocalSilaDatabase>() }
+    single<ServiceDao> { get<LocalSilaDatabase>() }
+    single<DataRetentionCleanupDao> { get<LocalSilaDatabase>() }
+    single<ContactsSyncDao> { get<LocalSilaDatabase>() }
 
     // محرك المزامنة التزايدية لجهات الاتصال (Issue #23 · ADR-0010) — يُشغَّل من مهيئات المنصات
     // (SilaApplication / IosKoinBootstrap) عبر start(scope) بمعرّف idempotent.

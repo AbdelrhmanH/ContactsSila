@@ -2,6 +2,7 @@ package app.sila.core.database
 
 import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.LocalSilaDatabase
+import app.sila.core.database.legacy.PlatformFileOps
 import kotlinx.coroutines.Dispatchers
 import app.sila.core.database.entity.CallEventEntity
 import app.sila.core.database.entity.DisputeLogEntity
@@ -95,7 +96,7 @@ class LocalSilaDatabaseTest {
 
     @Test
     fun sqliteDiskPersistence_writeCloseReopenAndReadPreservesRelationalData() = runTest {
-        val tempDbPath = "build/tmp_test_sila_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sila_${Random.nextLong(100_000, 999_999)}.db")
 
         // 1. افتح قاعدة البيانات على القرص واكتب جهة اتصال جديدة مع أرقام ومعلومات أرحام
         val db1 = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)

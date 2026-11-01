@@ -17,6 +17,8 @@
         <exclude domain="file" path="sila_local.db-wal" />
         <exclude domain="file" path="sila_local.db-shm" />
         <exclude domain="file" path="sila_local.db-journal" />
+        <!-- النسخة الواقية قبل اعتماد Room (PR B · ADR-0011) — بيانات شخصية لا تغادر الجهاز -->
+        <exclude domain="file" path="sila_local.pre-room-backup" />
         <!-- تفضيلات المستخدم (DataStore Preferences) -->
         <exclude domain="file" path="sila_user_preferences.preferences_pb" />
     </cloud-backup>
@@ -27,6 +29,8 @@
         <exclude domain="file" path="sila_local.db-wal" />
         <exclude domain="file" path="sila_local.db-shm" />
         <exclude domain="file" path="sila_local.db-journal" />
+        <!-- النسخة الواقية قبل اعتماد Room (PR B · ADR-0011) -->
+        <exclude domain="file" path="sila_local.pre-room-backup" />
         <exclude domain="file" path="sila_user_preferences.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>
