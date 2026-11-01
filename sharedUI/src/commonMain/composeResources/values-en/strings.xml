@@ -115,4 +115,36 @@
     <!-- Onboarding — Organizing -->
     <string name="onboarding_organizing_title">Organizing…</string>
     <string name="onboarding_organizing_body">We\'re arranging your contacts locally on your device — this takes only a few seconds.</string>
+
+    <!-- Contacts screen — T3 (Issue #24) -->
+    <string name="contacts_title">Contacts</string>
+    <string name="contacts_search_hint">Search contacts…</string>
+    <string name="contacts_loading">Loading…</string>
+    <string name="contacts_empty_title">Your contacts book is empty</string>
+    <string name="contacts_empty_body">No contacts yet. Make sure the permission is granted, then try again.</string>
+    <string name="contacts_empty_search_title">No results</string>
+    <string name="contacts_empty_search_body">No contacts match your search. Try another name or number.</string>
+    <string name="contacts_permission_denied_title">Permission denied</string>
+    <string name="contacts_permission_denied_body">Sila needs the contacts permission to show your contacts book locally on your device.</string>
+    <string name="contacts_open_settings">Open app settings</string>
+    <string name="contacts_error_title">Couldn\'t load contacts</string>
+    <string name="contacts_error_body">Something went wrong while reading your contacts. Your data stays local — try again.</string>
+    <string name="contacts_retry">Retry</string>
+    <string name="contacts_suggestion_duplicates">Possible duplicates (%d) — review</string>
+    <string name="contacts_suggestion_smart_filter">Uncategorized contacts (%d) — review smart filter</string>
+    <string name="contacts_suggestion_dismiss">Dismiss</string>
+    <string name="contacts_selection_title">%d selected</string>
+    <string name="contacts_bulk_categorize">Categorize</string>
+    <string name="contacts_bulk_favorite">Add to favorites</string>
+    <string name="contacts_bulk_unfavorite">Remove from favorites</string>
+    <string name="contacts_done">Done</string>
+    <string name="contacts_delete_confirm_title">Delete selected contacts</string>
+    <string name="contacts_delete_confirm_body">%d contacts will be permanently removed from Sila.</string>
+    <string name="contacts_select_hint">Long-press to select a contact</string>
+    <string name="contacts_number_picker_title">Choose a number</string>
+    <string name="contacts_account_label">Account</string>
+    <string name="contacts_account_all">All accounts</string>
+    <string name="contacts_account_device">This device</string>
+    <string name="contacts_account_google">Google</string>
+    <string name="contacts_account_other">Other accounts</string>
 </resources>

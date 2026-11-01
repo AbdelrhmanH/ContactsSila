@@ -7,8 +7,10 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
+import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DefaultTab
 import app.sila.core.model.TopFiveSelection
 import app.sila.core.model.UserPreferences
@@ -42,6 +44,10 @@ interface UserPreferencesDataSource {
     suspend fun setOnboardingResumeStep(step: String?)
     suspend fun setOnboardingContactsPermission(permission: String?)
     suspend fun setOnboardingTopFiveSelections(selections: List<TopFiveSelection>)
+    /** استبعاد بطاقة اقتراح نهائياً (Issue #24 — لا تعود لنفس العناصر). */
+    suspend fun dismissSuggestion(id: String)
+    /** ضبط أفعال السحب (بداية/نهاية منطقيتان — Issue #24). */
+    suspend fun setSwipeActions(start: ContactSwipeAction, end: ContactSwipeAction)
 }
 
 class SilaPreferencesDataSource(
@@ -80,7 +86,12 @@ class SilaPreferencesDataSource(
                     runCatching {
                         json.decodeFromString(ListSerializer(TopFiveSelection.serializer()), raw)
                     }.getOrNull()
-                } ?: initialPreferences.onboardingTopFiveSelections
+                } ?: initialPreferences.onboardingTopFiveSelections,
+            dismissedSuggestionIds = prefs[KEY_DISMISSED_SUGGESTIONS] ?: initialPreferences.dismissedSuggestionIds,
+            swipeStartAction = prefs[KEY_SWIPE_START]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
+                ?: initialPreferences.swipeStartAction,
+            swipeEndAction = prefs[KEY_SWIPE_END]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
+                ?: initialPreferences.swipeEndAction
         )
     } ?: _memoryState.asStateFlow()
 
@@ -174,6 +185,21 @@ class SilaPreferencesDataSource(
         _memoryState.update { it.copy(onboardingTopFiveSelections = selections) }
     }
 
+    override suspend fun dismissSuggestion(id: String) {
+        dataStore?.edit { prefs ->
+            prefs[KEY_DISMISSED_SUGGESTIONS] = (prefs[KEY_DISMISSED_SUGGESTIONS] ?: emptySet()) + id
+        }
+        _memoryState.update { it.copy(dismissedSuggestionIds = it.dismissedSuggestionIds + id) }
+    }
+
+    override suspend fun setSwipeActions(start: ContactSwipeAction, end: ContactSwipeAction) {
+        dataStore?.edit {
+            it[KEY_SWIPE_START] = start.name
+            it[KEY_SWIPE_END] = end.name
+        }
+        _memoryState.update { it.copy(swipeStartAction = start, swipeEndAction = end) }
+    }
+
     companion object {
         const val DATASTORE_FILE_NAME = "sila_user_preferences.preferences_pb"
 
@@ -203,6 +229,9 @@ class SilaPreferencesDataSource(
         private val KEY_ONBOARDING_RESUME_STEP = stringPreferencesKey("onboarding_resume_step")
         private val KEY_ONBOARDING_CONTACTS_PERMISSION = stringPreferencesKey("onboarding_contacts_permission")
         private val KEY_ONBOARDING_TOP_FIVE = stringPreferencesKey("onboarding_top_five_selections")
+        private val KEY_DISMISSED_SUGGESTIONS = stringSetPreferencesKey("dismissed_suggestion_ids")
+        private val KEY_SWIPE_START = stringPreferencesKey("swipe_start_action")
+        private val KEY_SWIPE_END = stringPreferencesKey("swipe_end_action")
 
         private val json = Json { ignoreUnknownKeys = true }
     }

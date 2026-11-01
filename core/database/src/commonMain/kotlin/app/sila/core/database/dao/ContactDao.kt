@@ -59,4 +59,31 @@ interface ContactDao {
 
     @Query("DELETE FROM contacts WHERE id = :contactId")
     suspend fun deleteContact(contactId: Long)
+
+    /**
+     * البحث الإنتاجي عبر فهرس FTS4 + جزء من رقم الهاتف (Issue #24 · T3):
+     * يُطابق `displayName`/`normalizedName`/`nickname`/`company`/`department`/`notes`
+     * عبر `contacts_fts MATCH` (معامل مُقيَّد لا سلسلة مُسلسَلة)، وأي جزء من الرقم عبر
+     * `contact_phones`، ويستبعد القبور (`systemDeletedAt IS NULL`) دائماً.
+     * يعاد رصد التحديثات لأنه يُبنى فوق كاش الذاكرة الذي تُحدّثه معاملات الكتابة/المزامنة.
+     */
+    fun searchContacts(query: String): Flow<List<Contact>>
+
+    /** تبديل المفضلة لجهة واحدة (عمود صِلَة — لا يلمسه أبداً عكس المنصة ADR-0010 §7). */
+    suspend fun setFavorite(contactId: Long, isFavorite: Boolean)
+
+    /** تصنيف دفعة واحدة ذرّية لعدة جهات (اختيار متعدد — Issue #24). */
+    suspend fun updateCategories(contactIds: Collection<Long>, category: Category)
+
+    /** مفضلة دفعة واحدة ذرّية لعدة جهات (اختيار متعدد — Issue #24). */
+    suspend fun setFavorites(contactIds: Collection<Long>, isFavorite: Boolean)
+
+    /** حذف فعلي دفعة واحدة لعدة جهات (اختيار متعدد مع تأكيد — Issue #24). */
+    suspend fun deleteContacts(contactIds: Collection<Long>)
+
+    /**
+     * تسجيل محاولة اتصال من داخل التطبيق (ADR-0006: أفعال الاتصال من القائمة تسجّل
+     * `IN_APP` محلياً — بلا `READ_CALL_LOG` وبلا أي وصول شبكي).
+     */
+    suspend fun recordInAppCallAttempt(callLogId: String, e164: String, timestampMillis: Long)
 }

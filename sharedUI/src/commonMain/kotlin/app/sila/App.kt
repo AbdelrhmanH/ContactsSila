@@ -84,6 +84,7 @@ fun App(
     val isRtl = state.preferences.language.isRtl
     val isAr = state.preferences.language == AppLanguage.ARABIC
     val onboardingStrings = rememberOnboardingStrings()
+    val contactsStrings = rememberContactsStrings()
 
     SilaTheme(darkTheme = isDark, isRtl = isRtl) {
         if (!state.preferences.onboardingCompleted) {
@@ -98,8 +99,7 @@ fun App(
                 contactsContent = {
                     ContactsScreen(
                         viewModel = contactsViewModel,
-                        isArabic = isAr,
-                        onCallContact = { phone, id -> mainViewModel.onIntent(MainIntent.CallNumber(phone, id)) }
+                        strings = contactsStrings
                     )
                 },
                 servicesContent = {

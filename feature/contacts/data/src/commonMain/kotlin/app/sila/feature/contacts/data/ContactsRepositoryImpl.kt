@@ -37,4 +37,31 @@ class ContactsRepositoryImpl(
     override suspend fun deleteContact(contactId: Long) {
         contactDao.deleteContact(contactId)
     }
+
+    override fun searchContacts(query: String): Flow<List<Contact>> =
+        contactDao.searchContacts(query)
+
+    override suspend fun setFavorite(contactId: Long, isFavorite: Boolean) {
+        contactDao.setFavorite(contactId, isFavorite)
+    }
+
+    override suspend fun updateCategories(contactIds: Collection<Long>, category: Category) {
+        contactDao.updateCategories(contactIds, category)
+    }
+
+    override suspend fun setFavorites(contactIds: Collection<Long>, isFavorite: Boolean) {
+        contactDao.setFavorites(contactIds, isFavorite)
+    }
+
+    override suspend fun deleteContacts(contactIds: Collection<Long>) {
+        contactDao.deleteContacts(contactIds)
+    }
+
+    override suspend fun recordInAppCallAttempt(callLogId: String, e164: String, timestampMillis: Long) {
+        contactDao.recordInAppCallAttempt(
+            callLogId = callLogId,
+            e164 = e164,
+            timestampMillis = timestampMillis
+        )
+    }
 }
