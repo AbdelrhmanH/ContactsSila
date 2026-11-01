@@ -21,7 +21,7 @@
 5. **App Check** على Firestore و Functions.
 6. **TLS** افتراضياً + منع Cleartext (`networkSecurityConfig`).
 7. **تشفير اختياري** لـ Room (SQLCipher) — قرار للمرحلة 2.
-8. **النسخ الاحتياطي:** `android:dataExtractionRules` تستبعد قاعدة البيانات من النسخ السحابي التلقائي إلا بموافقة؛ تصدير محلي مشفر اختياري.
+8. **النسخ الاحتياطي:** `allowBackup="true"` مع استبعاد صريح لبيانات المستخدم من أي نسخ احتياطي أو نقل بين الأجهزة عبر قاعدتين: `android:dataExtractionRules` → `androidApp/src/main/res/xml/data_extraction_rules.xml` (API 31+: قسما `cloud-backup` و`device-transfer`) و`android:fullBackupContent` → `androidApp/src/main/res/xml/backup_rules.xml` (API 26–30). الملفات المستثناة (كلها في جذر `filesDir`): قاعدة بيانات Room المحلية `sila_local.db` وملفاها المرافقان `sila_local.db-wal`/`sila_local.db-shm` وتفضيلات DataStore `sila_user_preferences.preferences_pb`. يتحقق اختبار آلي من تطابق الـ Manifest وملفي القواعد (`androidApp/src/test/kotlin/app/sila/BackupConfigVerificationTest.kt`). تصدير محلي مشفر اختياري: قرار للمرحلة 2.
 9. **Crashlytics:** لا أسماء ولا أرقام في السجلات أو المفاتيح المخصصة؛ دالة `redact()` موحدة.
 10. **R8/ProGuard** مفعّل في الإصدار.
 11. **أحداث المكالمات محلية فقط:** كل `call_events` تبقى في Room، ولا تُرفع إلى Analytics أو Firebase أو Crashlytics أو أي خدمة خارجية. رصد المكالمات الخارجية اختياري ويتطلب شرحاً وموافقة؛ رفضه لا يعطّل بقية التطبيق. لا تُطلب `READ_CALL_LOG` ولا `ROLE_DIALER`، ودور `ROLE_CALL_SCREENING` منفصل عن معالج الهاتف الافتراضي ولا يحجب/يرفض/يسكت أي مكالمة. ولا يُستنتج سجل المكالمات من الإشعارات أو Accessibility أو APIs خاصة. تُحجب الأرقام والهويات من السجلات ورسائل الاستثناءات. ([ADR-0006](adr/0006-call-log-strategy.md))
@@ -249,7 +249,10 @@ fun Location.isGenuine(): Boolean {
 | Firestore `arham_messages` | **30 يوماً** (TTL) | Firestore TTL Policy | يُعدّ تلقائياً |
 | Firestore `analytics_private/daily` | **90 يوماً** | Cloud Function `cleanupOldDailyStats` | بعد تجميعها في `provider_stats` |
 
-### Worker التنظيف التلقائي
+> [!NOTE]
+> **آلية التنفيذ الفعلية لتنظيف قاعدة البيانات المحلية (منفَّذة — F-02):** التنظيف المحلي (`call_events` الأقدم من 365 يوماً، `arham_inbox` الأقدم من 30 يوماً، أرشفة نزاعات `RESOLVED` الأقدم من 90 يوماً، والحذف النهائي لقبور جهات الاتصال الأقدم من 30 يوماً) لا يجري عبر `DataCleanupWorker` الدوري — بل **مرة واحدة عند بدء كل عملية تشغيل** عبر `RetentionCleanupCoordinator` في `:sharedLogic`: نداء واحد لكل عملية (single-flight عبر Mutex + علم بدء)، كل عمليات التنظيف داخل معاملة SQLite واحدة (تراجع كامل عند الفشل — لا حذف جزئي أبداً — وإكمال تلقائي عند الإقلاع التالي لأن الحدود الزمنية مطلقة)، يُطلق من `SilaApplication` (Android) و`IosKoinBootstrap.ensureStarted` (iOS) على نطاق عمر التطبيق خارج الخيط الرئيسي، والإخفاق يُسجَّل بنوعه فقط بلا أي بيانات شخصية. جدولة Worker الدورية أدناه **تصميم مستقبلي غير منفَّذ بعد**.
+
+### Worker التنظيف التلقائي (تصميم مستقبلي — غير منفَّذ بعد؛ المسار الفعلي أعلاه)
 ```kotlin
 // DataCleanupWorker — يعمل يومياً عبر WorkManager / BGProcessingTask
 class DataCleanupWorker(private val db: SilaDatabase, private val clock: Clock) {
