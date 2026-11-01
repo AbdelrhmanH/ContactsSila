@@ -6,15 +6,23 @@ import androidx.sqlite.async.step
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import app.sila.core.common.ArabicTextNormalizer
 import app.sila.core.common.AppDispatchers
+import app.sila.core.database.dao.AdoptionVerificationStage
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.legacy.LegacyAdoptionException
 import app.sila.core.database.legacy.LegacyBackupException
 import app.sila.core.database.legacy.LegacyDatabaseAdopter
 import app.sila.core.database.legacy.LegacyFtsDdl
+import app.sila.core.database.legacy.LegacyIndex
+import app.sila.core.database.legacy.LegacySchemaFingerprint
 import app.sila.core.database.legacy.LegacySchemaLevel
+import app.sila.core.database.legacy.LegacySchemaSnapshot
 import app.sila.core.database.legacy.LegacySchemaUnknownException
 import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.database.legacy.SilaDatabaseBackup
+import app.sila.core.model.ArhamFrequency
+import app.sila.core.model.Relation
+import app.sila.core.model.ServiceVisibility
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -435,5 +443,714 @@ class LegacyDatabaseAdoptionTest {
             }
         }
         assertTrue(contactsCreateSql.contains("AUTOINCREMENT"), "contacts.id مولَّد من الكيان (autoGenerate) — لا DDL يدوي")
+    }
+
+    // ===== 9) SR-01: تطبيع الفهارس الفريدة بدقة (Fixtures A–E + Idempotency + حفظ السجلات) =====
+
+    private suspend fun readContactsIndices(path: String): List<LegacyIndex> =
+        BundledSQLiteDriver().open(path).use { conn ->
+            LegacySchemaFingerprint.readIndicesForTable(conn, "contacts")
+        }
+
+    private suspend fun readSnapshotOf(path: String): LegacySchemaSnapshot =
+        BundledSQLiteDriver().open(path).use { conn ->
+            LegacySchemaFingerprint.readSnapshot(conn)
+        }
+
+    @Test
+    fun sr01_fixtureA_normalizesOnlyLegacyUniqueSystemContactId_preservesLookupKeyUniqueIndex_andIsIdempotent() = runTest {
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr01_fixA_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L2_OR_L3) { conn ->
+            conn.executeSQL("DROP INDEX IF EXISTS idx_contacts_system_id")
+            conn.executeSQL("CREATE UNIQUE INDEX idx_contacts_system_id ON contacts(systemContactId)")
+            conn.executeSQL("CREATE UNIQUE INDEX idx_contacts_lookup_unique ON contacts(lookupKey)")
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, lookupKey, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) " +
+                    "VALUES (10, 'sys_a1', 'lk_1', 'أول', 'WORK', 0, 'اول', 1, 2, '')",
+            )
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, lookupKey, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) " +
+                    "VALUES (20, 'sys_a2', 'lk_2', 'ثان', 'FAMILY', 1, 'ثان', 3, 4, '')",
+            )
+        }
+
+        val adopter = LegacyDatabaseAdopter(tempDbPath)
+        BundledSQLiteDriver().open(tempDbPath).use { conn ->
+            adopter.normalizeContactsIndices(conn)
+        }
+
+        val afterFirst = readContactsIndices(tempDbPath)
+        val sysIdx = afterFirst.single { it.name == "idx_contacts_system_id" }
+        assertFalse(sysIdx.unique, "فهرس systemContactId طُبِّع إلى غير فريد")
+        assertEquals("c", sysIdx.origin)
+        assertFalse(sysIdx.partial)
+        assertEquals(listOf("systemContactId"), sysIdx.columns)
+        assertEquals(listOf("ASC"), sysIdx.orders)
+
+        val lookupIdx = afterFirst.single { it.name == "idx_contacts_lookup_unique" }
+        assertTrue(lookupIdx.unique, "الفهرس الفريد المشروع على lookupKey محفوظ بالكامل")
+        assertEquals("c", lookupIdx.origin)
+        assertFalse(lookupIdx.partial)
+        assertEquals(listOf("lookupKey"), lookupIdx.columns)
+        assertEquals(listOf("ASC"), lookupIdx.orders)
+
+        // التحقق من عدم تغيّر السجلات أو المعرّفات ومن التكافؤ عند التنفيذ الثاني (Idempotency):
+        assertEquals(2L, contactsRowCount(tempDbPath))
+        BundledSQLiteDriver().open(tempDbPath).use { conn ->
+            adopter.normalizeContactsIndices(conn)
+        }
+        val afterSecond = readContactsIndices(tempDbPath)
+        assertEquals(afterFirst.toSet(), afterSecond.toSet(), "لا انحراف بعد التنفيذ الثاني")
+        BundledSQLiteDriver().open(tempDbPath).use { conn ->
+            conn.prepare("SELECT id, systemContactId, lookupKey FROM contacts ORDER BY id").use { stmt ->
+                assertTrue(stmt.step())
+                assertEquals(10L, stmt.getLong(0))
+                assertEquals("sys_a1", stmt.getText(1))
+                assertEquals("lk_1", stmt.getText(2))
+                assertTrue(stmt.step())
+                assertEquals(20L, stmt.getLong(0))
+                assertEquals("sys_a2", stmt.getText(1))
+                assertEquals("lk_2", stmt.getText(2))
+            }
+        }
+    }
+
+    @Test
+    fun sr01_legacyUniqueSystemContactId_fullAdoption_normalizesToNonUnique_andPreservesAllRecords() = runTest {
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr01_adopt_sys_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("DROP INDEX IF EXISTS idx_contacts_system_id")
+            conn.executeSQL("CREATE UNIQUE INDEX idx_contacts_system_id ON contacts(systemContactId)")
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) " +
+                    "VALUES (7, 'sys_unique_legacy', 'كريم فؤاد', 'WORK', 0, 'كريم فؤاد', 1, 2, '')",
+            )
+        }
+
+        val db = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
+        try {
+            val loaded = db.observeContacts().first()
+            assertEquals(1, loaded.size)
+            assertEquals(7L, loaded.single().id)
+            assertEquals("sys_unique_legacy", loaded.single().systemContactId)
+        } finally {
+            db.closeConnection()
+        }
+
+        val indices = readContactsIndices(tempDbPath)
+        val sysIdx = indices.single { it.name == "idx_contacts_system_id" }
+        assertFalse(sysIdx.unique, "فهرس systemContactId أصبح غير فريد بعد الاعتماد الكامل")
+    }
+
+    @Test
+    fun sr01_fixturesB_C_D_E_preserveCompositePartialAutoAndPkIndices_andRejectUnsupportedBeforeMutation() = runTest {
+        // Fixture B: فهرس فريد مركّب على (systemContactId, accountName)
+        val pathB = PlatformFileOps.tempTestDbPath("tmp_test_sr01_fixB_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(pathB, LegacyFixtureLevel.L2_OR_L3) { conn ->
+            conn.executeSQL("CREATE UNIQUE INDEX idx_contacts_sys_account_unique ON contacts(systemContactId, accountName)")
+        }
+        val beforeB = readSnapshotOf(pathB)
+        assertEquals(LegacySchemaLevel.UNKNOWN, LegacySchemaFingerprint.classify(beforeB))
+        assertFailsWith<LegacySchemaUnknownException> { LegacyDatabaseAdopter(pathB).adoptIfNeeded() }
+        assertEquals(beforeB, readSnapshotOf(pathB), "Fixture B: لا تعديل قبل الرفض")
+        BundledSQLiteDriver().open(pathB).use { conn ->
+            LegacyDatabaseAdopter(pathB).normalizeContactsIndices(conn)
+        }
+        val compositeIdx = readContactsIndices(pathB).single { it.name == "idx_contacts_sys_account_unique" }
+        assertTrue(compositeIdx.unique)
+        assertEquals(listOf("systemContactId", "accountName"), compositeIdx.columns)
+
+        // Fixture C: فهرس فريد جزئي على lookupKey
+        val pathC = PlatformFileOps.tempTestDbPath("tmp_test_sr01_fixC_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(pathC, LegacyFixtureLevel.L2_OR_L3) { conn ->
+            conn.executeSQL("CREATE UNIQUE INDEX idx_contacts_lookup_partial ON contacts(lookupKey) WHERE lookupKey IS NOT NULL")
+        }
+        val beforeC = readSnapshotOf(pathC)
+        assertEquals(LegacySchemaLevel.UNKNOWN, LegacySchemaFingerprint.classify(beforeC))
+        assertFailsWith<LegacySchemaUnknownException> { LegacyDatabaseAdopter(pathC).adoptIfNeeded() }
+        assertEquals(beforeC, readSnapshotOf(pathC), "Fixture C: لا تعديل قبل الرفض")
+        BundledSQLiteDriver().open(pathC).use { conn ->
+            LegacyDatabaseAdopter(pathC).normalizeContactsIndices(conn)
+        }
+        val partialIdx = readContactsIndices(pathC).single { it.name == "idx_contacts_lookup_partial" }
+        assertTrue(partialIdx.unique)
+        assertTrue(partialIdx.partial)
+        assertEquals(listOf("lookupKey"), partialIdx.columns)
+
+        // Fixture D: قيد UNIQUE على مستوى الجدول (origin = "u")
+        val pathD = PlatformFileOps.tempTestDbPath("tmp_test_sr01_fixD_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(pathD, LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("DROP TABLE contacts")
+            conn.executeSQL(
+                """
+                CREATE TABLE contacts (
+                    id INTEGER PRIMARY KEY NOT NULL,
+                    systemContactId TEXT NOT NULL,
+                    lookupKey TEXT UNIQUE,
+                    displayName TEXT NOT NULL,
+                    firstName TEXT,
+                    lastName TEXT,
+                    company TEXT,
+                    photoUri TEXT,
+                    category TEXT NOT NULL,
+                    isFavorite INTEGER NOT NULL DEFAULT 0,
+                    excludeFromSmartFilter INTEGER NOT NULL DEFAULT 0,
+                    normalizedName TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL DEFAULT 0,
+                    updatedAt INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent(),
+            )
+            conn.executeSQL("CREATE INDEX idx_contacts_category ON contacts(category)")
+            conn.executeSQL("CREATE INDEX idx_contacts_norm_name ON contacts(normalizedName)")
+            conn.executeSQL("CREATE INDEX idx_contacts_fav ON contacts(isFavorite)")
+        }
+        val beforeD = readSnapshotOf(pathD)
+        assertEquals(LegacySchemaLevel.UNKNOWN, LegacySchemaFingerprint.classify(beforeD))
+        assertFailsWith<LegacySchemaUnknownException> { LegacyDatabaseAdopter(pathD).adoptIfNeeded() }
+        assertEquals(beforeD, readSnapshotOf(pathD), "Fixture D: لا تعديل قبل الرفض")
+        BundledSQLiteDriver().open(pathD).use { conn ->
+            LegacyDatabaseAdopter(pathD).normalizeContactsIndices(conn)
+        }
+        val autoUniqueIdx = readContactsIndices(pathD).single { it.origin == "u" }
+        assertTrue(autoUniqueIdx.unique)
+        assertEquals(listOf("lookupKey"), autoUniqueIdx.columns)
+
+        // Fixture E: فهرس مفتاح أساسي تلقائي (origin = "pk")
+        val pathE = PlatformFileOps.tempTestDbPath("tmp_test_sr01_fixE_${Random.nextLong(100_000, 999_999)}.db")
+        BundledSQLiteDriver().open(pathE).use { conn ->
+            conn.executeSQL(
+                """
+                CREATE TABLE contacts (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    systemContactId TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    normalizedName TEXT NOT NULL,
+                    isFavorite INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent(),
+            )
+            LegacyDatabaseAdopter(pathE).normalizeContactsIndices(conn)
+        }
+        val pkAutoIdx = readContactsIndices(pathE).single { it.origin == "pk" }
+        assertTrue(pkAutoIdx.unique)
+        assertEquals(listOf("id"), pkAutoIdx.columns)
+    }
+
+    // ===== 10) SR-02: مصفوفة تصنيف المخطط الصارمة (Cases A–L + حالات Metadata/Index) وإثبات عدم التعديل =====
+
+    private suspend fun assertUnknownAndZeroMutation(
+        label: String,
+        baseLevel: LegacyFixtureLevel,
+        mutator: suspend (androidx.sqlite.SQLiteConnection) -> Unit,
+    ) {
+        val path = PlatformFileOps.tempTestDbPath("tmp_test_sr02_${label}_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(path, baseLevel) { conn ->
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt) " +
+                    "VALUES (1, 'c_$label', 'اختبار $label', 'WORK', 0, 'اختبار', 1, 2)",
+            )
+            mutator(conn)
+        }
+        val snapshotBefore = readSnapshotOf(path)
+        val rowsBefore = contactsRowCount(path)
+
+        val classified = LegacySchemaFingerprint.classify(snapshotBefore)
+        assertEquals(LegacySchemaLevel.UNKNOWN, classified, "Case $label يجب أن يُصنَّف UNKNOWN")
+
+        val snapshotAfterClassify = readSnapshotOf(path)
+        assertEquals(snapshotBefore, snapshotAfterClassify, "Case $label: classify قراءة فقط بلا أي تعديل")
+
+        assertFailsWith<LegacySchemaUnknownException>("Case $label: المُعتمِد يرفض تشغيل الشيم") {
+            LegacyDatabaseAdopter(path).adoptIfNeeded()
+        }
+
+        val snapshotAfterAdoptAttempt = readSnapshotOf(path)
+        assertEquals(snapshotBefore, snapshotAfterAdoptAttempt, "Case $label: لا تعديل للمخطط عند رفض UNKNOWN")
+        assertEquals(rowsBefore, contactsRowCount(path), "Case $label: لا تعديل للبيانات عند رفض UNKNOWN")
+    }
+
+    @Test
+    fun sr02_classificationMatrix_casesAtoL_andStrictMetadataAndIndexValidation_zeroMutationOnUnknown() = runTest {
+        // Case A: Exact L0 -> L0
+        val pathA = PlatformFileOps.tempTestDbPath("tmp_test_sr02_caseA_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(pathA, LegacyFixtureLevel.L0)
+        val snapA = readSnapshotOf(pathA)
+        assertEquals(LegacySchemaLevel.L0, LegacySchemaFingerprint.classify(snapA))
+        assertEquals(snapA, readSnapshotOf(pathA))
+
+        // Case B: Exact L1 -> L1
+        val pathB = PlatformFileOps.tempTestDbPath("tmp_test_sr02_caseB_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(pathB, LegacyFixtureLevel.L1)
+        val snapB = readSnapshotOf(pathB)
+        assertEquals(LegacySchemaLevel.L1, LegacySchemaFingerprint.classify(snapB))
+        assertEquals(snapB, readSnapshotOf(pathB))
+
+        // Case C1: FTS (5-col) without checkpoints -> UNKNOWN
+        assertUnknownAndZeroMutation("C1_fts5_no_checkpoints", LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("DROP TABLE contacts_sync_checkpoints")
+        }
+
+        // Case C2: FTS (6-col) without checkpoints -> UNKNOWN
+        assertUnknownAndZeroMutation("C2_fts6_no_checkpoints", LegacyFixtureLevel.L2_OR_L3) { conn ->
+            conn.executeSQL("DROP TABLE contacts_sync_checkpoints")
+        }
+
+        // Case D: Checkpoints without FTS -> UNKNOWN
+        assertUnknownAndZeroMutation("D_checkpoints_no_fts", LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("DROP TABLE contacts_fts")
+        }
+
+        // Case E: Missing required table (services) -> UNKNOWN
+        assertUnknownAndZeroMutation("E_missing_services", LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("DROP TABLE services")
+        }
+
+        // Case F: Invalid checkpoint columns (nullable / missing PK / wrong affinity) -> UNKNOWN
+        assertUnknownAndZeroMutation("F_invalid_checkpoints", LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("DROP TABLE contacts_sync_checkpoints")
+            conn.executeSQL("CREATE TABLE contacts_sync_checkpoints (key TEXT, value TEXT)")
+        }
+
+        // Case G: Missing invariant table (arham) -> UNKNOWN
+        assertUnknownAndZeroMutation("G_missing_arham", LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("DROP TABLE arham")
+        }
+
+        // Case H: Unexpected contacts column -> UNKNOWN
+        assertUnknownAndZeroMutation("H_unexpected_contacts_col", LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("ALTER TABLE contacts ADD COLUMN rogue_column TEXT")
+        }
+
+        // Case I: Missing systemDeletedAt from L1 -> UNKNOWN
+        assertUnknownAndZeroMutation("I_missing_systemDeletedAt", LegacyFixtureLevel.L0) { conn ->
+            listOf(
+                "lookupKey" to "TEXT",
+                "accountType" to "TEXT",
+                "accountName" to "TEXT",
+                "fileAs" to "TEXT NOT NULL DEFAULT ''",
+                "prefix" to "TEXT",
+                "middleName" to "TEXT",
+                "suffix" to "TEXT",
+                "nickname" to "TEXT",
+                "phoneticName" to "TEXT",
+                "department" to "TEXT",
+                "notes" to "TEXT",
+                "customRingtoneUri" to "TEXT",
+                "sendToVoicemail" to "INTEGER NOT NULL DEFAULT 0",
+                "isBlocked" to "INTEGER NOT NULL DEFAULT 0",
+                "linkedServiceCloudId" to "TEXT",
+                // systemDeletedAt omitted intentionally
+            ).forEach { (name, ddl) ->
+                conn.executeSQL("ALTER TABLE contacts ADD COLUMN $name $ddl")
+            }
+            conn.executeSQL("CREATE INDEX IF NOT EXISTS idx_contacts_system_id ON contacts(systemContactId)")
+            conn.executeSQL("CREATE TABLE contacts_sync_checkpoints (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)")
+            conn.executeSQL("CREATE VIRTUAL TABLE contacts_fts USING fts4(displayName, nickname, company, notes, normalizedName)")
+        }
+
+        // Case J1: Unexpected unique contacts index -> UNKNOWN
+        assertUnknownAndZeroMutation("J1_unexpected_unique_contacts_idx", LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("CREATE UNIQUE INDEX idx_contacts_lookup_unique ON contacts(lookupKey)")
+        }
+
+        // Case J2: Missing required services index -> UNKNOWN
+        assertUnknownAndZeroMutation("J2_missing_services_idx", LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL("DROP INDEX idx_services_phone")
+        }
+
+        // Case K: Partial contacts column subset (15 columns) -> UNKNOWN
+        assertUnknownAndZeroMutation("K_partial_15_cols", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("ALTER TABLE contacts ADD COLUMN lookupKey TEXT")
+            conn.executeSQL("ALTER TABLE contacts ADD COLUMN accountType TEXT")
+        }
+
+        // Case L: Unknown rogue table -> UNKNOWN
+        assertUnknownAndZeroMutation("L_rogue_table", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("CREATE TABLE unknown_rogue_table (id INTEGER PRIMARY KEY)")
+        }
+
+        // Additional metadata & index checks (§4.8):
+        // 1) Incorrect SQLite affinity
+        assertUnknownAndZeroMutation("Meta_wrong_affinity", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("DROP TABLE dispute_logs")
+            conn.executeSQL(
+                """
+                CREATE TABLE dispute_logs (
+                    id INTEGER PRIMARY KEY NOT NULL,
+                    serviceCloudId TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    updatedAt INTEGER NOT NULL,
+                    resolvedAt INTEGER
+                )
+                """.trimIndent(),
+            )
+        }
+
+        // 2) Incorrect NOT NULL
+        assertUnknownAndZeroMutation("Meta_wrong_notNull", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("DROP TABLE call_events")
+            conn.executeSQL(
+                """
+                CREATE TABLE call_events (
+                    callLogId TEXT PRIMARY KEY NOT NULL,
+                    e164 TEXT,
+                    direction TEXT NOT NULL,
+                    durationSec INTEGER NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    source TEXT NOT NULL
+                )
+                """.trimIndent(),
+            )
+            conn.executeSQL("CREATE INDEX idx_call_events_ts ON call_events(timestamp)")
+        }
+
+        // 3) Incorrect primary-key position
+        assertUnknownAndZeroMutation("Meta_wrong_pkPosition", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("DROP TABLE arham")
+            conn.executeSQL(
+                """
+                CREATE TABLE arham (
+                    contactId INTEGER NOT NULL,
+                    relation TEXT NOT NULL,
+                    layer TEXT NOT NULL,
+                    parentContactId INTEGER,
+                    frequency TEXT NOT NULL,
+                    lastContactedAt INTEGER,
+                    pausedUntil INTEGER,
+                    createdAt INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent(),
+            )
+        }
+
+        // 4) Incorrect defaults
+        assertUnknownAndZeroMutation("Meta_wrong_default", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("DROP TABLE contact_phones")
+            conn.executeSQL(
+                """
+                CREATE TABLE contact_phones (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    contactId INTEGER NOT NULL,
+                    raw TEXT NOT NULL,
+                    e164 TEXT NOT NULL,
+                    type TEXT NOT NULL DEFAULT 'HOME',
+                    isPrimary INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent(),
+            )
+            conn.executeSQL("CREATE INDEX idx_contact_phones_cid ON contact_phones(contactId)")
+            conn.executeSQL("CREATE INDEX idx_contact_phones_e164 ON contact_phones(e164)")
+        }
+
+        // 5) Unexpected partial index
+        assertUnknownAndZeroMutation("Idx_unexpected_partial", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("DROP INDEX idx_services_phone")
+            conn.executeSQL("CREATE INDEX idx_services_phone ON services(phoneE164) WHERE isHot = 1")
+        }
+
+        // 6) Expression index with NULL column metadata (cid == -2)
+        assertUnknownAndZeroMutation("Idx_expression_null_col", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("CREATE INDEX idx_contacts_expr ON contacts(LOWER(displayName))")
+        }
+
+        // 7) DESC index where ASC is required
+        assertUnknownAndZeroMutation("Idx_desc_order", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("DROP INDEX idx_call_events_ts")
+            conn.executeSQL("CREATE INDEX idx_call_events_ts ON call_events(timestamp DESC)")
+        }
+
+        // 8) B-01: Non-unique systemContactId index with non-standard name -> UNKNOWN & zero mutation
+        assertUnknownAndZeroMutation("Idx_non_standard_systemContactId_name", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("CREATE INDEX idx_rogue_sys ON contacts(systemContactId)")
+        }
+
+        // 9) NB-02: Rogue table with contacts_fts_ prefix -> UNKNOWN & zero mutation
+        assertUnknownAndZeroMutation("Table_rogue_fts_shadow_prefix", LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL("CREATE TABLE contacts_fts_rogue (id INTEGER PRIMARY KEY)")
+        }
+    }
+
+    // ===== 11) SR-04: التحقق من القاعدة الحيّة، قراءة كل الجداول عند خلو contacts، واستعادة الانقطاعات Crash A–D =====
+
+    @Test
+    fun sr04_emptyContactsTable_stillVerifiesContactPhonesArhamServicesAndFts_beforeBackupDeletion() = runTest {
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr04_empty_${Random.nextLong(100_000, 999_999)}.db")
+        val backupPath = SilaDatabaseBackup.backupPathFor(tempDbPath)
+
+        // قاعدة L1 بلا أي جهات نشطة (صف واحد محذوف ناعماً tombstone) مع وجود صفوف في contact_phones وarham وservices:
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs, systemDeletedAt) " +
+                    "VALUES (1, 'tomb_only', 'محذوف ناعماً', 'WORK', 0, 'محذوف ناعما', 1, 2, '', 999)",
+            )
+            conn.executeSQL(
+                "INSERT INTO contact_phones (contactId, raw, e164, type, isPrimary) VALUES (1, '01012345678', '+201012345678', 'MOBILE', 1)",
+            )
+            conn.executeSQL(
+                "INSERT INTO arham (contactId, relation, layer, frequency, createdAt) " +
+                    "VALUES (1, '${Relation.MOTHER.name}', '${Relation.MOTHER.layer.name}', '${ArhamFrequency.WEEKLY.name}', 100)",
+            )
+            conn.executeSQL(
+                "INSERT INTO services (cloudId, name, professionId, professionNameAr, professionNameEn, phoneE164, visibility, trustScore, uniqueCallers, retentionRate, ratingAvg, ratingCount) " +
+                    "VALUES ('srv_1', 'سباك', 'p1', 'سباكة', 'Plumbing', '+201099990000', '${ServiceVisibility.VERIFIED.name}', 0.9, 5, 0.8, 4.5, 10)",
+            )
+        }
+
+        // لو فشل قراءة arham حتى مع أن contacts النشطة فارغة، يجب أن يفشل الفتح وتبقى النسخة الواقية:
+        assertFailsWith<IllegalStateException> {
+            LocalSilaDatabase(
+                dbFilePath = tempDbPath,
+                dispatchers = testDispatchers,
+                seedDemoData = false,
+                adoptionStageHook = { stage ->
+                    if (stage == AdoptionVerificationStage.ARHAM_READ) {
+                        error("injected-arham-read-failure-on-empty-active-contacts")
+                    }
+                },
+                backupDeleteOverride = null,
+            )
+        }
+        assertTrue(PlatformFileOps.fileExists(backupPath), "النسخة الواقية تبقى عند فشل قراءة arham حتى لو كانت الجهات النشطة فارغة")
+
+        // عند الفتح السليم، تمر جميع مراحل القراءة والتحقق بالترتيب وتُحذف النسخة الواقية:
+        val recordedStages = mutableListOf<AdoptionVerificationStage>()
+        val db = LocalSilaDatabase(
+            dbFilePath = tempDbPath,
+            dispatchers = testDispatchers,
+            seedDemoData = false,
+            adoptionStageHook = { stage -> recordedStages += stage },
+            backupDeleteOverride = null,
+        )
+        try {
+            assertTrue(db.observeContacts().first().isEmpty())
+            assertTrue(recordedStages.contains(AdoptionVerificationStage.CONTACTS_READ))
+            assertTrue(recordedStages.contains(AdoptionVerificationStage.CONTACT_PHONES_READ))
+            assertTrue(recordedStages.contains(AdoptionVerificationStage.ARHAM_READ))
+            assertTrue(recordedStages.contains(AdoptionVerificationStage.SERVICES_READ))
+            assertTrue(recordedStages.contains(AdoptionVerificationStage.VERSION_CHECK))
+            assertTrue(recordedStages.contains(AdoptionVerificationStage.INTEGRITY_CHECK))
+            assertTrue(recordedStages.contains(AdoptionVerificationStage.FTS_CHECK))
+            assertTrue(recordedStages.contains(AdoptionVerificationStage.BACKUP_DELETE))
+            assertFalse(PlatformFileOps.fileExists(backupPath), "النسخة الواقية تُحذف بعد اكتمال جميع الفحوص")
+        } finally {
+            db.closeConnection()
+        }
+    }
+
+    @Test
+    fun sr04_crashA_shimCommitsBeforeRoomOpens_nextStartupVerifiesBackupAndCompletesAdoption_orFailsIfBackupMissing() = runTest {
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr04_crashA_${Random.nextLong(100_000, 999_999)}.db")
+        val backupPath = SilaDatabaseBackup.backupPathFor(tempDbPath)
+
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L0) { conn ->
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt) " +
+                    "VALUES (1, 'crash_a', 'استئناف بعد الشيم', 'WORK', 0, 'استئناف بعد الشيم', 1, 2)",
+            )
+        }
+
+        // محاكاة Crash A: الشيم يلتزم بنجاح (PARITY_DONE, user_version = 0) والعملية تتوقف قبل فتح Room:
+        val firstRun = LegacyDatabaseAdopter(tempDbPath).adoptIfNeeded()
+        assertEquals(LegacySchemaLevel.L0, firstRun.detectedLevel)
+        assertEquals(backupPath, firstRun.backupPath)
+        assertEquals(0, userVersionOf(tempDbPath), "Room لم يفتح القاعدة بعد")
+        assertEquals(LegacySchemaLevel.PARITY_DONE, LegacySchemaFingerprint.classify(readSnapshotOf(tempDbPath)))
+        assertTrue(PlatformFileOps.fileExists(backupPath), "النسخة الواقية موجودة بعد التزام الشيم")
+
+        // التشغيل التالي يكتشف PARITY_DONE والنسخة الواقية القائمة، فيتحقق ويفتح Room ويحذف النسخة:
+        val db = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
+        try {
+            assertEquals(1, db.observeContacts().first().size)
+            assertEquals(1, userVersionOf(tempDbPath))
+            assertFalse(PlatformFileOps.fileExists(backupPath), "النسخة الواقية حُذفت بعد اكتمال الاستئناف")
+        } finally {
+            db.closeConnection()
+        }
+
+        // إذا كانت القاعدة في حالة PARITY_DONE ولكن النسخة الواقية مفقودة أو فارغة/تالفة، يفشل الاعتماد مغلقاً ولا يدّعي النجاح:
+        val missingBackupDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr04_crashA_nobackup_${Random.nextLong(100_000, 999_999)}.db")
+        LegacySchemaFixtures.createLegacyDatabase(missingBackupDbPath, LegacyFixtureLevel.L0)
+        LegacyDatabaseAdopter(missingBackupDbPath).adoptIfNeeded()
+        SilaDatabaseBackup.deleteBackupIfExists(missingBackupDbPath)
+        assertFailsWith<LegacyAdoptionException>("PARITY_DONE بلا نسخة واقية يجب أن يرمي LegacyAdoptionException") {
+            LegacyDatabaseAdopter(missingBackupDbPath).adoptIfNeeded()
+        }
+        // NB-01: ملف نسخة واقية فارغ (بلا جدول contacts) يُرفض في PARITY_DONE:
+        BundledSQLiteDriver().open(SilaDatabaseBackup.backupPathFor(missingBackupDbPath)).use { conn ->
+            conn.executeSQL("CREATE TABLE dummy_empty (id INTEGER PRIMARY KEY)")
+        }
+        assertFalse(SilaDatabaseBackup.verifiedBackupExists(missingBackupDbPath))
+        assertFailsWith<LegacyAdoptionException>("PARITY_DONE بنسخة واقية غير صالحة يجب أن يرمي LegacyAdoptionException") {
+            LegacyDatabaseAdopter(missingBackupDbPath).adoptIfNeeded()
+        }
+    }
+
+    @Test
+    fun sr04_crashB_roomSetsUserVersion1_processStopsBeforeBackupDeletion_nextStartupCleansUpAfterVerification() = runTest {
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr04_crashB_${Random.nextLong(100_000, 999_999)}.db")
+        val backupPath = SilaDatabaseBackup.backupPathFor(tempDbPath)
+
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) " +
+                    "VALUES (1, 'crash_b', 'بعد ختم الإصدار', 'WORK', 0, 'بعد ختم الاصدار', 1, 2, '')",
+            )
+        }
+
+        // محاكاة Crash B: Room يفتح ويختم user_version = 1 ولكن العملية تتوقف قبل حذف النسخة الواقية:
+        assertFailsWith<IllegalStateException> {
+            LocalSilaDatabase(
+                dbFilePath = tempDbPath,
+                dispatchers = testDispatchers,
+                seedDemoData = false,
+                adoptionStageHook = { stage ->
+                    if (stage == AdoptionVerificationStage.BEFORE_BACKUP_DELETE) {
+                        error("simulated-process-stop-before-backup-delete")
+                    }
+                },
+                backupDeleteOverride = null,
+            )
+        }
+
+        assertEquals(1, userVersionOf(tempDbPath), "Room ختم user_version = 1 بالفعل")
+        assertTrue(PlatformFileOps.fileExists(backupPath), "النسخة الواقية لم تُحذف بسبب التوقف")
+
+        // التشغيل التالي (ROOM_MANAGED) يكتشف النسخة الواقية المتبقية، يتحقق من القاعدة الحيّة، ثم يحذفها:
+        val recovered = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
+        try {
+            assertEquals(1, recovered.observeContacts().first().size)
+            assertFalse(PlatformFileOps.fileExists(backupPath), "التشغيل التالي حذف النسخة الواقية بعد التحقق")
+            assertFalse(recovered.hasPendingBackupDeletion)
+        } finally {
+            recovered.closeConnection()
+        }
+    }
+
+    @Test
+    fun sr04_crashC_andAllVerificationFailureStages_preserveBackup_andAllowCleanRecovery() = runTest {
+        val failingStages = listOf(
+            AdoptionVerificationStage.ROOM_OPEN,
+            AdoptionVerificationStage.CONTACTS_READ,
+            AdoptionVerificationStage.CONTACT_PHONES_READ,
+            AdoptionVerificationStage.ARHAM_READ,
+            AdoptionVerificationStage.SERVICES_READ,
+            AdoptionVerificationStage.VERSION_CHECK,
+            AdoptionVerificationStage.INTEGRITY_CHECK,
+            AdoptionVerificationStage.FTS_CHECK,
+        )
+
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr04_crashC_${Random.nextLong(100_000, 999_999)}.db")
+        val backupPath = SilaDatabaseBackup.backupPathFor(tempDbPath)
+
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L2_OR_L3) { conn ->
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) " +
+                    "VALUES (1, 'crash_c', 'تحقق الفشل', 'FAMILY', 1, 'تحقق الفشل', 1, 2, '')",
+            )
+        }
+
+        for (targetStage in failingStages) {
+            assertFailsWith<IllegalStateException>("الفشل في المرحلة $targetStage يجب أن يوقف التهيئة") {
+                LocalSilaDatabase(
+                    dbFilePath = tempDbPath,
+                    dispatchers = testDispatchers,
+                    seedDemoData = false,
+                    adoptionStageHook = { stage ->
+                        if (stage == targetStage) error("injected-failure-at-$targetStage")
+                    },
+                    backupDeleteOverride = null,
+                )
+            }
+            assertTrue(
+                PlatformFileOps.fileExists(backupPath),
+                "النسخة الواقية يجب أن تبقى محفوظة عند فشل المرحلة $targetStage",
+            )
+        }
+
+        // اختبار إلغاء الكوروتين (CancellationException):
+        assertFailsWith<CancellationException> {
+            LocalSilaDatabase(
+                dbFilePath = tempDbPath,
+                dispatchers = testDispatchers,
+                seedDemoData = false,
+                adoptionStageHook = { stage ->
+                    if (stage == AdoptionVerificationStage.SERVICES_READ) {
+                        throw CancellationException("simulated-coroutine-cancellation")
+                    }
+                },
+                backupDeleteOverride = null,
+            )
+        }
+        assertTrue(PlatformFileOps.fileExists(backupPath), "النسخة الواقية تبقى محفوظة عند إلغاء الكوروتين")
+
+        // الاستئناف السليم بعد كل الإخفاقات يحذف النسخة الواقية بنجاح:
+        val recovered = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
+        try {
+            assertEquals(1, recovered.observeContacts().first().size)
+            assertFalse(PlatformFileOps.fileExists(backupPath), "النسخة الواقية تُحذف بعد نجاح جميع الفحوص")
+        } finally {
+            recovered.closeConnection()
+        }
+    }
+
+    @Test
+    fun sr04_crashD_backupDeletionFailure_doesNotCorruptDatabase_retainsBackup_andRetriesOnNextStartup() = runTest {
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr04_crashD_${Random.nextLong(100_000, 999_999)}.db")
+        val backupPath = SilaDatabaseBackup.backupPathFor(tempDbPath)
+
+        LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L1) { conn ->
+            conn.executeSQL(
+                "INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) " +
+                    "VALUES (1, 'crash_d', 'فشل حذف النسخة', 'WORK', 0, 'فشل حذف النسخه', 1, 2, '')",
+            )
+        }
+
+        // المحاولة الأولى: فشل حذف النسخة الواقية (يعيد false):
+        val dbFirst = LocalSilaDatabase(
+            dbFilePath = tempDbPath,
+            dispatchers = testDispatchers,
+            seedDemoData = false,
+            adoptionStageHook = null,
+            backupDeleteOverride = { false },
+        )
+        try {
+            assertEquals(1, dbFirst.observeContacts().first().size, "القاعدة الحيّة سليمة وتعمل بشكل طبيعي")
+            assertTrue(dbFirst.hasPendingBackupDeletion, "حالة الحذف المعلّق مسجلة لإعادة المحاولة")
+            assertTrue(PlatformFileOps.fileExists(backupPath), "النسخة الواقية باقية على القرص بعد فشل الحذف")
+        } finally {
+            dbFirst.closeConnection()
+        }
+
+        // التشغيل التالي ينجح في حذف النسخة الواقية المتبقية بعد التحقق من القاعدة الحيّة:
+        val dbSecond = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
+        try {
+            assertEquals(1, dbSecond.observeContacts().first().size)
+            assertFalse(dbSecond.hasPendingBackupDeletion)
+            assertFalse(PlatformFileOps.fileExists(backupPath), "النسخة الواقية حُذفت في التشغيل التالي")
+        } finally {
+            dbSecond.closeConnection()
+        }
+
+        // اختبار فشل التحقق الفعلي لمخطط Room (Schema validation failure) مع وجود نسخة واقية:
+        val invalidSchemaDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr04_schemaval_${Random.nextLong(100_000, 999_999)}.db")
+        val invalidSchemaBackupPath = SilaDatabaseBackup.backupPathFor(invalidSchemaDbPath)
+        LegacySchemaFixtures.createLegacyDatabase(invalidSchemaDbPath, LegacyFixtureLevel.L2_OR_L3)
+        // إنشاء نسخة واقية موثقة ثم كسر مخطط جدول مُدار مع وضع user_version = 1 لمحاكاة فشل تحقق Room:
+        SilaDatabaseBackup.createVerifiedBackup(invalidSchemaDbPath)
+        BundledSQLiteDriver().open(invalidSchemaDbPath).use { conn ->
+            conn.executeSQL("DROP TABLE dispute_logs")
+            conn.executeSQL("CREATE TABLE dispute_logs (id INTEGER PRIMARY KEY NOT NULL)")
+            conn.executeSQL("PRAGMA user_version = 1")
+        }
+        assertFailsWith<Throwable>("فشل التحقق الفعلي لمخطط Room يجب أن يرمي استثناءً") {
+            LocalSilaDatabase(dbFilePath = invalidSchemaDbPath, dispatchers = testDispatchers)
+        }
+        assertTrue(
+            PlatformFileOps.fileExists(invalidSchemaBackupPath),
+            "النسخة الواقية تبقى محفوظة عند فشل تحقق مخطط Room",
+        )
     }
 }

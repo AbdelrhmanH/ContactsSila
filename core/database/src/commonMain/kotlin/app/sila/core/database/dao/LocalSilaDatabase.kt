@@ -28,8 +28,10 @@ import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.database.entity.toContactEntity
 import app.sila.core.database.entity.toDomain
 import app.sila.core.database.entity.toEntity
+import app.sila.core.database.legacy.LegacyAdoptionException
 import app.sila.core.database.legacy.LegacyDatabaseAdopter
 import app.sila.core.database.legacy.LegacyFtsDdl
+import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.database.legacy.SilaDatabaseBackup
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamInfo
@@ -81,13 +83,41 @@ import kotlinx.coroutines.withContext
  *   عبر `RoomDatabase.Callback` بـ DDL تراثي حرفي واحد ([LegacyFtsDdl])، والبحث
  *   والمزامنة عبر SQL خام في هذه الواجهة.
  */
-class LocalSilaDatabase(
+/** مراحل التحقق أثناء التهيئة/الاعتماد — للاختبارات الحتمية لحقن الفشل (SR-04). */
+internal enum class AdoptionVerificationStage {
+    ROOM_OPEN,
+    CONTACTS_READ,
+    CONTACT_PHONES_READ,
+    ARHAM_READ,
+    SERVICES_READ,
+    VERSION_CHECK,
+    INTEGRITY_CHECK,
+    FTS_CHECK,
+    BEFORE_BACKUP_DELETE,
+    BACKUP_DELETE,
+}
+
+class LocalSilaDatabase internal constructor(
     /** مسار ملف قاعدة البيانات — `":memory:"` حصرياً كحاضنة اختبارات (لا مسار إنتاج بديل). */
-    val dbFilePath: String = ":memory:",
-    private val dispatchers: AppDispatchers = DefaultAppDispatchers(),
+    val dbFilePath: String,
+    private val dispatchers: AppDispatchers,
     /** بذر بيانات العرض في الجداول الفارغة — للاختبارات حصراً (افتراضياً معطَّل — F-01). */
-    private val seedDemoData: Boolean = false,
+    private val seedDemoData: Boolean,
+    private val adoptionStageHook: ((AdoptionVerificationStage) -> Unit)?,
+    private val backupDeleteOverride: (() -> Boolean)?,
 ) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao {
+
+    constructor(
+        dbFilePath: String = ":memory:",
+        dispatchers: AppDispatchers = DefaultAppDispatchers(),
+        seedDemoData: Boolean = false,
+    ) : this(
+        dbFilePath = dbFilePath,
+        dispatchers = dispatchers,
+        seedDemoData = seedDemoData,
+        adoptionStageHook = null,
+        backupDeleteOverride = null,
+    )
 
     private val dbMutex = Mutex()
 
@@ -102,6 +132,12 @@ class LocalSilaDatabase(
 
     /** نسخة واقية بانتظار الحذف بعد اعتماد موثق (أول عملية Room ناجحة) — `null` = لا شيء. */
     private var pendingBackupDeletion: String? = null
+
+    private var legacyAdopter: LegacyDatabaseAdopter? = null
+
+    /** هل لا تزال هناك نسخة واقية معلَّقة بانتظار الحذف؟ (للاختبارات). */
+    internal val hasPendingBackupDeletion: Boolean
+        get() = pendingBackupDeletion != null
 
     /**
      * قاعدة Room الفعلية — تُبنى مرة واحدة: بعد الاعتماد الآمن للمسارات الملفية، أو
@@ -127,6 +163,7 @@ class LocalSilaDatabase(
         // قاعدة قديمة بعد الشيم، فتحات لاحقة) — بلا مشغّلات، المزامنة يدوية حصراً.
         val ftsCallback = object : RoomDatabase.Callback() {
             override suspend fun onOpen(connection: SQLiteConnection) {
+                adoptionStageHook?.invoke(AdoptionVerificationStage.ROOM_OPEN)
                 connection.executeSQL(LegacyFtsDdl.CREATE_CONTACTS_FTS)
             }
         }
@@ -141,7 +178,11 @@ class LocalSilaDatabase(
                 .build()
         } else {
             // الاعتماد الآمن قبل فتح Room — فشل آمن على أي مخطط غير مصنَّف.
-            val adoption = runBlocking { LegacyDatabaseAdopter(dbFilePath).adoptIfNeeded() }
+            val adopter = LegacyDatabaseAdopter(dbFilePath).also {
+                it.backupDeleteFaultHook = backupDeleteOverride
+            }
+            val adoption = runBlocking { adopter.adoptIfNeeded() }
+            legacyAdopter = adopter
             pendingBackupDeletion = adoption.backupPath
             Room.databaseBuilder<SilaRoomDatabase>(dbFilePath, factory)
                 .setDriver(BundledSQLiteDriver())
@@ -151,11 +192,18 @@ class LocalSilaDatabase(
         }
     }
 
-    private val contactsState = MutableStateFlow(runBlocking { loadOrSeedContactsBlocking() })
-    private val servicesState = MutableStateFlow(runBlocking { loadOrSeedServicesBlocking() })
+    private val contactsState: MutableStateFlow<List<Contact>>
+    private val servicesState: MutableStateFlow<List<Service>>
 
     init {
-        deleteBackupAfterVerifiedAdoption()
+        try {
+            contactsState = MutableStateFlow(runBlocking { loadOrSeedContactsBlocking() })
+            servicesState = MutableStateFlow(runBlocking { loadOrSeedServicesBlocking() })
+            runBlocking { deleteBackupAfterVerifiedAdoption() }
+        } catch (t: Throwable) {
+            runCatching { room.close() }
+            throw t
+        }
     }
 
     // ===== البنية التحتية للكتابة المركّبة (SQL خام حرفي داخل معاملة Room) =====
@@ -166,11 +214,65 @@ class LocalSilaDatabase(
             transactor.immediateTransaction { block(transactor) }
         }
 
-    /** حذف النسخة الواقية بعد أول عملية Room ناجحة — الاعتماد صار موثقاً في هذه اللحظة. */
-    private fun deleteBackupAfterVerifiedAdoption() {
-        pendingBackupDeletion?.let {
-            SilaDatabaseBackup.deleteBackupIfExists(dbFilePath)
+    /**
+     * حذف النسخة الواقية بعد اكتمال القراءات الأولية والتحقق من سلامة القاعدة الحيّة (SR-04).
+     * لا تُحذف النسخة إلا بعد نجاح: فتح Room، التحقق من المخطط، `user_version == 1`،
+     * `PRAGMA integrity_check == "ok"`، قابلية قراءة `contacts_fts`، وقراءات DAOs الأربعة.
+     */
+    private suspend fun deleteBackupAfterVerifiedAdoption() {
+        if (dbFilePath == ":memory:") return
+        val backupPath = pendingBackupDeletion ?: return
+
+        verifyLiveDatabaseForAdoption()
+
+        adoptionStageHook?.invoke(AdoptionVerificationStage.BEFORE_BACKUP_DELETE)
+        adoptionStageHook?.invoke(AdoptionVerificationStage.BACKUP_DELETE)
+
+        val deleted = legacyAdopter?.deleteBackupAfterVerifiedAdoption()
+            ?: runCatching { SilaDatabaseBackup.deleteBackupIfExists(dbFilePath) }.getOrDefault(false)
+        if (deleted && !PlatformFileOps.fileExists(backupPath)) {
             pendingBackupDeletion = null
+        }
+    }
+
+    private suspend fun verifyLiveDatabaseForAdoption() {
+        room.useReaderConnection { transactor ->
+            adoptionStageHook?.invoke(AdoptionVerificationStage.VERSION_CHECK)
+            transactor.usePrepared("PRAGMA user_version") { stmt ->
+                val version = if (stmt.step()) stmt.getLong(0).toInt() else -1
+                if (version != 1) {
+                    throw LegacyAdoptionException(
+                        "PR_B adoption verification: expected user_version=1, actual=$version",
+                    )
+                }
+            }
+
+            adoptionStageHook?.invoke(AdoptionVerificationStage.INTEGRITY_CHECK)
+            transactor.usePrepared("PRAGMA integrity_check") { stmt ->
+                var rowCount = 0
+                var allOk = true
+                while (stmt.step()) {
+                    rowCount++
+                    if (stmt.isNull(0) || stmt.getText(0) != "ok") {
+                        allOk = false
+                    }
+                }
+                if (rowCount == 0 || !allOk) {
+                    throw LegacyAdoptionException(
+                        "PR_B adoption verification: live database failed PRAGMA integrity_check",
+                    )
+                }
+            }
+
+            adoptionStageHook?.invoke(AdoptionVerificationStage.FTS_CHECK)
+            transactor.usePrepared("SELECT count(*) FROM contacts_fts") { stmt ->
+                val count = if (stmt.step()) stmt.getLong(0) else -1L
+                if (count < 0L) {
+                    throw LegacyAdoptionException(
+                        "PR_B adoption verification: contacts_fts count check failed",
+                    )
+                }
+            }
         }
     }
 
@@ -191,6 +293,7 @@ class LocalSilaDatabase(
     }
 
     private suspend fun loadOrSeedServicesBlocking(): List<Service> {
+        adoptionStageHook?.invoke(AdoptionVerificationStage.SERVICES_READ)
         val loaded = serviceEntityDao.getAll().map { it.toDomain() }
         if (loaded.isNotEmpty()) return loaded
 
@@ -203,12 +306,19 @@ class LocalSilaDatabase(
     }
 
     private suspend fun loadContactsFromRoom(): List<Contact> {
+        adoptionStageHook?.invoke(AdoptionVerificationStage.CONTACTS_READ)
         val contactEntities = contactEntityDao.getActiveContacts()
-        if (contactEntities.isEmpty()) return emptyList()
 
+        // SR-04 (§5.2): لا يجوز تخطي قراءة `contact_phones` و`arham` حتى لو كان جدول
+        // `contacts` خالياً من الصفوف النشطة — التحقق الأولي يشمل الجداول الأساسية دائماً.
+        adoptionStageHook?.invoke(AdoptionVerificationStage.CONTACT_PHONES_READ)
         val phonesByContact = contactEntityDao.getAllPhones()
             .groupBy { it.contactId }
+
+        adoptionStageHook?.invoke(AdoptionVerificationStage.ARHAM_READ)
         val arhamByContact = arhamEntityDao.getAll().associateBy { it.contactId }
+
+        if (contactEntities.isEmpty()) return emptyList()
 
         return contactEntities.map { entity ->
             entity.toDomain(

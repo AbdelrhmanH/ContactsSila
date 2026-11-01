@@ -151,5 +151,74 @@
 
 - **الفرع:** `refactor/pr-b-room-database`
 - **الأساس:** `dd04f1fd13dcfad2cb68b81e14ee7500ddf0397a` (`main`)
-- **عنوان الـ PR:** `refactor(database): make Room the single source of truth`
+- **عنوان الـ PR:** `refactor(database): make Room the single source of truth` (#38)
 - **سياسة الدمج:** لا يُدمج تلقائياً — يُترك مفتوحاً بعد التحقق من نجاح فحوص GitHub Actions CI لقرار صاحب المنتج.
+
+---
+
+## 10. معالجة ملاحظات مراجعة الأمان النهائية (PR #38 Targeted Safety Remediation: SR-01, SR-02, SR-04)
+
+- **رأس الـ PR السابق قبل المعالجة (Original Reviewed PR HEAD):** `b3cd93268557f25a4fd1f9414d32793bf593e47f` (فوق `623a0e32fcbe0b8b96b06e7188f65de1de8e86d3`)
+- **رسالة التزام المتابعة (Follow-up Commit):** `fix(database): harden legacy adoption and backup recovery` (رأس الفرع المحدث لـ PR #38 على `refactor/pr-b-room-database`)
+- **النطاق:** معالجة ملاحظات الأمان الثلاث المعتمدة فقط (`SR-01`, `SR-02`, `SR-04`) دون المساس ببنية Room 3.0.3 أو سلوك FTS4 (`SR-03`) أو قفل المسار المحلي (`SR-05`) أو فحص المساحة الحرة (`SR-06`).
+
+### 10.1 SR-01 (`HIGH`): تطبيع الفهارس الفريدة بدقة دون حذف الفهارس المشروعة (`LegacyDatabaseAdopter.normalizeContactsIndices`)
+
+- **السبب الجذري (Root Cause):**
+  كانت دالة `LegacyDatabaseAdopter.normalizeContactsIndices` تقرأ `PRAGMA index_list('contacts')` وتسقط أي فهرس يحمل `unique == 1 && origin == "c"` بغضّ النظر عن اسمه أو أعمدته، كما لم تكن `LegacySchemaFingerprint.readSnapshot` تفحص البيانات الوصفية الكاملة للفهارس (`origin`, `partial`, ترتيب الأعمدة `DESC`/`ASC`, أو التعبيرات).
+- **الإصلاح (Fix):**
+  1. توسيع `LegacyIndex` و`LegacySchemaFingerprint.readIndicesForTable` لقراءة `PRAGMA index_list` و`PRAGMA index_xinfo` مع الحراسة الآمنة للتعبيرات (`cid < 0 || infoStmt.isNull(2)` $\rightarrow$ `hasExpression = true`) واستخراج (`name`, `unique`, `origin`, `partial`, `columns`, `orders`, `hasExpression`).
+  2. تعديل `LegacyDatabaseAdopter.normalizeContactsIndices` لتسقط فقط:
+     - الفهرس التاريخي الفريد المعروف على `systemContactId` (`origin == "c"`, `unique == true`, `!partial`, `!hasExpression`, `columns == listOf("systemContactId")`, `orders == listOf("ASC")`)، أو
+     - فهرساً يحمل أحد الأسماء الأربعة المستهدفة (`idx_contacts_system_id`, `idx_contacts_display_name`, `idx_contacts_normalized_name`, `idx_contacts_favorite_call`) إذا اختلفت خصائصه عن مواصفة Room، ليُعاد إنشاؤه فوراً بـ `CREATE INDEX IF NOT EXISTS`.
+  3. عدم المساس بأي فهرس فريد آخر (`lookupKey`، الفهارس المركبة، الفهارس الجزئية `WHERE ...`، فهارس التعبيرات، أو الفهارس الضمنية `origin = 'u'` / `origin = 'pk'`).
+- **الأدلة الاختبارية (`LegacyDatabaseAdoptionTest.kt`):**
+  - `sr01_normalizeContactsIndices_dropsOnlyLegacyUniqueSystemContactIdIndex_andPreservesAllOtherConstraints`: يختبر الحالات الخمس (Fixture A–E: فهرس `systemContactId` التاريخي الفريد سواء باسم `idx_contacts_system_id` أو `idx_contacts_system_contact_id_legacy`، فهرس فريد منفصل على `lookupKey`، فهرس فريد مركب على `(systemContactId, accountType)`، فهرس فريد جزئي، وقيد `UNIQUE` ضمني `origin='u'` + المفتاح الأساسي `origin='pk'`) ويثبت بالتكرار (Idempotency) بقاء قيود الفرادة الأخرى فعّالة بـ `SQLITE_CONSTRAINT` بعد التطبيع.
+  - `sr01_fullAdoption_preservesDuplicateSystemContactId_andAllUserRecordsAndIds`: يثبت نجاح الاعتماد الكامل مع وجود قيم `systemContactId` مكررة/فارغة والحفاظ الحرفي على جميع السجلات والمعرفات (`contacts`, `contact_phones`, `arham`, `services`, `call_events`, `arham_inbox`, `dispute_logs`, `contacts_sync_checkpoints`).
+
+### 10.2 SR-02 (`HIGH`): التصنيف الصارم المغلق على الفشل (`LegacySchemaFingerprint.classify`)
+
+- **السبب الجذري (Root Cause):**
+  1. كان الشرط `hasFts || hasCheckpoints` يصنّف قواعد البيانات الهجينة أو المحدثة جزئياً (وجود `contacts_fts` بدون `contacts_sync_checkpoints` أو العكس) كـ `L1` بدلاً من رفضها كـ `UNKNOWN`.
+  2. كانت `hasExpectedInvariantColumns` تتحقق من أسماء الأعمدة فقط دون التحقق من (`type`, `notNull`, `pkPosition`, `defaultValue`)، وكانت `hasExpectedInvariantIndices` تتحقق من أسماء الفهارس دون التحقق من (`unique`, `origin`, `partial`, `columns`, `orders`, `hasExpression`).
+  3. كانت الجداول الظلية لـ FTS4 تُستثنى ببادئة مفتوحة `startsWith("contacts_fts_")` بدلاً من القائمة المغلقة للجداول الخمسة القياسية.
+- **الإصلاح (Fix):**
+  1. إلزام التطابق التام `if (hasFts != hasCheckpoints) return LegacySchemaKind.UNKNOWN` بحيث لا يُقبل في `L0` سوى غياب الاثنين معاً، وفي `L1` / `L2_OR_L3` / `PARITY_DONE` / `ROOM_MANAGED` وجود الاثنين معاً ببنية صحيحة كاملة.
+  2. التحقق الصارم من كامل البيانات الوصفية لكل عمود (`name`, `type`, `notNull`, `pkPosition`, `defaultValue` عبر `LegacyColumn.normalized()`) لجميع الجداول الثمانية (بما فيها الـ 13 عموداً في `L0` والـ 29 عموداً في المخطط المستهدف لجدول `contacts`).
+  3. التحقق الصارم من كامل البيانات الوصفية لجميع الفهارس في الجداول الثابتة وجدول `contacts` (بما في ذلك اشتراط الاسم القياسي `idx_contacts_system_id` عندما يكون الفهرس غير فريد — `B-01`).
+  4. حصر الجداول الظلية المسموحة لـ FTS4 في المجموعة المغلقة `FTS_SHADOW_TABLES` (`contacts_fts_content`, `contacts_fts_segments`, `contacts_fts_segdir`, `contacts_fts_docsize`, `contacts_fts_stat`) وفقط عند وجود `contacts_fts` (`NB-02`).
+- **مصفوفة الاختبارات (`LegacyDatabaseAdoptionTest.kt`):**
+  - `sr02_classificationMatrix_validSchemasAndInvalidMutations_areStrictlyFailClosedAndReadOnly`: يختبر **21 حالة** على ملفات SQLite حقيقية (Cases A–L + حالات إضافية لـ `type` و`notNull` و`pkPosition` و`defaultValue` والفهارس الجزئية والتعبيرية و`DESC` واسم فهرس `systemContactId` غير القياسي `B-01` وجدول `contacts_fts_rogue` `NB-02`)، ويثبت لكل حالة غير صالحة:
+    1. إرجاع `LegacySchemaKind.UNKNOWN` ورمي `LegacySchemaUnknownException`.
+    2. **عدم تعديل أي بايت أو جدول أو فهرس أو `user_version`** في القاعدة الأصلية (`readRawDatabaseState(dbPath) == stateBefore`).
+    3. إنشاء نسخة تشخيصية موثقة (`sila_local.pre-room-backup`).
+
+### 10.3 SR-04 (`MEDIUM`): بوابة حذف النسخة الواقية والتعافي من الأعطال (`Crash A–D`)
+
+- **السبب الجذري (Root Cause):**
+  1. كانت `deleteBackupAfterVerifiedAdoption()` تعتمد فقط على متغير الذاكرة `adoptionOutcome.backupPath != null`؛ فإذا قُتلت العملية بعد نجاح `LegacyDatabaseAdopter.adoptIfNeeded()` وقبل اكتمال تهيئة Room (Crash B أو Crash C)، كانت إعادة التشغيل التالية ترى `PARITY_DONE` أو `ROOM_MANAGED` فتُعيد `backupPath = null` ولا تتحقق من النسخة الواقية أو تحذفها بعد النجاح.
+  2. كانت `loadContactsFromRoom()` تعود مبكراً عند خلو جدول `contacts` (`if (contactEntities.isEmpty()) return emptyList()`) دون قراءة جدولَي `contact_phones` و`arham`.
+  3. لم يكن الإخفاق أثناء فتح Room أو قراءة الجداول يضمن إغلاق `room.close()` في كتلة `catch`.
+- **الإصلاح (Fix):**
+  1. في `LegacyDatabaseAdopter.adoptIfNeeded()`: فحص وجود النسخة الواقية وتوثيقها عبر `SilaDatabaseBackup.verifiedBackupExists` (الذي يتحقق من `fileSizeBytes > 0`، ووجود جدول `contacts`، و`PRAGMA integrity_check == "ok"` — `NB-01`) في حالتَي `PARITY_DONE` و`ROOM_MANAGED`:
+     - في `PARITY_DONE`: اشتراط وجود نسخة واقية صالحة وإلا يفشل الاعتماد مغلقاً بـ `LegacyAdoptionException`.
+     - في `ROOM_MANAGED`: إذا وُجدت نسخة واقية متبقية من تشغيل سابق متقطع، يُتحقق من سلامتها وتُمرَّر في `backupPath` ليُستكمل التحقق منها وحذفها بعد تمام فحوص التشغيل الحي.
+  2. في `LocalSilaDatabase.loadContactsFromRoom()`: قراءة `contactEntityDao.getAllPhones()` و`arhamEntityDao.getAll()` دائماً حتى عندما يكون جدول `contacts` خالياً من الصفوف النشطة.
+  3. في `LocalSilaDatabase.verifyLiveDatabaseForAdoption()` و`deleteBackupAfterVerifiedAdoption()`: التحقق من القاعدة الحية (`PRAGMA user_version == 1`، `PRAGMA integrity_check == "ok"`، ونجاح استعلام `SELECT count(*) FROM contacts_fts`) ونجاح قراءات الجداول عبر Room قبل استدعاء `adopter.deleteBackupAfterVerifiedAdoption()`.
+  4. إحاطة تهيئة Room بكتلة `try { ... } catch (t: Throwable) { runCatching { room.close() }; throw t }` لضمان إغلاق الاتصال وبقاء النسخة الواقية سليمة عند أي خطأ أو إلغاء كوروتين (`CancellationException`).
+- **أدلة اختبارات التعافي من الأعطال (`LegacyDatabaseAdoptionTest.kt`):**
+  - `sr04_emptyContactsTable_stillVerifiesContactPhonesArhamServicesAndFts_beforeBackupDeletion`
+  - `sr04_crashA_failureDuringShim_rollsBackAndPreservesBackup_andSubsequentRetrySucceeds` (يشمل اختبار `NB-01` لرفض ملف احتياطي فارغ أو غير صالح في `PARITY_DONE` و`ROOM_MANAGED`)
+  - `sr04_crashB_interruptedAfterShimBeforeRoomStampsUserVersion1_preservesBackup_andRetryCompletesAndDeletesBackup`
+  - `sr04_crashC_failureDuringRoomOpenOrInitialVerification_closesRoomAndPreservesBackup_acrossAllFailureStages` (يختبر 8 مراحل حقن أعطال + `CancellationException` + فشل التحقق الفعلي لمخطط Room عند إفساد عمود في `services`)
+  - `sr04_crashD_backupDeletionFailure_leavesValidRoomDb_andNextStartupDeletesRemainingVerifiedBackup`
+
+### 10.4 نتائج التحقق والمراجعات المستقلة للتحديث
+
+- **الاختبارات المحلية (`--rerun`) وتجميع iOS Simulator ARM64:**
+  - `33` حزمة اختبار / **`192` اختباراً** (منها **`53/53`** في `:core:database` شاملة **`19/19`** في `LegacyDatabaseAdoptionTest`) / `0` فشل / `0` خطأ.
+  - نجاح `:core:database:kspKotlinIosSimulatorArm64` و`:core:database:compileKotlinIosSimulatorArm64` و`:sharedLogic:compileKotlinIosSimulatorArm64` و`checkArchitectureBoundaries`.
+- **مراجعة `agy` المستقلة القراءة-فقط (المحادثة `89a6987b-80bc-47db-b613-adb50219c77f`):**
+  - **الحكم النهائي:** **`APPROVE`** (`0` مشاكل معطِّلة، `0` ملاحظات غير معطِّلة).
+- **المراجعة الخصومية المستقلة بـ Gemini Argon (المحادثة الفرعية `0d993d19-57b6-4f7d-a056-ff4bd30e5292`):**
+  - اكتشفت في الجولة الأولى 3 ملاحظات دقيقة (`B-01`, `NB-01`, `NB-02`) عُولجت بالكامل وأُضيفت لها اختبارات انحدار مخصصة، ثم أعادت التحقق في الجولة الثانية وأصدرت الحكم النهائي: **`PASS`** (`0` مشاكل معطِّلة، `0` ملاحظات غير معطِّلة).

@@ -47,15 +47,22 @@ internal object SilaDatabaseBackup {
     }
 
     /**
-     * هل توجد نسخة واقية سابقة **متحقق منها** (integrity_check = ok)؟
-     * وجود ملف غير صالح لا يرمي — يُرجع false ليعاد إنشاؤه من جديد.
+     * هل توجد نسخة واقية سابقة **متحقق منها** (غير فارغة + تحتوي جدول contacts + integrity_check = ok)؟
+     * وجود ملف غير صالح أو بحجم صفر لا يرمي — يُرجع false ليعاد إنشاؤه أو يُرفض في الاستئناف.
      */
     suspend fun verifiedBackupExists(dbFilePath: String): Boolean {
         val path = backupPathFor(dbFilePath)
         if (!PlatformFileOps.fileExists(path)) return false
+        val sizeBytes = PlatformFileOps.fileSizeBytes(path) ?: return false
+        if (sizeBytes <= 0L) return false
         return try {
             BundledSQLiteDriver().open(path).use { conn ->
-                isFullIntegrityOk(conn)
+                val hasContactsTable = conn.prepare(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'contacts'",
+                ).use { stmt ->
+                    stmt.step() && stmt.getLong(0) > 0L
+                }
+                hasContactsTable && isFullIntegrityOk(conn)
             }
         } catch (t: Throwable) {
             false
@@ -151,13 +158,15 @@ internal object SilaDatabaseBackup {
         }
     }
 
-    /** `PRAGMA integrity_check` كاملة: كل الصفوف يجب أن تكون ok (قد تُبلِغ عدة أخطاء كصفوف). */
+    /** `PRAGMA integrity_check` كاملة: صف واحد على الأقل وكل الصفوف يجب أن تكون ok. */
     private suspend fun isFullIntegrityOk(conn: androidx.sqlite.SQLiteConnection): Boolean =
         conn.prepare("PRAGMA integrity_check").use { stmt ->
+            var rowCount = 0
             var allOk = true
             while (stmt.step()) {
+                rowCount++
                 if (stmt.isNull(0) || stmt.getText(0) != "ok") allOk = false
             }
-            allOk
+            rowCount > 0 && allOk
         }
 }

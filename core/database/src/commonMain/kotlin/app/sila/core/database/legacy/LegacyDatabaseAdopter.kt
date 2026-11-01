@@ -67,14 +67,34 @@ internal class LegacyDatabaseAdopter(
         "systemDeletedAt" to "INTEGER",
     )
 
-    private val targetContactIndexDdl = listOf(
-        "idx_contacts_category" to "CREATE INDEX IF NOT EXISTS idx_contacts_category ON contacts(category)",
-        "idx_contacts_norm_name" to "CREATE INDEX IF NOT EXISTS idx_contacts_norm_name ON contacts(normalizedName)",
-        "idx_contacts_fav" to "CREATE INDEX IF NOT EXISTS idx_contacts_fav ON contacts(isFavorite)",
-        "idx_contacts_system_id" to "CREATE INDEX IF NOT EXISTS idx_contacts_system_id ON contacts(systemContactId)",
+    private data class TargetContactIndexSpec(
+        val name: String,
+        val column: String,
+        val createSql: String,
     )
 
-    private val targetContactIndexNames = targetContactIndexDdl.map { it.first }.toSet()
+    private val targetContactIndexSpecs = listOf(
+        TargetContactIndexSpec(
+            name = "idx_contacts_category",
+            column = "category",
+            createSql = "CREATE INDEX IF NOT EXISTS idx_contacts_category ON contacts(category)",
+        ),
+        TargetContactIndexSpec(
+            name = "idx_contacts_norm_name",
+            column = "normalizedName",
+            createSql = "CREATE INDEX IF NOT EXISTS idx_contacts_norm_name ON contacts(normalizedName)",
+        ),
+        TargetContactIndexSpec(
+            name = "idx_contacts_fav",
+            column = "isFavorite",
+            createSql = "CREATE INDEX IF NOT EXISTS idx_contacts_fav ON contacts(isFavorite)",
+        ),
+        TargetContactIndexSpec(
+            name = "idx_contacts_system_id",
+            column = "systemContactId",
+            createSql = "CREATE INDEX IF NOT EXISTS idx_contacts_system_id ON contacts(systemContactId)",
+        ),
+    )
 
     private val ftsCreateSql = LegacyFtsDdl.CREATE_CONTACTS_FTS
 
@@ -84,6 +104,9 @@ internal class LegacyDatabaseAdopter(
      * بـ [LegacyAdoptionException] (نفس مبدأ خطافات الواجهة الخارجية).
      */
     internal var shimFaultHook: (() -> Throwable)? = null
+
+    /** خطاف حقن فشل حذف النسخة الواقية (Crash D) — للاختبارات الحتمية حصراً. */
+    internal var backupDeleteFaultHook: (() -> Boolean)? = null
 
     /**
      * يفحص القاعدة ويُعتمِدها عند الحاجة فقط. يُستدعى **قبل** فتح Room (داخل تهيئة الواجهة)
@@ -96,13 +119,51 @@ internal class LegacyDatabaseAdopter(
 
         val snapshot = readSnapshot()
         val level = LegacySchemaFingerprint.classify(snapshot)
+        val candidateBackupPath = SilaDatabaseBackup.backupPathFor(dbFilePath)
 
         return when (level) {
-            // لا شيء تتبناه: Room يديرها أصلاً / تثبيت جديد / حالة هدف جاهزة.
-            LegacySchemaLevel.ROOM_MANAGED,
-            LegacySchemaLevel.FRESH,
-            LegacySchemaLevel.PARITY_DONE,
-            -> LegacyAdoptionResult(level, backupPath = null, backupCreated = false)
+            LegacySchemaLevel.FRESH ->
+                LegacyAdoptionResult(level, backupPath = null, backupCreated = false)
+
+            LegacySchemaLevel.ROOM_MANAGED -> {
+                // SR-04 (§5.1): تتبع النسخة الواقية المتبقية من تشغيل سابق منقطع (Crash B / Crash D)
+                // والتحقق من سلامتها قبل استكمال التحقق الحي وحذفها.
+                val existingBackup = if (PlatformFileOps.fileExists(candidateBackupPath)) {
+                    if (!SilaDatabaseBackup.verifiedBackupExists(dbFilePath)) {
+                        throw LegacyAdoptionException(
+                            "PR_B adoption: ROOM_MANAGED recovery state found an invalid backup",
+                        )
+                    }
+                    candidateBackupPath
+                } else {
+                    null
+                }
+                LegacyAdoptionResult(
+                    detectedLevel = level,
+                    backupPath = existingBackup,
+                    backupCreated = false,
+                )
+            }
+
+            LegacySchemaLevel.PARITY_DONE -> {
+                // SR-04 (§5.1 / Crash A): حالة PARITY_DONE (user_version = 0 بعد التزام الشيم
+                // وقبل ختم Room للإصدار) تتطلب وجود نسخة واقية موثقة صالحة للاستئناف الآمن.
+                if (!PlatformFileOps.fileExists(candidateBackupPath)) {
+                    throw LegacyAdoptionException(
+                        "PR_B adoption: PARITY_DONE recovery state requires existing backup, but none found",
+                    )
+                }
+                if (!SilaDatabaseBackup.verifiedBackupExists(dbFilePath)) {
+                    throw LegacyAdoptionException(
+                        "PR_B adoption: PARITY_DONE recovery state found an invalid backup",
+                    )
+                }
+                LegacyAdoptionResult(
+                    detectedLevel = level,
+                    backupPath = candidateBackupPath,
+                    backupCreated = false,
+                )
+            }
 
             // غير مصنَّف ⇒ فشل آمن: نسخة واقية (كأفضل جهد حفظ تشخيصي) ثم رمي — لا تعديل.
             LegacySchemaLevel.UNKNOWN -> {
@@ -120,6 +181,18 @@ internal class LegacyDatabaseAdopter(
             LegacySchemaLevel.L2_OR_L3,
             -> adoptKnownLevel(level, snapshot)
         }
+    }
+
+    /**
+     * يحذف النسخة الواقية بعد اكتمال التحقق الحي من القاعدة المُعتمَدة (SR-04).
+     * يُرجع `true` فقط إذا اختفت النسخة فعلاً من القرص؛ وعند أي فشل تبقى النسخة للمحاولة التالية.
+     */
+    fun deleteBackupAfterVerifiedAdoption(): Boolean {
+        backupDeleteFaultHook?.let { hook ->
+            return runCatching { hook() }.getOrDefault(false)
+        }
+        return runCatching { SilaDatabaseBackup.deleteBackupIfExists(dbFilePath) }
+            .getOrDefault(false)
     }
 
     /** يقرأ بصمة المخطط من ملف القاعدة عبر اتصال مستقل (قراءة فقط — لا تعديل). */
@@ -261,21 +334,40 @@ internal class LegacyDatabaseAdopter(
         )
     }
 
-    /** فهارس contacts: إنشاء الناقصة + إسقاط أي فهرس إضافي غير مستهدف (مطابقة TableInfo). */
-    private suspend fun normalizeContactsIndices(conn: SQLiteConnection) {
-        val extraIndices = conn.prepare("PRAGMA index_list(contacts)").use { stmt ->
-            val names = mutableListOf<String>()
-            while (stmt.step()) {
-                val indexName = stmt.getText(1)
-                val isUnique = stmt.getLong(2) != 0L
-                if (!indexName.startsWith("sqlite_autoindex") && (indexName !in targetContactIndexNames || isUnique)) {
-                    names += indexName
-                }
+    /**
+     * تطبيع فهارس `contacts` (SR-01):
+     * - لا يحذف إلا الفهرس الفريد التاريخي الخاص بـ `systemContactId` حصراً (`origin = "c"`,
+     *   `unique = true`, `partial = false`, بلا تعبيرات، عمود واحد `systemContactId` بترتيب `ASC`)
+     *   أو أحد الفهارس الأربعة الهدف غير الفريدة إذا انحرف تعريفه غير الفريد.
+     * - لا يمس أبداً أي فهرس فريد على عمود آخر، ولا الفهارس المركّبة، ولا الفهارس الجزئية،
+     *   ولا الفهارس التعبيرية، ولا الفهارس التلقائية (`origin = "u"` أو `origin = "pk"`).
+     */
+    internal suspend fun normalizeContactsIndices(conn: SQLiteConnection) {
+        val liveIndices = LegacySchemaFingerprint.readIndicesForTable(conn, "contacts")
+        val indicesToDrop = liveIndices.filter { idx ->
+            if (idx.origin != "c" || idx.partial || idx.hasExpression) {
+                false
+            } else {
+                val isLegacyUniqueSystemContactIdIndex =
+                    idx.unique &&
+                        idx.columns == listOf("systemContactId") &&
+                        idx.orders == listOf("ASC")
+                val targetSpec = targetContactIndexSpecs.firstOrNull { it.name == idx.name }
+                val isMismatchedKnownNonUniqueTargetIndex =
+                    targetSpec != null &&
+                        !idx.unique &&
+                        (idx.columns != listOf(targetSpec.column) || idx.orders != listOf("ASC"))
+                isLegacyUniqueSystemContactIdIndex || isMismatchedKnownNonUniqueTargetIndex
             }
-            names
+        }.map { it.name }
+
+        indicesToDrop.forEach { indexName ->
+            val escaped = indexName.replace("\"", "\"\"")
+            conn.executeSQL("DROP INDEX IF EXISTS \"$escaped\"")
         }
-        extraIndices.forEach { conn.executeSQL("DROP INDEX IF EXISTS \"$it\"") }
-        targetContactIndexDdl.forEach { (_, ddl) -> conn.executeSQL(ddl) }
+        targetContactIndexSpecs.forEach { spec ->
+            conn.executeSQL(spec.createSql)
+        }
     }
 
     private suspend fun ensurePhonesIndices(conn: SQLiteConnection) {
