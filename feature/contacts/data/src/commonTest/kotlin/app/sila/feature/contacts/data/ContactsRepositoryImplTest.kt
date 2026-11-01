@@ -1,10 +1,13 @@
 package app.sila.feature.contacts.data
 
+import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
 import app.sila.core.model.Phone
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -12,11 +15,18 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ContactsRepositoryImplTest {
+
+    private val testDispatchers = object : AppDispatchers {
+        override val main = Dispatchers.Unconfined
+        override val io = Dispatchers.Unconfined
+        override val default = Dispatchers.Unconfined
+    }
 
     @Test
     fun contactsRepository_upsertUpdateCategoryAndDelete_persistsThroughDao() = runTest {
-        val db = LocalSilaDatabase()
+        val db = LocalSilaDatabase(dispatchers = testDispatchers)
         try {
             val repo = ContactsRepositoryImpl(db)
 

@@ -13,6 +13,10 @@ import app.sila.core.model.Service
 /**
  * دوال التحويل بين كيانات قاعدة البيانات العلائقية (Entities) ونماذج النطاق (Domain Models)
  * طبقاً لـ CODING_GUIDELINES.md §2.
+ *
+ * PR B (ADR-0011): الكيانات هي الصورة الفيزيائية الحرفية — الحقول التي لا يملكها الجدول
+ * الفيزيائي (Phone.label/preferredSimSlot، Service.geohash/lat/lng/…) تُشتق عند القراءة
+ * بقيم افتراضية محايدة، مطابقةً لسلوك الشل القديمة عند البناء من 6/16 عموداً الفيزيائيين.
  */
 fun ContactEntity.toDomain(
     phones: List<ContactPhoneEntity>,
@@ -23,7 +27,8 @@ fun ContactEntity.toDomain(
     lookupKey = lookupKey,
     name = ContactName(
         displayName = displayName,
-        fileAs = fileAs,
+        // صفوف L0 المعتمدة تملك fileAs = '' بعد الشيم — البديل القرائي displayName (سلوك تاريخي).
+        fileAs = fileAs.ifEmpty { displayName },
         prefix = prefix,
         firstName = firstName,
         middleName = middleName,
@@ -60,9 +65,10 @@ fun ContactPhoneEntity.toDomain(): Phone = Phone(
     raw = raw,
     e164 = e164,
     type = type,
-    label = label,
+    // لا عمودان فيزيائيان لها — قيمة محايدة مطابقة للسلوك التاريخي عند القراءة.
+    label = null,
     isPrimary = isPrimary,
-    preferredSimSlot = preferredSimSlot
+    preferredSimSlot = null
 )
 
 fun ArhamEntity.toDomain(): ArhamInfo = ArhamInfo(
@@ -114,9 +120,7 @@ fun Phone.toEntity(contactId: Long): ContactPhoneEntity = ContactPhoneEntity(
     raw = raw,
     e164 = e164,
     type = type,
-    label = label,
-    isPrimary = isPrimary,
-    preferredSimSlot = preferredSimSlot
+    isPrimary = isPrimary
 )
 
 fun ArhamInfo.toEntity(contactId: Long, createdAt: Long = 0L): ArhamEntity = ArhamEntity(
@@ -144,17 +148,18 @@ fun ServiceEntity.toDomain(): Service = Service(
     ratingAvg = ratingAvg,
     ratingCount = ratingCount,
     isHot = isHot,
-    geohash = geohash,
-    lat = lat,
-    lng = lng,
+    // أعمدة غير مخزنة فيزيائياً — قيم محايدة مطابقة للسلوك التاريخي عند القراءة من 16 عموداً.
+    geohash = null,
+    lat = null,
+    lng = null,
     city = city,
     ownerVerified = ownerVerified,
     isSavedByUser = isSavedByUser,
-    myRating = myRating?.let { ratingValue -> Rating.entries.find { it.value == ratingValue } },
-    myCallCount = myCallCount,
-    myLastCallAt = myLastCallAt,
-    possiblyBroken = possiblyBroken,
-    syncedAt = syncedAt
+    myRating = null,
+    myCallCount = 0,
+    myLastCallAt = null,
+    possiblyBroken = false,
+    syncedAt = 0L
 )
 
 fun Service.toEntity(syncedAt: Long = 0L): ServiceEntity = ServiceEntity(
@@ -171,15 +176,7 @@ fun Service.toEntity(syncedAt: Long = 0L): ServiceEntity = ServiceEntity(
     ratingAvg = ratingAvg,
     ratingCount = ratingCount,
     isHot = isHot,
-    geohash = geohash,
-    lat = lat,
-    lng = lng,
     city = city,
     ownerVerified = ownerVerified,
-    isSavedByUser = isSavedByUser,
-    myRating = myRating?.value,
-    myCallCount = myCallCount,
-    myLastCallAt = myLastCallAt,
-    possiblyBroken = possiblyBroken,
-    syncedAt = syncedAt
+    isSavedByUser = isSavedByUser
 )
