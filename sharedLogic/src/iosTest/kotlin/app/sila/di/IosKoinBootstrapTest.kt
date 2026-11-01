@@ -115,6 +115,10 @@ class IosKoinBootstrapTest {
     fun ensureStarted_launchesRetentionCleanupCoordinator_andPublishesReport() {
         // F-02: مسار الإنتاج على iOS يشغّل صيانة الاستبقاء من كلا مساري ensureStarted —
         // التنظيف مرة واحدة لكل عملية، والتقرير يُنشر على lastReport بعد نجاح المعاملة.
+        // علم الإطلاق الواحد على مستوى الكائن قد استُهلك باختبار سابق (stopKoin بين
+        // الاختبارات يُنشئ حاوية جديدة بعلمٍ قديم) — إعادة تعيينه هنا تجعل الاختبار
+        // مستقلاً عن ترتيب التنفيذ داخل الملف.
+        IosKoinBootstrap.resetCleanupLaunchForTest()
         val koin = IosKoinBootstrap.ensureStarted()
         val coordinator = koin.get<RetentionCleanupCoordinator>()
 
