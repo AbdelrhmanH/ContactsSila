@@ -33,7 +33,8 @@ class LocalSilaDatabaseTest {
 
     @Test
     fun observeContacts_filtersByArabicNormalizedQuery() = runTest {
-        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        // F-01: الإنتاج لا يبذر — اختبارات التركيبة التجريبية تُبذّر صراحةً.
+        val db = LocalSilaDatabase(dispatchers = testDispatchers, seedDemoData = true)
         try {
             // البحث عن "احمد" بدون همزة يجد "العم أحمد"
             val results = db.observeContacts(searchQuery = "احمد").first()
@@ -46,7 +47,8 @@ class LocalSilaDatabaseTest {
 
     @Test
     fun observeContacts_filtersByCategory() = runTest {
-        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        // F-01: الإنتاج لا يبذر — اختبارات التركيبة التجريبية تُبذّر صراحةً.
+        val db = LocalSilaDatabase(dispatchers = testDispatchers, seedDemoData = true)
         try {
             val family = db.observeContacts(category = Category.FAMILY).first()
             assertEquals(3, family.size)

@@ -51,7 +51,8 @@ class MainViewModelTest {
 
     @Test
     fun getArhamPriorityList_ordersOverdueFirst() = runTest {
-        val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers)
+        // F-01: الإنتاج لا يبذر — اختبارات التركيبة التجريبية تُبذّر صراحةً.
+        val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers, seedDemoData = true)
         try {
             val arhamRepo = ArhamRepositoryImpl(db)
             val useCase = GetArhamPriorityListUseCase(arhamRepo, fixedClock)
@@ -68,7 +69,8 @@ class MainViewModelTest {
 
     @Test
     fun callingOverdueRelative_transitionsStatusFromOverdueToOk() = runTest {
-        val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers)
+        // F-01: الإنتاج لا يبذر — اختبارات التركيبة التجريبية تُبذّر صراحةً.
+        val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers, seedDemoData = true)
         try {
             val contactsRepo = ContactsRepositoryImpl(db)
             val arhamRepo = ArhamRepositoryImpl(db)
@@ -97,7 +99,8 @@ class MainViewModelTest {
 
     @Test
     fun selectingCategoryAndTogglingLanguage_updatesUiState() = runTest {
-        val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers)
+        // F-01: الإنتاج لا يبذر — البذر الصريح يجعل تصفية FAMILY تأكيداً غير فارغ (كان يمر فراغاً).
+        val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers, seedDemoData = true)
         try {
             val contactsRepo = ContactsRepositoryImpl(db)
             val arhamRepo = ArhamRepositoryImpl(db)

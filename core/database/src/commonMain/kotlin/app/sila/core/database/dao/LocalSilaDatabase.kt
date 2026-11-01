@@ -47,11 +47,17 @@ import app.sila.core.database.SilaTypeConverters
  * تنفيذ قاعدة بيانات Room KMP المحلية التفاعلية (SilaRoomDatabase : RoomDatabase)
  * يعمل بمحرك BundledSQLiteDriver الخاص بـ Room KMP ويستخدم SilaTypeConverters والكيانات العلائقية،
  * مع الاعتماد الكامل على Coroutines (AppDispatchers.io) و Flow التفاعلي.
+ *
+ * **بذرة العرض (F-01):** تهيئة الإنتاج **لا تُدرج أي بيانات تجريبية أبداً** — البذرة
+ * (7 جهات + 3 خدمات) متاحة للاختبارات حصراً عبر تصريح صريح بـ [seedDemoData]،
+ * ولا تُكتب إلا في جدول فارغ (بيانات المستخدم القائمة لا تُمسّ أبداً).
  */
 class LocalSilaDatabase(
     val dbFilePath: String = ":memory:",
     private val dispatchers: AppDispatchers = DefaultAppDispatchers(),
-    private val converters: SilaTypeConverters = SilaTypeConverters()
+    private val converters: SilaTypeConverters = SilaTypeConverters(),
+    /** بذر بيانات العرض التجريبية في الجداول الفارغة — للاختبارات حصراً (افتراضياً معطَّل — F-01). */
+    private val seedDemoData: Boolean = false,
 ) : SilaRoomDatabase(), ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao {
 
     override fun contactDao(): ContactDao = SqliteContactDao(this)
@@ -316,6 +322,9 @@ class LocalSilaDatabase(
         val loaded = readAllContactsFromSqlite()
         if (loaded.isNotEmpty()) return loaded
 
+        // F-01: بلا بذرة في الإنتاج — قاعدة فارغة تبقى فارغة (الاختبارات تُبذّر صراحةً).
+        if (!seedDemoData) return emptyList()
+
         val initial = seedInitialContacts()
         sqliteConnection.execSQL("BEGIN TRANSACTION")
         try {
@@ -331,6 +340,9 @@ class LocalSilaDatabase(
     private fun loadOrSeedServicesBlocking(): List<Service> {
         val loaded = readAllServicesFromSqlite()
         if (loaded.isNotEmpty()) return loaded
+
+        // F-01: بلا بذرة في الإنتاج — قاعدة فارغة تبقى فارغة (الاختبارات تُبذّر صراحةً).
+        if (!seedDemoData) return emptyList()
 
         val initial = seedInitialServices()
         sqliteConnection.execSQL("BEGIN TRANSACTION")
