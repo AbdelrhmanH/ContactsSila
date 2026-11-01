@@ -23,4 +23,10 @@ internal actual object PlatformFileOps {
         if (!file.exists()) return true
         return file.delete() || !file.exists()
     }
+
+    actual fun tempTestDbPath(fileName: String): String {
+        val dir = File("build")
+        if (!dir.exists()) dir.mkdirs()
+        return File(dir, fileName).absolutePath
+    }
 }

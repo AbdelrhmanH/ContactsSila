@@ -3,6 +3,7 @@ package app.sila.core.database
 import androidx.sqlite.async.executeSQL
 import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.LocalSilaDatabase
+import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
@@ -260,7 +261,7 @@ class ContactsSearchDaoTest {
 
     @Test
     fun setFavorite_persistsOnDisk_andSurvivesReopen() = runTest {
-        val tempDbPath = "build/tmp_test_fav_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_fav_${Random.nextLong(100_000, 999_999)}.db")
         val db = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
         try {
             db.upsertContact(contact("t3_fav", "أحمد"))
@@ -372,7 +373,7 @@ class ContactsSearchDaoTest {
 
     @Test
     fun adoption_L1Fixture_recreatesFtsWithDepartment_andBackfillsFromContacts() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_l1_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_l1_${Random.nextLong(100_000, 999_999)}.db")
 
         // 1) قاعدة L1 تاريخية (v2 المكتملة — FTS بخمسة أعمدة قبل T3) بجهة لها قسم:
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L1) { conn ->

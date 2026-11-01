@@ -7,6 +7,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.ContactsSyncBatchResult
 import app.sila.core.database.dao.LocalSilaDatabase
+import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamInfo
@@ -287,7 +288,7 @@ class ContactsSyncDaoTest {
 
     @Test
     fun adoption_L0Fixture_addsParityColumnsAndCheckpoints_preservesData_andBackfillsFts() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_l0_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_l0_${Random.nextLong(100_000, 999_999)}.db")
 
         // 1) قاعدة L0 تاريخية (user_version=0 — مخطط 84b530a الحرفي بسبعة جداول) وبيانات فيها:
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L0) { conn ->

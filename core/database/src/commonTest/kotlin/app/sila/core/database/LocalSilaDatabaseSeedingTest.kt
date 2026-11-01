@@ -2,6 +2,7 @@ package app.sila.core.database
 
 import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.LocalSilaDatabase
+import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
@@ -65,7 +66,7 @@ class LocalSilaDatabaseSeedingTest {
 
     @Test
     fun existingUserData_survivesReinitialization_andNoDemoRowsAppear() = runTest {
-        val tempDbPath = "build/tmp_test_seeding_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_seeding_${Random.nextLong(100_000, 999_999)}.db")
 
         // جلسة أولى: مستخدم يدخل جهته الحقيقية ثم يُغلق التطبيق.
         val first = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
@@ -86,7 +87,7 @@ class LocalSilaDatabaseSeedingTest {
 
     @Test
     fun repeatedInitialization_neverDuplicatesRecords_evenWithOptInSeeding() = runTest {
-        val tempDbPath = "build/tmp_test_seeding_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_seeding_${Random.nextLong(100_000, 999_999)}.db")
 
         // إقلاع أول ببذر صريح (محاكاة عالم اختبار) — يبذر 7 جهات.
         val first = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers, seedDemoData = true)
@@ -106,7 +107,7 @@ class LocalSilaDatabaseSeedingTest {
 
     @Test
     fun userRowPlusOptInSeeding_userRowIsAuthoritative_andSeedingSkipsNonEmptyTables() = runTest {
-        val tempDbPath = "build/tmp_test_seeding_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_seeding_${Random.nextLong(100_000, 999_999)}.db")
 
         // جلسة أولى بلا بذر: المستخدم يدخل جهته (جدول غير فارغ الآن).
         val first = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)

@@ -5,6 +5,7 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSFileSystemFreeSize
 import platform.Foundation.NSNumber
+import platform.Foundation.NSTemporaryDirectory
 
 @OptIn(ExperimentalForeignApi::class)
 internal actual object PlatformFileOps {
@@ -29,5 +30,13 @@ internal actual object PlatformFileOps {
     actual fun deleteFileIfExists(path: String): Boolean {
         if (!fm.fileExistsAtPath(path)) return true
         return fm.removeItemAtPath(path, error = null) || !fm.fileExistsAtPath(path)
+    }
+
+    actual fun tempTestDbPath(fileName: String): String {
+        val base = NSTemporaryDirectory().trimEnd('/')
+        if (!fm.fileExistsAtPath(base)) {
+            fm.createDirectoryAtPath(base, withIntermediateDirectories = true, attributes = null, error = null)
+        }
+        return "$base/$fileName"
     }
 }

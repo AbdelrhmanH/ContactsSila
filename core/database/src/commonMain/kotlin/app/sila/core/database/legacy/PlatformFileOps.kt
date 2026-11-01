@@ -18,4 +18,7 @@ internal expect object PlatformFileOps {
 
     /** حذف ملف واحد إن وُجد — يُرجع true إذا اختفى الملف بعد الاستدعاء. */
     fun deleteFileIfExists(path: String): Boolean
+
+    /** مسار مطلق قابل للكتابة لملف قاعدة اختبار مؤقتة ([fileName]) على المنصة الحالية. */
+    fun tempTestDbPath(fileName: String): String
 }

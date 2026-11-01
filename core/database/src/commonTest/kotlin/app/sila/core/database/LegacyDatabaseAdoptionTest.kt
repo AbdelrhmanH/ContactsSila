@@ -89,7 +89,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun adoption_L2Fixture_fullParity_adoptsCleanly_backupDeletedAfterVerifiedRead_andReopensAsRoomManaged() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_l2_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_l2_${Random.nextLong(100_000, 999_999)}.db")
 
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L2_OR_L3) { conn ->
             conn.executeSQL(
@@ -130,7 +130,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun adoption_ftsWithForeignOptions_sameColumns_isRebuiltToCanonicalDdl_andStaysSearchable() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_fts_opts_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_fts_opts_${Random.nextLong(100_000, 999_999)}.db")
 
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L2_OR_L3) { conn ->
             conn.executeSQL("DROP TABLE contacts_fts")
@@ -179,7 +179,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun adoption_preservesDuplicateSystemContactId_rowsVerbatim_noMergeNoLoss() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_dup_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_dup_${Random.nextLong(100_000, 999_999)}.db")
 
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L0) { conn ->
             // صفّان بنفس systemContactId (حالة حقيقية محتملة) + صف ثالث عادي:
@@ -224,7 +224,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun adoption_preservesArabicDiacriticsAndEmoji_verbatim_andSearchableAfterBackfill() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_rtl_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_rtl_${Random.nextLong(100_000, 999_999)}.db")
         val displayName = "سُعاد المُبَرّرة 🌟"
         val company = "مكتب الزهراء ⭐"
 
@@ -254,7 +254,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun adoption_unknownSchema_failsClosed_leavesDatabaseUntouched_andCreatesDiagnosticBackup() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_unknown_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_unknown_${Random.nextLong(100_000, 999_999)}.db")
 
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L0) { conn ->
             conn.executeSQL(
@@ -286,7 +286,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun adoption_unknownInvariantTableColumn_failsClosed_beforeRunningShim() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_unknown_col_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_unknown_col_${Random.nextLong(100_000, 999_999)}.db")
 
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L0) { conn ->
             conn.executeSQL(
@@ -313,7 +313,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun adoption_injectedShimFailure_rollsBackFully_retainsBackup_andRecoversOnSecondRun() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_shimfail_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_shimfail_${Random.nextLong(100_000, 999_999)}.db")
         val backupPath = SilaDatabaseBackup.backupPathFor(tempDbPath)
 
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L0) { conn ->
@@ -352,7 +352,8 @@ class LegacyDatabaseAdoptionTest {
     @Test
     fun adoption_backupStepFailure_throwsLegacyBackupException_andTouchesNothing() = runTest {
         // مجلد غير موجود ⇒ فحص المساحة يفشل مغلوقاً (usableSpace = 0 < المطلوب):
-        val unreachableDbPath = "build/tmp_missing_dir_${Random.nextLong(100_000, 999_999)}/sila_local.db"
+        val missingDir = PlatformFileOps.tempTestDbPath("tmp_missing_dir_${Random.nextLong(100_000, 999_999)}")
+        val unreachableDbPath = "$missingDir/sila_local.db"
 
         val exception = assertFailsWith<LegacyBackupException> {
             SilaDatabaseBackup.createVerifiedBackup(unreachableDbPath)
@@ -366,7 +367,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun adoption_firstSuccessfulRoomOpen_stampsUserVersion1_withRoomMasterIdentity() = runTest {
-        val tempDbPath = "build/tmp_test_adopt_stamp_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_stamp_${Random.nextLong(100_000, 999_999)}.db")
 
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L2_OR_L3) { conn ->
             conn.executeSQL(
@@ -399,7 +400,7 @@ class LegacyDatabaseAdoptionTest {
 
     @Test
     fun freshInstall_roomCreatesFinalSchemaDirectly_version1_noPhantomTables() = runTest {
-        val tempDbPath = "build/tmp_test_fresh_${Random.nextLong(100_000, 999_999)}.db"
+        val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_fresh_${Random.nextLong(100_000, 999_999)}.db")
         assertFalse(PlatformFileOps.fileExists(tempDbPath), "التثبيت الجديد يبدأ بلا ملف قاعدة")
 
         val db = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
