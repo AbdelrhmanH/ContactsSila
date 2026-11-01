@@ -20,7 +20,8 @@ class ArhamFeatureTest {
 
     @Test
     fun arhamRepositoryAndUseCases_rankRelativesAndUpdateOnCall() = runTest {
-        val db = LocalSilaDatabase()
+        // F-01: الإنتاج لا يبذر — اختبار التركيبة التجريبية يُبذّر صراحةً.
+        val db = LocalSilaDatabase(seedDemoData = true)
         val repo = ArhamRepositoryImpl(db)
         val getPriority = GetArhamPriorityListUseCase(repo, fixedClock)
         val getStats = GetArhamDashboardStatsUseCase(getPriority)

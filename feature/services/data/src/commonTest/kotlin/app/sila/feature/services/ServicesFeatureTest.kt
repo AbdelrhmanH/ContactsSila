@@ -12,7 +12,8 @@ class ServicesFeatureTest {
 
     @Test
     fun lookupServiceByPhone_findsServiceByLocalOrE164Number() = runTest {
-        val db = LocalSilaDatabase()
+        // F-01: الإنتاج لا يبذر — اختبار التركيبة التجريبية يُبذّر صراحةً.
+        val db = LocalSilaDatabase(seedDemoData = true)
         val repo = ServicesRepositoryImpl(db)
         val lookup = LookupServiceByPhoneUseCase(repo)
 
