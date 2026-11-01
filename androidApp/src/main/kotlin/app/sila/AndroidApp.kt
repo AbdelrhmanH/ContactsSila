@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import app.sila.core.designsystem.SilaTheme
+import app.sila.core.model.AppThemeMode
 import app.sila.core.model.ContactSwipeAction
 import app.sila.di.ensureKoinStarted
 import app.sila.feature.contacts.domain.onboarding.OnboardingPermissionState
@@ -34,6 +37,7 @@ import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingEffect
 import app.sila.feature.contacts.presentation.onboarding.OnboardingIntent
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
+import app.sila.feature.main.MainViewModel
 
 /**
  * غلاف أندرويد للواجهة المشتركة (Issue #26 — T5 · مصفوفة الأذونات — Issue #20):
@@ -51,6 +55,8 @@ fun SilaAndroidApp() {
     val koin = remember { ensureKoinStarted(storageDirPath = null) }
     val onboardingViewModel = remember(koin) { koin.get<OnboardingViewModel>() }
     val contactsViewModel = remember(koin) { koin.get<ContactsViewModel>() }
+    val mainViewModel = remember(koin) { koin.get<MainViewModel>() }
+    val mainState by mainViewModel.state.collectAsState()
     val activity = LocalContext.current as? Activity
     val contactsStrings = rememberContactsStrings()
     var numberPicker by remember { mutableStateOf<ContactsEffect.ShowNumberPicker?>(null) }
@@ -107,37 +113,44 @@ fun SilaAndroidApp() {
     }
 
     numberPicker?.let { picker ->
-        AlertDialog(
-            onDismissRequest = { numberPicker = null },
-            title = { Text(contactsStrings.numberPickerTitle) },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    picker.phones.forEach { phone ->
-                        TextButton(
-                            onClick = {
-                                numberPicker = null
-                                contactsViewModel.onIntent(
-                                    when (picker.action) {
-                                        ContactSwipeAction.CALL ->
-                                            ContactsIntent.CallNumber(picker.contactId, phone.e164)
+        // داخل SilaTheme (مراجعة PR #36 — F5): الحوار يتألف خارج [App]، فلكي يرث
+        // الوضع الداكن واتجاه RTL من تفضيلات المستخدم نفسها نلفه بنفس سمات السمة.
+        SilaTheme(
+            darkTheme = mainState.preferences.themeMode == AppThemeMode.DARK,
+            isRtl = mainState.preferences.language.isRtl
+        ) {
+            AlertDialog(
+                onDismissRequest = { numberPicker = null },
+                title = { Text(contactsStrings.numberPickerTitle) },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        picker.phones.forEach { phone ->
+                            TextButton(
+                                onClick = {
+                                    numberPicker = null
+                                    contactsViewModel.onIntent(
+                                        when (picker.action) {
+                                            ContactSwipeAction.CALL ->
+                                                ContactsIntent.CallNumber(picker.contactId, phone.e164)
 
-                                        ContactSwipeAction.MESSAGE ->
-                                            ContactsIntent.Message(picker.contactId, phone.e164)
-                                    }
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(text = phone.e164 + if (phone.isPrimary) " ★" else "")
+                                            ContactSwipeAction.MESSAGE ->
+                                                ContactsIntent.Message(picker.contactId, phone.e164)
+                                        }
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(text = phone.e164 + if (phone.isPrimary) " ★" else "")
+                            }
                         }
                     }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { numberPicker = null }) { Text(contactsStrings.cancel) }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { numberPicker = null }) { Text(contactsStrings.cancel) }
-            }
-        )
+            )
+        }
     }
 
     App()

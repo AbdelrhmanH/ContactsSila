@@ -1062,27 +1062,33 @@ class LocalSilaDatabase(
         }.flowOn(dispatchers.io)
     }
 
-    /** معرّفات المطابقات: FTS MATCH (معامل مُقيَّد) ∪ أجزاء الهواتف — بلا قبور. */
-    private fun resolveSearchContactIds(normalizedQuery: String, digitsQuery: String): Set<Long> {
-        val ids = mutableSetOf<Long>()
-        buildFtsMatchExpression(normalizedQuery)?.let { matchExpression ->
-            sqliteConnection.prepare("SELECT docid FROM contacts_fts WHERE contacts_fts MATCH ?").use { stmt ->
-                stmt.bindText(1, matchExpression)
-                while (stmt.step()) ids += stmt.getLong(0)
+    /**
+     * معرّفات المطابقات: FTS MATCH (معامل مُقيَّد) ∪ أجزاء الهواتف — بلا قبور.
+     * كل وصول لـ [sqliteConnection] يمر عبر [dbMutex] (مراجعة PR #36 — F1): الاتصال
+     * واحد مشترك مع مسارات الكتابة/المزامنة، والاستخدام المتزامن غير المحمي قد يُفسد
+     * حالة prepare/step على نفس المقبض.
+     */
+    private suspend fun resolveSearchContactIds(normalizedQuery: String, digitsQuery: String): Set<Long> =
+        dbMutex.withLock {
+            val ids = mutableSetOf<Long>()
+            buildFtsMatchExpression(normalizedQuery)?.let { matchExpression ->
+                sqliteConnection.prepare("SELECT docid FROM contacts_fts WHERE contacts_fts MATCH ?").use { stmt ->
+                    stmt.bindText(1, matchExpression)
+                    while (stmt.step()) ids += stmt.getLong(0)
+                }
             }
-        }
-        if (digitsQuery.isNotEmpty()) {
-            val like = "%$digitsQuery%"
-            sqliteConnection.prepare(
-                "SELECT DISTINCT contactId FROM contact_phones WHERE e164 LIKE ? OR raw LIKE ?"
-            ).use { stmt ->
-                stmt.bindText(1, like)
-                stmt.bindText(2, like)
-                while (stmt.step()) ids += stmt.getLong(0)
+            if (digitsQuery.isNotEmpty()) {
+                val like = "%$digitsQuery%"
+                sqliteConnection.prepare(
+                    "SELECT DISTINCT contactId FROM contact_phones WHERE e164 LIKE ? OR raw LIKE ?"
+                ).use { stmt ->
+                    stmt.bindText(1, like)
+                    stmt.bindText(2, like)
+                    while (stmt.step()) ids += stmt.getLong(0)
+                }
             }
+            ids
         }
-        return ids
-    }
 
     /**
      * تعبير `MATCH` مُقيد آمن: كل رمز للاستعلام يُنقّى من محارف مشغّلات FTS

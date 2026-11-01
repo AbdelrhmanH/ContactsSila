@@ -397,16 +397,18 @@ private fun GroupedContactList(state: ContactsUiState, strings: ContactsStrings,
     }
 }
 
+/**
+ * بناء عناصر القائمة المسطحة: تجميع بالحرف عبر [groupBy] (تحفظ LinkedHashMap ترتيب
+ * أول ظهور) بدل كشف تغيّر الحرف تِباعاً (مراجعة PR #36 — F2). الترتيب التِباعي كان
+ * يُنشئ رأسين لنفس الحرف حين تتوزع الأسماء غير الحرفية («#») على نطاقين يونيكوديين
+ * غير متجاورين (أرقام غربية قبل اللاتينية، وأرقام هندية-عربية بعد العربية)،
+ * ومفتاح الرأس `header-$letter` المكرر يُسقط LazyColumn استثناءً.
+ */
 private fun buildFlatItems(contacts: List<Contact>): List<ListItem> {
     val items = mutableListOf<ListItem>()
-    var currentLetter: String? = null
-    contacts.forEach { contact ->
-        val letter = letterOf(contact)
-        if (letter != currentLetter) {
-            items += ListItem.Header(letter)
-            currentLetter = letter
-        }
-        items += ListItem.ContactRowItem(contact)
+    contacts.groupBy { contact -> letterOf(contact) }.forEach { (letter, groupContacts) ->
+        items += ListItem.Header(letter)
+        groupContacts.forEach { contact -> items += ListItem.ContactRowItem(contact) }
     }
     return items
 }
@@ -478,9 +480,10 @@ private fun ContactRow(
                     onClick = {
                         if (state.isSelectionMode) {
                             onIntent(ContactsIntent.ToggleSelect(contact.id))
-                        } else {
-                            onIntent(ContactsIntent.Call(contact.id))
                         }
+                        // نقرة الصف في وضع العادي = «التفاصيل» (معيار القبول) — لكن شاشة/ورقة
+                        // التفاصيل نطاق T6 (Issue #24: «Contact details … (T6)»)، فالنقرة العادية
+                        // مؤجلة عمداً ولا تبدأ اتصالاً: النداء حصراً لزر 📞 وللفعل السحبي.
                     },
                     onLongClick = { onIntent(ContactsIntent.ToggleSelect(contact.id)) }
                 )
@@ -521,7 +524,13 @@ private fun ContactRow(
                     maxLines = 1
                 )
             }
-            TextButton(onClick = { onIntent(ContactsIntent.ToggleFavorite(contact.id, !contact.isFavorite)) }) {
+            TextButton(
+                onClick = { onIntent(ContactsIntent.ToggleFavorite(contact.id, !contact.isFavorite)) },
+                modifier = Modifier.semantics {
+                    contentDescription =
+                        if (contact.isFavorite) strings.bulkUnfavorite else strings.bulkFavorite
+                }
+            ) {
                 Text(
                     text = if (contact.isFavorite) "♥" else "♡",
                     color = if (contact.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
@@ -719,8 +728,16 @@ private fun SelectionBar(
                 }
             }
         }
-        TextButton(onClick = onFavorite) { Text("♥") }
-        TextButton(onClick = onUnfavorite) { Text("♡") }
+        // الرمزان القلبيان زخرفة بصرية؛ الدلالة للقارئ الآلي عبر أوصاف مُترجَمة
+        // (مراجعة PR #36 — F4: لا نصوص ثابتة بلا دلالة موارد).
+        TextButton(
+            onClick = onFavorite,
+            modifier = Modifier.semantics { contentDescription = strings.bulkFavorite }
+        ) { Text("♥") }
+        TextButton(
+            onClick = onUnfavorite,
+            modifier = Modifier.semantics { contentDescription = strings.bulkUnfavorite }
+        ) { Text("♡") }
         TextButton(onClick = onShare) { Text(strings.bulkShare) }
         TextButton(onClick = onDelete) { Text(strings.bulkDelete) }
         TextButton(onClick = onDone) { Text(strings.selectionDone) }
