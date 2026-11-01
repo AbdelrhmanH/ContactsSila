@@ -32,7 +32,7 @@ jobs:
       - name: Verify Clean Architecture & Privacy Boundaries
         run: ./gradlew checkArchitectureBoundaries --console=plain
 
-      - name: Run All KMP Host Unit Tests (Core + Features + SharedLogic)
+      - name: Run All KMP Host Unit Tests (Core + Features + SharedLogic + Android App)
         run: >-
           ./gradlew
           :core:common:testAndroidHostTest
@@ -45,6 +45,7 @@ jobs:
           :feature:services:data:testAndroidHostTest
           :feature:settings:data:testAndroidHostTest
           :sharedLogic:testAndroidHostTest
+          :androidApp:testDebugUnitTest
           --console=plain
 
       - name: Assemble Android Debug & Release APK (ProGuard/R8 Check)
