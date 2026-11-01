@@ -94,10 +94,27 @@ jobs:
           -configuration Debug
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath iosApp/build/dd
           CODE_SIGNING_ALLOWED=NO
           CODE_SIGNING_REQUIRED=NO
           CODE_SIGN_IDENTITY=""
           build
+
+      - name: Verify Effective iOS Privacy Config (F-03)
+        run: |
+          APP="iosApp/build/dd/Build/Products/Debug-iphonesimulator/iosApp.app"
+          [ -d "$APP" ] || { echo "Built app bundle not found at $APP"; exit 1; }
+          USAGE_DESC="$(plutil -extract NSContactsUsageDescription raw "$APP/Info.plist")" \
+            || { echo "NSContactsUsageDescription missing in the BUILT Info.plist"; exit 1; }
+          [ -n "$USAGE_DESC" ] || { echo "NSContactsUsageDescription is empty in the BUILT Info.plist"; exit 1; }
+          echo "NSContactsUsageDescription (built bundle): $USAGE_DESC"
+          for LPROJ in en ar; do
+            [ -f "$APP/$LPROJ.lproj/InfoPlist.strings" ] \
+              || { echo "Missing $LPROJ.lproj/InfoPlist.strings in the built bundle"; exit 1; }
+            grep -q "NSContactsUsageDescription" "$APP/$LPROJ.lproj/InfoPlist.strings" \
+              || { echo "$LPROJ InfoPlist.strings lacks NSContactsUsageDescription"; exit 1; }
+          done
+          echo "F-03 verified: contacts usage description present in the effective bundle (en + ar)."
 
       - name: Upload Kotlin/Native Test Reports
         if: failure()
