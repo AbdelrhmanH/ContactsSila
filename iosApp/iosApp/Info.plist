@@ -4,5 +4,9 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- F-03: سبب الوصول لجهات الاتصال — إلزامي لطلب CNContactStore.authorization,
+	     والطلب يُطلق من تدفق التهيئة الأول حصراً (OnboardingViewModelStore). -->
+	<key>NSContactsUsageDescription</key>
+	<string>ContactsSila needs access to your contacts to organize them into categories and gently remind you to keep in touch with your family — your data stays on your device only.</string>
 </dict>
 </plist>

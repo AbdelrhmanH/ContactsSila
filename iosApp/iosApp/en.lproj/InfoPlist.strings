@@ -1,0 +1,2 @@
+/* F-03: Purpose strings — read from Info.plist per device language (knownRegions: en, ar). */
+"NSContactsUsageDescription" = "ContactsSila needs access to your contacts to organize them into categories and gently remind you to keep in touch with your family — your data stays on your device only.";

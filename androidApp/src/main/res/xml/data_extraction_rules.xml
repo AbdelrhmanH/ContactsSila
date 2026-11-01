@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    F-06: قواعد النسخ الاحتياطي السحابي ونقل البيانات بين الأجهزة (API 31+ — android:dataExtractionRules).
+
+    سياسة الخصوصية (ADR-0009 §6): بيانات المستخدم — جهات الاتصال المصنّفة، سجل الأرحام،
+    قاعدة بيانات Room المحلية (sila_local.db) وتفضيلات DataStore
+    (sila_user_preferences.preferences_pb) — تُستثنى من أي نسخ احتياطي سحابي أو
+    نقل بين الأجهزة، ولا تُرفع لأي سيرفر ولا إلى Google Drive.
+
+    تُطبَّق هذه القواعد على أندرويد 12+ (API 31+)؛ ولأندرويد 8–11 (API 26–30)
+    انظر backup_rules.xml (android:fullBackupContent).
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- قاعدة بيانات Room المحلية + ملفات WAL/SHM/JOURNAL المرافقة (filesDir الجذر) -->
+        <exclude domain="file" path="sila_local.db" />
+        <exclude domain="file" path="sila_local.db-wal" />
+        <exclude domain="file" path="sila_local.db-shm" />
+        <exclude domain="file" path="sila_local.db-journal" />
+        <!-- تفضيلات المستخدم (DataStore Preferences) -->
+        <exclude domain="file" path="sila_user_preferences.preferences_pb" />
+    </cloud-backup>
+
+    <device-transfer>
+        <!-- نفس الاستثناءات لنقل البيانات بين الأجهزة (cable/قريباً من جهاز جديد) -->
+        <exclude domain="file" path="sila_local.db" />
+        <exclude domain="file" path="sila_local.db-wal" />
+        <exclude domain="file" path="sila_local.db-shm" />
+        <exclude domain="file" path="sila_local.db-journal" />
+        <exclude domain="file" path="sila_user_preferences.preferences_pb" />
+    </device-transfer>
+</data-extraction-rules>

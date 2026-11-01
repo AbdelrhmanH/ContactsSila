@@ -3,6 +3,7 @@ package app.sila
 import android.app.Application
 import app.sila.di.ensureKoinStarted
 import app.sila.feature.contacts.data.ContactsSyncEngine
+import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,12 +22,15 @@ class SilaApplication : Application() {
 
     private var engineStarted = false
 
+    private var cleanupStarted = false
+
     override fun onCreate() {
         super.onCreate()
         val koin = ensureKoinStarted(storageDirPath = filesDir.absolutePath) {
             androidContext(this@SilaApplication)
         }
         startContactsSync(koin)
+        startRetentionCleanup(koin)
     }
 
     /** تشغيل محرك المزامنة مرة واحدة (idempotent — onCreate قد يُستدعى على عملية جديدة فقط). */
@@ -34,5 +38,16 @@ class SilaApplication : Application() {
         if (engineStarted) return
         engineStarted = true
         koin.get<ContactsSyncEngine>().start(applicationScope)
+    }
+
+    /**
+     * F-02: تشغيل صيانة الاستبقاء (تنظيف القبور >30 يوماً والمكالمات >365 يوماً) مرة واحدة
+     * لكل عملية على نطاق عمر التطبيق — خارج الخيط الرئيسي (التنفيذ داخل Dispatchers.io
+     * في الـ DAO)، والإخفاق يُسجَّل بلا PII ولا يسقط التطبيق.
+     */
+    private fun startRetentionCleanup(koin: Koin) {
+        if (cleanupStarted) return
+        cleanupStarted = true
+        koin.get<RetentionCleanupCoordinator>().launchIn(applicationScope)
     }
 }

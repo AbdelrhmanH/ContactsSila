@@ -254,7 +254,8 @@ class ContactsSyncEngineTest {
 
     @Test
     fun fullResync_underGranted_tombstonesPlatformAbsentRows() = runTest {
-        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        // F-01: الإنتاج لا يبذر — هذا الاختبار يتحقق من مصالحة بذور العرض حصراً فيُبذّر صراحةً.
+        val db = LocalSilaDatabase(dispatchers = testDispatchers, seedDemoData = true)
         try {
             // بذور sys_1..sys_7 موجودة في :memory: — كلها غائبة عن المنصة:
             val source = FakeContactsPlatformSource().withPages(listOf(contact("p_only")))
@@ -274,7 +275,8 @@ class ContactsSyncEngineTest {
 
     @Test
     fun fullResync_underLimited_neverTombstonesHiddenContacts() = runTest {
-        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        // F-01: الإنتاج لا يبذر — هذا الاختبار يتحقق من بقاء بذور العرض حصراً فيُبذّر صراحةً.
+        val db = LocalSilaDatabase(dispatchers = testDispatchers, seedDemoData = true)
         try {
             val source = FakeContactsPlatformSource().withPages(listOf(contact("p_limited")))
             source.snapshotForDelta = androidSnapshot("r1" to 1L)

@@ -18,6 +18,9 @@ dependencies {
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
+
+    // اختبار تحقق تهيئة النسخ الاحتياطي (F-06) — JUnit JVM فقط، بلا Robolectric.
+    testImplementation(libs.junit)
 }
 
 /**

@@ -122,8 +122,12 @@ class ContactsViewModelKoinTest {
         startKoin { modules(createSilaSharedModule()) }
         val viewModel = contactsViewModel()
 
+        // F-01: الإنتاج لا يبذر بيانات عرض — يُدخل الاختبار تركيبته صراحةً عبر الـ DAO
+        // ويتحقق من قراءتها من Room عبر الخط الكامل (ViewModel ← UseCase ← Repository ← DAO).
+        upsertFixture(systemContactId = "t3_pipeline_1", displayName = "جهة خط الإنتاج")
+
         val state = await("initial load") { viewModel.state.first { !it.isLoading } }
-        assertTrue(state.contacts.isNotEmpty(), "بذور العرض تُقرأ من Room عبر الخط كاملاً")
+        assertTrue(t3Contacts(state).isNotEmpty(), "التركيبة الصريحة تُقرأ من Room عبر الخط كاملاً")
         viewModel.viewModelScope.cancel()
     }
 

@@ -179,7 +179,7 @@ class OnboardingViewModelKoinTest {
         val viewModel = onboardingViewModel()
         driveToTopFive(viewModel)
 
-        // دفتر المرحلة 1: قاعدة البيانات تبدأ بجهات بذرة تجريبية (تُستبدل بمهمة T2)؛
+        // F-01: قاعدة البيانات الإنتاجية تبدأ فارغة (لا بذرة عرض إطلاقاً)؛
         // بحث بلا نتائج يعني قائمة فارغة طبيعية قابلة للتجاوز وليست إشارة خطأ.
         // ننتظر الحالة التي تحمل استعلام البحث نفسه مع قائمة فارغة (لا حالةً قديمة):
         viewModel.onIntent(OnboardingIntent.UpdateSearchQuery("zzzz_no_match"))
