@@ -6,6 +6,7 @@ import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
+import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,11 +30,23 @@ object IosKoinBootstrap {
 
     private const val APP_SUPPORT_SUBDIRECTORY = "Sila"
 
-    /**
-     * نطاق كائن محفوظ لمهام محرك المزامنة طويلة العمر على Native — كائن `object`
-     * لا يُجمع مهما طال عمر المراقبة (إلا بتفكيك العملية نفسها).
-     */
+    /** نطاق كائن محفوظ لمهام محرك المزامنة طويلة العمر على Native — كائن `object`
+     * لا يُجمع مهما طال عمر المراقبة (إلا بتفكيك العملية نفسها). */
     private val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** F-02: علم تشغيل واحد لصيانة الاستبقاء لكل عملية (idempotent — كما start أعلاه). */
+    private var cleanupLaunched = false
+
+    /**
+     * F-02: تشغيل صيانة الاستبقاء (تنظيف القبور >30 يوماً والمكالمات >365 يوماً) مرة واحدة
+     * لكل عملية على نطاق عمر التطبيق — من كلا مساري [ensureStarted]، والتنفيذ خارج الخيط
+     * الرئيسي (Dispatchers.io في الـ DAO) والإخفاق يُسجَّل بلا PII ولا يسقط التطبيق.
+     */
+    private fun startRetentionCleanup(koin: Koin) {
+        if (cleanupLaunched) return
+        cleanupLaunched = true
+        koin.get<RetentionCleanupCoordinator>().launchIn(engineScope)
+    }
 
     /**
      * يحسم المسار المطلق لمجلد `Application Support/Sila` وينشئه على القرص إن لم يكن موجوداً.
@@ -93,6 +106,7 @@ object IosKoinBootstrap {
             if (existingDb.dbFilePath == expectedDbPath && existingPrefs?.storageFilePath == expectedPrefsPath) {
                 // start() idempotent — إعادة التشغيل على حاوية قائمة لا تكرر المراقبة.
                 existingKoin.get<ContactsSyncEngine>().start(engineScope)
+                startRetentionCleanup(existingKoin)
                 return existingKoin
             }
             stopKoin()
@@ -110,6 +124,7 @@ object IosKoinBootstrap {
         }
 
         koin.get<ContactsSyncEngine>().start(engineScope)
+        startRetentionCleanup(koin)
         return koin
     }
 

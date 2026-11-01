@@ -64,6 +64,7 @@ import app.sila.feature.settings.domain.SetSmartFilterUseCase
 import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
 import app.sila.feature.settings.presentation.SettingsViewModel
+import app.sila.maintenance.RetentionCleanupCoordinator
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
@@ -87,6 +88,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     includes(platformContactsSourceModule)
 
     // Core Room KMP Database + Segregated DAOs (SRP & ISP)
+    // F-01: بلا بذرة تجريبية في الإنتاج — `seedDemoData` افتراضياً `false` حصراً.
     single {
         val dbPath = storageDirPath?.let { "$it/sila_local.db" } ?: ":memory:"
         LocalSilaDatabase(dbFilePath = dbPath, dispatchers = get())
@@ -107,6 +109,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             clock = get()
         )
     }
+
+    // F-02: مشغِّل صيانة الاستبقاء (تنظيف 30/90/365 يوماً) — يُطلق من مهيئات المنصات
+    // على نطاق عمر التطبيق، مرة واحدة لكل عملية (single-flight — انظر الكلاس).
+    single { RetentionCleanupCoordinator(cleanup = get(), clock = get()) }
 
     // Core DataStore (Preferences Persistence Singleton)
     single<UserPreferencesDataSource> {

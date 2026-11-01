@@ -5,12 +5,15 @@ import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.core.model.DefaultTab
 import app.sila.feature.main.MainIntent
+import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.core.context.stopKoin
 import platform.Foundation.NSFileManager
 import kotlin.test.AfterTest
@@ -105,5 +108,22 @@ class IosKoinBootstrapTest {
         assertEquals(DefaultTab.CONTACTS, vm.state.value.activeTab)
         vm.onIntent(MainIntent.SelectTab(DefaultTab.ARHAM))
         assertEquals(DefaultTab.ARHAM, vm.state.value.activeTab)
+    }
+
+    @Test
+    fun ensureStarted_launchesRetentionCleanupCoordinator_andPublishesReport() = runTest {
+        // F-02: مسار الإنتاج على iOS يشغّل صيانة الاستبقاء من كلا مساري ensureStarted —
+        // التنظيف مرة واحدة لكل عملية، والتقرير يُنشر على lastReport بعد نجاح المعاملة.
+        val koin = IosKoinBootstrap.ensureStarted()
+        val coordinator = koin.get<RetentionCleanupCoordinator>()
+
+        val report = withTimeoutOrNull(15_000) {
+            coordinator.lastReport.first { it != null }
+        }
+
+        assertNotNull(
+            report,
+            "Retention cleanup must execute from IosKoinBootstrap.ensureStarted() and publish its report."
+        )
     }
 }

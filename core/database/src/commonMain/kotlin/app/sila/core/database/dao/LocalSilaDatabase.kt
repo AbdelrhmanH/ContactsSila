@@ -90,6 +90,13 @@ class LocalSilaDatabase(
      */
     internal var syncBatchFaultHook: (() -> Throwable)? = null
 
+    /**
+     * خطاف حقن فشل داخل معاملة [cleanupExpiredData] لاختبار التراجع (نفس مبدئ
+     * [syncBatchFaultHook]) — يُستدعى بعد كل عمليات التنظيف وقبل `COMMIT`؛
+     * الاستثناء الرمي يُرجِع المعاملة كاملة فلا يُحذف شيء.
+     */
+    internal var cleanupFaultHook: (() -> Throwable)? = null
+
     private val sqliteConnection: SQLiteConnection = BundledSQLiteDriver().open(dbFilePath).also { conn ->
         initializeRelationalSchema(conn)
     }
@@ -1328,41 +1335,60 @@ class LocalSilaDatabase(
             val disputeCutoff = nowMillis - (90L * dayMillis)
             val tombstoneCutoff = nowMillis - (30L * dayMillis)
 
-            val deletedCalls = countRowsWhere("SELECT COUNT(*) FROM call_events WHERE timestamp < ?", callCutoff)
-            sqliteConnection.prepare("DELETE FROM call_events WHERE timestamp < ?").use { stmt ->
-                stmt.bindLong(1, callCutoff)
-                stmt.step()
-            }
-
-            val deletedInbox = countRowsWhere("SELECT COUNT(*) FROM arham_inbox WHERE sentAt < ?", inboxCutoff)
-            sqliteConnection.prepare("DELETE FROM arham_inbox WHERE sentAt < ?").use { stmt ->
-                stmt.bindLong(1, inboxCutoff)
-                stmt.step()
-            }
-
-            val archivedDisputes = countRowsWhere(
-                "SELECT COUNT(*) FROM dispute_logs WHERE status = '${DisputeStatus.RESOLVED.name}' AND resolvedAt IS NOT NULL AND resolvedAt < ?",
-                disputeCutoff
-            )
-            sqliteConnection.prepare(
-                "UPDATE dispute_logs SET status = ?, updatedAt = ? WHERE status = ? AND resolvedAt IS NOT NULL AND resolvedAt < ?"
-            ).use { stmt ->
-                stmt.bindText(1, DisputeStatus.ARCHIVED.name)
-                stmt.bindLong(2, nowMillis)
-                stmt.bindText(3, DisputeStatus.RESOLVED.name)
-                stmt.bindLong(4, disputeCutoff)
-                stmt.step()
-            }
-
-            // قبر أقدم من 30 يوماً ← حذف نهائي (صف + هواتف + أرحام + FTS) — ADR-0010 §6.
+            var deletedCalls = 0
+            var deletedInbox = 0
+            var archivedDisputes = 0
             val expiredTombstoneIds = mutableListOf<Long>()
-            sqliteConnection.prepare(
-                "SELECT id FROM contacts WHERE systemDeletedAt IS NOT NULL AND systemDeletedAt < ?"
-            ).use { stmt ->
-                stmt.bindLong(1, tombstoneCutoff)
-                while (stmt.step()) expiredTombstoneIds += stmt.getLong(0)
+
+            // F-02: كل عمليات التنظيف داخل معاملة واحدة — إما أن تُنجز كلها أو لا شيء
+            // (انقطاع منتصف التنظيف لا يترك جداول ناقصة؛ الإعادة عند الإقلاع التالي
+            // idempotent لأن الحدود الزمنية مطلقة لا نسبية).
+            sqliteConnection.execSQL("BEGIN TRANSACTION")
+            try {
+                deletedCalls = countRowsWhere("SELECT COUNT(*) FROM call_events WHERE timestamp < ?", callCutoff)
+                sqliteConnection.prepare("DELETE FROM call_events WHERE timestamp < ?").use { stmt ->
+                    stmt.bindLong(1, callCutoff)
+                    stmt.step()
+                }
+
+                deletedInbox = countRowsWhere("SELECT COUNT(*) FROM arham_inbox WHERE sentAt < ?", inboxCutoff)
+                sqliteConnection.prepare("DELETE FROM arham_inbox WHERE sentAt < ?").use { stmt ->
+                    stmt.bindLong(1, inboxCutoff)
+                    stmt.step()
+                }
+
+                archivedDisputes = countRowsWhere(
+                    "SELECT COUNT(*) FROM dispute_logs WHERE status = '${DisputeStatus.RESOLVED.name}' AND resolvedAt IS NOT NULL AND resolvedAt < ?",
+                    disputeCutoff
+                )
+                sqliteConnection.prepare(
+                    "UPDATE dispute_logs SET status = ?, updatedAt = ? WHERE status = ? AND resolvedAt IS NOT NULL AND resolvedAt < ?"
+                ).use { stmt ->
+                    stmt.bindText(1, DisputeStatus.ARCHIVED.name)
+                    stmt.bindLong(2, nowMillis)
+                    stmt.bindText(3, DisputeStatus.RESOLVED.name)
+                    stmt.bindLong(4, disputeCutoff)
+                    stmt.step()
+                }
+
+                // قبر أقدم من 30 يوماً ← حذف نهائي (صف + هواتف + أرحام + FTS) — ADR-0010 §6.
+                sqliteConnection.prepare(
+                    "SELECT id FROM contacts WHERE systemDeletedAt IS NOT NULL AND systemDeletedAt < ?"
+                ).use { stmt ->
+                    stmt.bindLong(1, tombstoneCutoff)
+                    while (stmt.step()) expiredTombstoneIds += stmt.getLong(0)
+                }
+                expiredTombstoneIds.forEach { deleteContactFromSqlite(it) }
+
+                cleanupFaultHook?.let { hook -> throw hook() }
+
+                sqliteConnection.execSQL("COMMIT")
+            } catch (t: Throwable) {
+                sqliteConnection.execSQL("ROLLBACK")
+                throw t
             }
-            expiredTombstoneIds.forEach { deleteContactFromSqlite(it) }
+
+            // تحديث كاش الذاكرة بعد نجاح COMMIT حصراً (نفس عقد applySyncBatch — SSOT).
             if (expiredTombstoneIds.isNotEmpty()) {
                 contactsState.update { current ->
                     current.filterNot { it.id in expiredTombstoneIds }
