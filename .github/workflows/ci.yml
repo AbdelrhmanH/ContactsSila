@@ -163,45 +163,42 @@ jobs:
           done
           echo "F-03 verified: contacts usage description present in the effective bundle (en + ar)."
 
-      - name: Restore headers into embedded testing frameworks (Xcode 26)
+      - name: Stage full testing frameworks for compile-time resolution (Xcode 26)
         run: |
           set -euo pipefail
 
           # Xcode 26 embeds the testing frameworks into the host app during
           # the test action with `builtin-copy -exclude Headers -exclude
-          # Modules` (runtime-only embeds, by design). The test bundle's
-          # compile-time framework search includes the app's Frameworks dir
-          # (injected for the TEST_HOST dependency) and resolves XCTest/
-          # XCUIAutomation there first; their header-less copies break the
-          # Clang module build required by XCTest's textual swiftinterface
-          # ("did not find header 'XCTestCore.h' in framework 'XCTest'"
-          # (loaded from .../ContactsSila.app/Frameworks)").
+          # Modules` (runtime-only embeds, by design), REPLACING any existing
+          # bundle at the destination (CI run 41436508752 proved this: a
+          # pre-placed full XCTest.framework was wiped by the embed's "Copy"
+          # step). The test bundle's compile-time framework search resolves
+          # XCTest/XCUIAutomation to those header-less embedded copies first
+          # (the TEST_HOST Frameworks dir is dependency-injected into the -F
+          # order), which breaks the Clang module build required by XCTest's
+          # textual swiftinterface: "did not find header 'XCTestCore.h' in
+          # framework 'XCTest' (loaded from .../ContactsSila.app/Frameworks)".
           #
-          # Fix: pre-create the Frameworks dir (it does not exist after the
-          # plain build step - the embed happens inside the test action) and
-          # place the FULL framework bundles (headers + modules) from the
-          # same selected Xcode there before the test action runs. The embed
-          # phase then finds fresh full bundles (its copy list excludes
-          # Headers/Modules and does not delete extra content), overwriting
-          # the runtime binaries identically at most. Module resolution
-          # succeeds on byte-identical content from the same toolchain;
-          # runtime loading is unchanged; no test is skipped or weakened;
-          # pbxproj is untouched.
-          APP_DIR="iosApp/build/dd/Build/Products/Debug-iphonesimulator/ContactsSila.app"
-          APP_FW="$APP_DIR/Frameworks"
+          # Fix: stage the FULL framework bundles (headers + modules) from
+          # the same selected Xcode into a NEUTRAL directory that the embed
+          # phase never touches, and put that directory FIRST on the test
+          # invocation's framework search path (next step). Framework-
+          # qualified imports then resolve to the complete bundles;
+          # byte-identical content from the same toolchain. Runtime loading
+          # is unchanged (the app's embedded copies stay in place and load
+          # via rpath); no test is skipped or weakened; pbxproj untouched.
+          STAGE_DIR="iosApp/build/full-test-frameworks"
           DEV_FW="$(xcrun --sdk iphonesimulator --show-sdk-platform-path)/Developer/Library/Frameworks"
 
           [ -d "$DEV_FW" ] || { echo "::error::Developer frameworks dir not found: $DEV_FW"; exit 1; }
-          [ -d "$APP_DIR" ] || { echo "::error::App bundle not found: $APP_DIR (build step products missing?)"; exit 1; }
-          mkdir -p "$APP_FW"
 
+          rm -rf "$STAGE_DIR"
+          mkdir -p "$STAGE_DIR"
           for SRC in "$DEV_FW"/*.framework; do
-            FW="$(basename "$SRC")"
-            rm -rf "$APP_FW/$FW"
-            cp -R "$SRC" "$APP_FW/$FW"
-            echo "restored full bundle: $FW"
+            cp -R "$SRC" "$STAGE_DIR/$(basename "$SRC")"
+            echo "staged full bundle: $(basename "$SRC")"
           done
-          ls -la "$APP_FW"
+          ls "$STAGE_DIR"
 
       - name: Swift Unit Tests - Contacts Binding (T4 - Issue #25)
         run: >-
@@ -216,6 +213,7 @@ jobs:
           CODE_SIGNING_REQUIRED=NO
           CODE_SIGN_IDENTITY=""
           SWIFT_ENABLE_EXPLICIT_MODULES=NO
+          FRAMEWORK_SEARCH_PATHS="$PWD/iosApp/build/full-test-frameworks"
           test
 
       - name: Upload Kotlin/Native Test Reports
