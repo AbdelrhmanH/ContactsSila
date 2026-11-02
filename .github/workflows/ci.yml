@@ -213,7 +213,7 @@ jobs:
           CODE_SIGNING_REQUIRED=NO
           CODE_SIGN_IDENTITY=""
           SWIFT_ENABLE_EXPLICIT_MODULES=NO
-          FRAMEWORK_SEARCH_PATHS="$PWD/iosApp/build/full-test-frameworks"
+          FRAMEWORK_SEARCH_PATHS="$PWD/iosApp/build/full-test-frameworks \$(inherited)"
           test
 
       - name: Upload Kotlin/Native Test Reports
