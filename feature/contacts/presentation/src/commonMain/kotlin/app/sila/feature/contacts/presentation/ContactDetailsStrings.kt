@@ -74,9 +74,13 @@ interface ContactDetailsStrings {
     // تصنيف (Sheet تغيير التصنيف)
     val categoryTitle: (category: Category) -> String
 
+    // قرابة أرحام في شريحة التصنيف (الخرائط النصية للعلاقات في sharedUI — T8 يملك التحرير)
+    val relationName: (relation: app.sila.core.model.Relation) -> String
+
     // حالات
     val loading: String
     val notFoundMessage: String
     val deleteError: String
     val noPhoneNumber: String
+    val cancel: String
 }

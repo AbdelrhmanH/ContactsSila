@@ -81,6 +81,9 @@ interface ContactEditStrings {
     val dateBirthday: String
     val dateAnniversary: String
     val dateCustomDate: String
+    val dateMonth: String
+    val dateDay: String
+    val dateYear: String
 
     // العنوان
     val streetLabel: String

@@ -73,6 +73,9 @@ sealed interface ContactDetailsIntent {
 
     /** تراجع خلال النافذة — لا يكتب شيئاً في أي طرف (J-5). */
     data object UndoDelete : ContactDetailsIntent
+
+    /** زر الرجوع — يُرسل [ContactDetailsEffect.NavigateBack] للغلاف. */
+    data object Back : ContactDetailsIntent
 }
 
 /** آثار جانبية منصات لغلاف التفاصيل (تُجمَع في androidApp/T4) — بلا منطق أعمال. */
@@ -184,6 +187,7 @@ class ContactDetailsViewModel(
             }
             ContactDetailsIntent.RequestDelete -> startUndoWindow()
             ContactDetailsIntent.UndoDelete -> cancelUndoWindow()
+            ContactDetailsIntent.Back -> sendEffect(ContactDetailsEffect.NavigateBack)
         }
     }
 

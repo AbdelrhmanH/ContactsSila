@@ -186,14 +186,19 @@ sealed interface ContactEditIntent {
     class SetPhotoPicked(val bytes: ByteArray) : ContactEditIntent
     data object RemovePhoto : ContactEditIntent
 
+    /** طلب فتح كاميرا الجهاز — الغلاف يلتقط ويعيد البايتات عبر [SetPhotoPicked]. */
+    data object RequestPhotoCamera : ContactEditIntent
+
+    /** طلب فتح معرض الصور — الغلاف ينتقي ويعيد البايتات عبر [SetPhotoPicked]. */
+    data object RequestPhotoGallery : ContactEditIntent
+
     data object Save : ContactEditIntent
 
     /** تأكيد Sheet التصنيف: `null` = «لاحقاً» (يُحفظ UNCATEGORIZED)، وإلا يُختر التصنيف ثم يُحفظ. */
     data class ConfirmCategory(val category: Category?) : ContactEditIntent
     data object DismissCategoryPrompt : ContactEditIntent
 
-    /** الخروج مع تغييرات غير محفوظة ← تأكيد (AC) — العرض يقرر عبر [ContactEditEffect.ConfirmDiscardChanges]. */
-    data object RequestBack : ContactEditIntent
+    /** الخروج بلا حفظ — النموذج يفحص [ContactEditUiState.isDirty] لعرض التأكيد (AC) ثم يُرسل هذا. */
     data object DiscardChanges : ContactEditIntent
 }
 
@@ -201,11 +206,14 @@ sealed interface ContactEditIntent {
 sealed interface ContactEditEffect {
     data object NavigateBack : ContactEditEffect
 
-    /** خروج بلا حفظ مع تغييرات — العرض يعرض تأكيداً ثم يُرسل [ContactEditIntent.DiscardChanges]. */
-    data object ConfirmDiscardChanges : ContactEditEffect
-
     /** فشل الحفظ — رسالة مُترجمة ويبقى النموذج مفتوحاً بحالته. */
     data object ShowSaveError : ContactEditEffect
+
+    /** التقاط صورة بالكاميرا — البايتات تعود عبر [ContactEditIntent.SetPhotoPicked]. */
+    data object PickFromCamera : ContactEditEffect
+
+    /** اختيار صورة من المعرض — البايتات تعود عبر [ContactEditIntent.SetPhotoPicked]. */
+    data object PickFromGallery : ContactEditEffect
 }
 
 /**
@@ -391,6 +399,9 @@ class ContactEditViewModel(
                 pendingPhotoBytesFlow.value = null
                 mutateForm { copy(isPhotoRemoved = true) }
             }
+            // منتقي الصور منصوي — الغلاف يجمَع الأثر ويعيد البايتات عبر [SetPhotoPicked].
+            ContactEditIntent.RequestPhotoCamera -> sendEffect(ContactEditEffect.PickFromCamera)
+            ContactEditIntent.RequestPhotoGallery -> sendEffect(ContactEditEffect.PickFromGallery)
 
             ContactEditIntent.Save -> onSaveRequested()
             is ContactEditIntent.ConfirmCategory -> {
@@ -399,12 +410,6 @@ class ContactEditViewModel(
             }
             ContactEditIntent.DismissCategoryPrompt -> updateState { copy(showCategoryPrompt = false) }
 
-            ContactEditIntent.RequestBack ->
-                if (currentState.isDirty) {
-                    sendEffect(ContactEditEffect.ConfirmDiscardChanges)
-                } else {
-                    sendEffect(ContactEditEffect.NavigateBack)
-                }
             ContactEditIntent.DiscardChanges -> sendEffect(ContactEditEffect.NavigateBack)
         }
     }
