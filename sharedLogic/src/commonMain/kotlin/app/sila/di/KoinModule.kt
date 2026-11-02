@@ -32,6 +32,7 @@ import app.sila.feature.contacts.domain.ContactsRepository
 import app.sila.feature.contacts.domain.CreateArhamOccasionUseCase
 import app.sila.feature.contacts.domain.DeleteContactUseCase
 import app.sila.feature.contacts.domain.DeleteContactWithUndoUseCase
+import app.sila.feature.contacts.domain.FindDuplicateContactUseCase
 import app.sila.feature.contacts.domain.DeleteContactsUseCase
 import app.sila.feature.contacts.domain.DetectDuplicatesUseCase
 import app.sila.feature.contacts.domain.ObserveCategoryCountsUseCase
@@ -53,6 +54,8 @@ import app.sila.feature.contacts.domain.onboarding.ObserveOnboardingStateUseCase
 import app.sila.feature.contacts.domain.onboarding.OnboardingRepository
 import app.sila.feature.contacts.domain.onboarding.SaveTopFiveSelectionUseCase
 import app.sila.feature.contacts.domain.onboarding.SetOnboardingPermissionsResultUseCase
+import app.sila.feature.contacts.presentation.ContactDetailsViewModel
+import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
@@ -168,6 +171,29 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { ObserveContactDetailsUseCase(repository = get()) }
     factory { DeleteContactWithUndoUseCase(writer = get(), repository = get(), clock = get()) }
     factory { CreateArhamOccasionUseCase(recorder = get()) }
+    factory { FindDuplicateContactUseCase(repository = get()) }
+    // T6 — ViewModels التفاصيل/التحرير (معرفات تُمرَّر من التنقل عبر parametersOf).
+    factory { (contactId: Long) ->
+        ContactDetailsViewModel(
+            contactId = contactId,
+            observeDetails = get(),
+            deleteWithUndo = get(),
+            toggleFavorite = get(),
+            changeCategory = get(),
+            recordInAppCall = get(),
+            connectedAppsDetector = get(),
+            appClock = get(),
+        )
+    }
+    factory { (contactId: Long?) ->
+        ContactEditViewModel(
+            contactId = contactId,
+            observeDetails = get(),
+            saveContact = get(),
+            createArhamOccasion = get(),
+            findDuplicate = get(),
+        )
+    }
     single {
         ContactsViewModel(
             observeContactsPaged = get(),
