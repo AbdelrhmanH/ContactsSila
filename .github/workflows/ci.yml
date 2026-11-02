@@ -168,27 +168,32 @@ jobs:
           set -euo pipefail
 
           # Xcode 26 embeds the testing frameworks into the host app during
-          # `xcodebuild test` with `builtin-copy -exclude Headers -exclude
+          # the test action with `builtin-copy -exclude Headers -exclude
           # Modules` (runtime-only embeds, by design). The test bundle's
           # compile-time framework search includes the app's Frameworks dir
           # (injected for the TEST_HOST dependency) and resolves XCTest/
           # XCUIAutomation there first; their header-less copies break the
           # Clang module build required by XCTest's textual swiftinterface
-          # ("did not find header 'XCTestCore.h' in framework 'XCTest'
+          # ("did not find header 'XCTestCore.h' in framework 'XCTest'"
           # (loaded from .../ContactsSila.app/Frameworks)").
           #
-          # Fix: restore the FULL framework bundles (headers + modules) from
-          # the same selected Xcode into the app's Frameworks before the test
-          # action compiles the test bundle. The embed phase overwrites the
-          # runtime binaries identically and does not delete the extra
-          # Headers/Modules, so module resolution succeeds on byte-identical
-          # content. Runtime loading is unchanged; no test is skipped or
-          # weakened; pbxproj is untouched.
-          APP_FW="iosApp/build/dd/Build/Products/Debug-iphonesimulator/ContactsSila.app/Frameworks"
+          # Fix: pre-create the Frameworks dir (it does not exist after the
+          # plain build step - the embed happens inside the test action) and
+          # place the FULL framework bundles (headers + modules) from the
+          # same selected Xcode there before the test action runs. The embed
+          # phase then finds fresh full bundles (its copy list excludes
+          # Headers/Modules and does not delete extra content), overwriting
+          # the runtime binaries identically at most. Module resolution
+          # succeeds on byte-identical content from the same toolchain;
+          # runtime loading is unchanged; no test is skipped or weakened;
+          # pbxproj is untouched.
+          APP_DIR="iosApp/build/dd/Build/Products/Debug-iphonesimulator/ContactsSila.app"
+          APP_FW="$APP_DIR/Frameworks"
           DEV_FW="$(xcrun --sdk iphonesimulator --show-sdk-platform-path)/Developer/Library/Frameworks"
 
           [ -d "$DEV_FW" ] || { echo "::error::Developer frameworks dir not found: $DEV_FW"; exit 1; }
-          [ -d "$APP_FW" ] || { echo "::error::App Frameworks dir not found: $APP_FW (build step products missing?)"; exit 1; }
+          [ -d "$APP_DIR" ] || { echo "::error::App bundle not found: $APP_DIR (build step products missing?)"; exit 1; }
+          mkdir -p "$APP_FW"
 
           for SRC in "$DEV_FW"/*.framework; do
             FW="$(basename "$SRC")"
