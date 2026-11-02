@@ -8,8 +8,17 @@ import SharedLogic
  */
 final class ContactsPresentationLogicTests: XCTestCase {
 
+    /// المصنع الوحيد لبيانات الاختبار — منشئات Kotlin ذات المعاملات الافتراضية
+    /// لا تُصدَّر لـ Swift (توثيق: [ContactsTestFixtures])، والقيم الصريحة أدناه
+    /// تطابق افتراضيات Kotlin حرفياً (isLoading=true، searchQuery=""، syncState=.idle).
+    private let fixtures = ContactsTestFixtures.shared
+
     private func contact(_ id: Int64, _ name: String) -> Contact {
-        Contact(id: id, systemContactId: "sys-\(id)", name: ContactName(displayName: name))
+        fixtures.createContact(
+            id: id,
+            systemContactId: "sys-\(id)",
+            name: fixtures.createContactName(displayName: name)
+        )
     }
 
     // MARK: - التجميع الحرفي
@@ -58,8 +67,8 @@ final class ContactsPresentationLogicTests: XCTestCase {
     // MARK: - أولوية حالات الشاشة (مرآة ترتيب when في ContactsContent)
 
     func testScreenPhasePermissionDeniedOverridesEverything() {
-        let state = ContactsUiState(
-            contacts: [contact(1, "أحمد")],
+        let state = fixtures.createContactsUiState(
+            isLoading: true, searchQuery: "", contacts: [contact(1, "أحمد")],
             syncState: ContactsSyncState.permissionDenied
         )
         XCTAssertEqual(contactsScreenPhase(for: state), .permissionDenied)
@@ -67,30 +76,72 @@ final class ContactsPresentationLogicTests: XCTestCase {
 
     func testScreenPhaseErrorOnlyWithEmptyList() {
         XCTAssertEqual(
-            contactsScreenPhase(for: ContactsUiState(syncState: ContactsSyncState.failed)),
+            contactsScreenPhase(
+                for: fixtures.createContactsUiState(
+                    isLoading: true, searchQuery: "", contacts: [],
+                    syncState: ContactsSyncState.failed
+                )
+            ),
             .error
         )
         // خطأ مع بيانات مرئية ⇒ المحتوى يبقى (البيانات المحلية مقروءة — ADR-0010 §5).
         XCTAssertEqual(
             contactsScreenPhase(
-                for: ContactsUiState(contacts: [contact(1, "أحمد")], syncState: ContactsSyncState.failed)
+                for: fixtures.createContactsUiState(
+                    isLoading: true, searchQuery: "", contacts: [contact(1, "أحمد")],
+                    syncState: ContactsSyncState.failed
+                )
             ),
             .content
         )
-        XCTAssertEqual(contactsScreenPhase(for: ContactsUiState(syncState: ContactsSyncState.ready)), .content)
+        XCTAssertEqual(
+            contactsScreenPhase(
+                for: fixtures.createContactsUiState(
+                    isLoading: true, searchQuery: "", contacts: [],
+                    syncState: ContactsSyncState.ready
+                )
+            ),
+            .content
+        )
     }
 
     // MARK: - حالات منطقة القائمة (مرآة ContactsListArea)
 
     func testListPhases() {
-        XCTAssertEqual(contactsListPhase(for: ContactsUiState()), .loading)
         XCTAssertEqual(
-            contactsListPhase(for: ContactsUiState(isLoading: false, searchQuery: "سل")),
+            contactsListPhase(
+                for: fixtures.createContactsUiState(
+                    isLoading: true, searchQuery: "", contacts: [],
+                    syncState: ContactsSyncState.idle
+                )
+            ),
+            .loading
+        )
+        XCTAssertEqual(
+            contactsListPhase(
+                for: fixtures.createContactsUiState(
+                    isLoading: false, searchQuery: "سل", contacts: [],
+                    syncState: ContactsSyncState.idle
+                )
+            ),
             .noResults
         )
-        XCTAssertEqual(contactsListPhase(for: ContactsUiState(isLoading: false)), .empty)
         XCTAssertEqual(
-            contactsListPhase(for: ContactsUiState(contacts: [contact(1, "أحمد")])),
+            contactsListPhase(
+                for: fixtures.createContactsUiState(
+                    isLoading: false, searchQuery: "", contacts: [],
+                    syncState: ContactsSyncState.idle
+                )
+            ),
+            .empty
+        )
+        XCTAssertEqual(
+            contactsListPhase(
+                for: fixtures.createContactsUiState(
+                    isLoading: true, searchQuery: "", contacts: [contact(1, "أحمد")],
+                    syncState: ContactsSyncState.idle
+                )
+            ),
             .loaded
         )
     }
