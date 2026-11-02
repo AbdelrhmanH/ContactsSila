@@ -1,5 +1,5 @@
 import XCTest
-@testable import iosApp
+@testable import ContactsSila
 import SharedLogic
 
 /**
