@@ -446,8 +446,10 @@ extension OnboardingLocalizedStrings {
     }
 }
 
-private extension ShapeStyle where Self == Color {
+extension ShapeStyle where Self == Color {
     /// `.emeraldSila` يُستخدم عبر البحث الضمني للعضو على ShapeStyle
     /// (foregroundStyle(.emeraldSila)) وعبر Color.emeraldSila صراحة.
+    /// داخلي (لا private) — يستهلكه ContentView (المرحلة 0) وContactsView (T4)
+    /// من ملفات أخرى؛ الـ private كان يمنع ترجمة الهدف على macOS كلياً (CI).
     static var emeraldSila: Color { Color(red: 15 / 255, green: 157 / 255, blue: 115 / 255) }
 }

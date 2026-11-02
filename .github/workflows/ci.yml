@@ -53,23 +53,66 @@ jobs:
 
   verify-ios:
     name: iOS Simulator Tests, SKIE Framework & App Build
-    runs-on: macos-15
+    # Toolchain alignment (T4 verification cycle): Kotlin 2.4.20 maps to the
+    # Xcode 26.4 compatibility line and SKIE 0.10.15 supports Kotlin 2.4.20.
+    # Xcode 26.4.1 is selected explicitly because the runner's default Xcode
+    # (currently 26.6) changes independently of this workflow. Every iOS step
+    # below (Kotlin/Native, SKIE, XCTest, app build) uses the same selected
+    # installation via DEVELOPER_DIR + xcode-select.
+    runs-on: macos-26
     timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify macOS Runner Environment (Arm64 + Xcode 16.2 Pinning)
+      - name: Select and verify Xcode 26.4.1
         run: |
-          [ "$(uname -m)" = "arm64" ] || { echo "Expected arm64 macOS runner"; exit 1; }
-          [ -d "/Applications/Xcode_16.2.app" ] || { echo "Required /Applications/Xcode_16.2.app not found"; exit 1; }
-          sudo xcode-select -s /Applications/Xcode_16.2.app
-          uname -m
-          xcode-select -p
-          xcodebuild -version | grep -q "Xcode 16.2" || { echo "xcodebuild output did not contain 'Xcode 16.2' after pinning"; exit 1; }
+          set -euo pipefail
+
+          XCODE_DEVELOPER_DIR="/Applications/Xcode_26.4.1.app/Contents/Developer"
+
+          if [[ ! -d "$XCODE_DEVELOPER_DIR" ]]; then
+            echo "::error::Expected Xcode installation not found: $XCODE_DEVELOPER_DIR"
+            ls -la /Applications
+            exit 1
+          fi
+
+          sudo xcode-select --switch "$XCODE_DEVELOPER_DIR"
+
+          echo "Selected Xcode:"
           xcodebuild -version
-          swift --version
+          echo "Selected Developer Directory:"
+          xcode-select -p
+          echo "Selected iOS Simulator SDK:"
+          xcrun --sdk iphonesimulator --show-sdk-version
+          echo "Available SDKs:"
+          xcodebuild -showsdks
+          echo "Available Simulator Runtimes:"
+          xcrun simctl list runtimes
+          echo "Available Simulator Devices:"
+          xcrun simctl list devices available
+
+          ACTUAL_XCODE_VERSION="$(xcodebuild -version | awk 'NR == 1 {print $2}')"
+          if [[ "$ACTUAL_XCODE_VERSION" != "26.4.1" ]]; then
+            echo "::error::Expected Xcode 26.4.1 but found $ACTUAL_XCODE_VERSION"
+            exit 1
+          fi
+
+          ACTUAL_DEVELOPER_DIR="$(xcode-select -p)"
+          if [[ "$ACTUAL_DEVELOPER_DIR" != "$XCODE_DEVELOPER_DIR" ]]; then
+            echo "::error::xcode-select points to an unexpected Developer directory"
+            exit 1
+          fi
+
+          if [[ ! -d "$DEVELOPER_DIR" ]]; then
+            echo "::error::DEVELOPER_DIR does not point to a valid Xcode installation"
+            exit 1
+          fi
+
+          [ "$(uname -m)" = "arm64" ] || { echo "Expected arm64 macOS runner"; exit 1; }
           chmod +x gradlew
 
       - name: Set up JDK 17
@@ -119,6 +162,59 @@ jobs:
               || { echo "$LPROJ InfoPlist.strings lacks NSContactsUsageDescription"; exit 1; }
           done
           echo "F-03 verified: contacts usage description present in the effective bundle (en + ar)."
+
+      - name: Stage full testing frameworks for compile-time resolution (Xcode 26)
+        run: |
+          set -euo pipefail
+
+          # Xcode 26 embeds the testing frameworks into the host app during
+          # the test action with `builtin-copy -exclude Headers -exclude
+          # Modules` (runtime-only embeds, by design), REPLACING any existing
+          # bundle at the destination (CI run 41436508752 proved this: a
+          # pre-placed full XCTest.framework was wiped by the embed's "Copy"
+          # step). The test bundle's compile-time framework search resolves
+          # XCTest/XCUIAutomation to those header-less embedded copies first
+          # (the TEST_HOST Frameworks dir is dependency-injected into the -F
+          # order), which breaks the Clang module build required by XCTest's
+          # textual swiftinterface: "did not find header 'XCTestCore.h' in
+          # framework 'XCTest' (loaded from .../ContactsSila.app/Frameworks)".
+          #
+          # Fix: stage the FULL framework bundles (headers + modules) from
+          # the same selected Xcode into a NEUTRAL directory that the embed
+          # phase never touches, and put that directory FIRST on the test
+          # invocation's framework search path (next step). Framework-
+          # qualified imports then resolve to the complete bundles;
+          # byte-identical content from the same toolchain. Runtime loading
+          # is unchanged (the app's embedded copies stay in place and load
+          # via rpath); no test is skipped or weakened; pbxproj untouched.
+          STAGE_DIR="iosApp/build/full-test-frameworks"
+          DEV_FW="$(xcrun --sdk iphonesimulator --show-sdk-platform-path)/Developer/Library/Frameworks"
+
+          [ -d "$DEV_FW" ] || { echo "::error::Developer frameworks dir not found: $DEV_FW"; exit 1; }
+
+          rm -rf "$STAGE_DIR"
+          mkdir -p "$STAGE_DIR"
+          for SRC in "$DEV_FW"/*.framework; do
+            cp -R "$SRC" "$STAGE_DIR/$(basename "$SRC")"
+            echo "staged full bundle: $(basename "$SRC")"
+          done
+          ls "$STAGE_DIR"
+
+      - name: Swift Unit Tests - Contacts Binding (T4 - Issue #25)
+        run: >-
+          xcodebuild
+          -project iosApp/iosApp.xcodeproj
+          -scheme iosApp
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest'
+          -derivedDataPath iosApp/build/dd
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=""
+          SWIFT_ENABLE_EXPLICIT_MODULES=NO
+          FRAMEWORK_SEARCH_PATHS="$PWD/iosApp/build/full-test-frameworks \$(inherited)"
+          test
 
       - name: Upload Kotlin/Native Test Reports
         if: failure()

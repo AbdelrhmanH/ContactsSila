@@ -80,3 +80,59 @@
 /* Onboarding — Organizing */
 "onboarding_organizing_title" = "Organizing…";
 "onboarding_organizing_body" = "We're arranging your contacts locally on your device — this takes only a few seconds.";
+
+/* Actions — contacts list (T4 — Issue #25) */
+"action_share" = "Share";
+"action_delete" = "Delete";
+"action_confirm" = "Confirm";
+
+/* Categories */
+"category_all" = "All";
+"category_family" = "Family";
+"category_friends" = "Friends";
+"category_work" = "Work";
+"category_services" = "Services";
+"category_emergency" = "Emergency";
+"category_uncategorized" = "Uncategorized";
+
+/* Contacts list (Issue #25 — T4, mirrors composeResources values) */
+"contacts_title" = "Contacts";
+"contacts_search_hint" = "Search contacts…";
+"contacts_loading" = "Loading…";
+"contacts_empty_title" = "Your contacts book is empty";
+"contacts_empty_body" = "No contacts yet. Make sure the permission is granted, then try again.";
+"contacts_empty_search_title" = "No results";
+"contacts_empty_search_body" = "No contacts match your search. Try another name or number.";
+"contacts_permission_denied_title" = "Permission denied";
+"contacts_permission_denied_body" = "Sila needs the contacts permission to show your contacts book locally on your device.";
+"contacts_open_settings" = "Open app settings";
+"contacts_error_title" = "Couldn't load contacts";
+"contacts_error_body" = "Something went wrong while reading your contacts. Your data stays local — try again.";
+"contacts_retry" = "Retry";
+"contacts_suggestion_duplicates" = "Possible duplicates (%d) — review";
+"contacts_suggestion_smart_filter" = "Uncategorized contacts (%d) — review smart filter";
+"contacts_suggestion_dismiss" = "Dismiss";
+"contacts_selection_title" = "%d selected";
+"contacts_bulk_categorize" = "Categorize";
+"contacts_bulk_favorite" = "Add to favorites";
+"contacts_bulk_unfavorite" = "Remove from favorites";
+"contacts_done" = "Done";
+"contacts_delete_confirm_title" = "Delete selected contacts";
+"contacts_delete_confirm_body" = "%d contacts will be permanently removed from Sila.";
+"contacts_select_hint" = "Long-press to select a contact";
+"contacts_number_picker_title" = "Choose a number";
+"contacts_account_label" = "Account";
+"contacts_account_all" = "All accounts";
+"contacts_account_device" = "This device";
+"contacts_account_google" = "Google";
+"contacts_account_other" = "Other accounts";
+
+/* Limited contacts access banner (ADR-0009 — first-class state, never rendered as deletion) */
+"contacts_limited_banner" = "Limited access: only selected contacts appear. Unselected contacts are never treated as deleted.";
+
+/* Smart Add sheet (FAB — mirrors shared SilaMainShell) */
+"smart_add_title" = "Smart Add";
+"smart_add_new_contact" = "New Contact";
+"smart_add_family" = "Family Member (Arham)";
+"smart_add_service" = "Service Provider";
+"smart_add_qr" = "Scan QR Business Card";

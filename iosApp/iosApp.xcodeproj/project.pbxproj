@@ -10,6 +10,10 @@
 		5AFC5CA773BCBFE4B5EEB8CD /* ContactsSila.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ContactsSila.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileReference section */
+		C04CA77500000000000000A1 /* ContactsSilaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ContactsSilaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		E3316465580D34A98164742C /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -34,9 +38,21 @@
 			path = Configuration;
 			sourceTree = "<group>";
 		};
+		C04CA77500000000000000A2 /* iosAppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = iosAppTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C04CA77500000000000000AA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		184889580EC4714F1175D0AA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -52,6 +68,7 @@
 			children = (
 				D5B9DD4E546DAC0536C7C28C /* Configuration */,
 				28C6CD69B7475E95B258DCB6 /* iosApp */,
+				C04CA77500000000000000A2 /* iosAppTests */,
 				89EBC4CC86B2384F29A8960B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -60,6 +77,7 @@
 			isa = PBXGroup;
 			children = (
 				5AFC5CA773BCBFE4B5EEB8CD /* ContactsSila.app */,
+				C04CA77500000000000000A1 /* ContactsSilaTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -67,6 +85,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C04CA77500000000000000A3 /* ContactsSilaTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C04CA77500000000000000A6 /* Build configuration list for PBXNativeTarget "ContactsSilaTests" */;
+			buildPhases = (
+				C04CA77500000000000000A9 /* Sources */,
+				C04CA77500000000000000AA /* Frameworks */,
+				C04CA77500000000000000AB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C04CA77500000000000000A8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C04CA77500000000000000A2 /* iosAppTests */,
+			);
+			name = ContactsSilaTests;
+			packageProductDependencies = (
+			);
+			productName = ContactsSilaTests;
+			productReference = C04CA77500000000000000A1 /* ContactsSilaTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		E6852D7B7D0F2F50CBABCCC7 /* iosApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 286B21DC23BCBEA0B6C84764 /* Build configuration list for PBXNativeTarget "iosApp" */;
@@ -92,6 +133,16 @@
 		};
 /* End PBXNativeTarget section */
 
+/* Begin PBXContainerItemProxy section */
+		C04CA77500000000000000A7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B52A308B636BB73F390FC1A9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E6852D7B7D0F2F50CBABCCC7;
+			remoteInfo = iosApp;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXProject section */
 		B52A308B636BB73F390FC1A9 /* Project object */ = {
 			isa = PBXProject;
@@ -102,6 +153,10 @@
 				TargetAttributes = {
 					E6852D7B7D0F2F50CBABCCC7 = {
 						CreatedOnToolsVersion = 16.2;
+					};
+					C04CA77500000000000000A3 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = E6852D7B7D0F2F50CBABCCC7;
 					};
 				};
 			};
@@ -121,11 +176,27 @@
 			projectRoot = "";
 			targets = (
 				E6852D7B7D0F2F50CBABCCC7 /* iosApp */,
+				C04CA77500000000000000A3 /* ContactsSilaTests */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXTargetDependency section */
+		C04CA77500000000000000A8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E6852D7B7D0F2F50CBABCCC7 /* iosApp */;
+			targetProxy = C04CA77500000000000000A7 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin PBXResourcesBuildPhase section */
+		C04CA77500000000000000AB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		48FF6DB808050CAC677E62DA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -158,6 +229,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		C04CA77500000000000000A9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DFE3F8B742DE5F27FBD8A7CC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -347,6 +425,64 @@
 			};
 			name = Release;
 		};
+		C04CA77500000000000000A4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "${TEAM_ID}";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)",
+					"$(TEST_HOST)/../Frameworks",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.sila.ContactsSilaTests$(TEAM_ID)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ContactsSila.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)ContactsSila";
+			};
+			name = Debug;
+		};
+		C04CA77500000000000000A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "${TEAM_ID}";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(BUILT_PRODUCTS_DIR)",
+					"$(TEST_HOST)/../Frameworks",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "app.sila.ContactsSilaTests$(TEAM_ID)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ContactsSila.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)ContactsSila";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -364,6 +500,15 @@
 			buildConfigurations = (
 				B17D4913A1F0A5C8DB431137 /* Debug */,
 				843BE43B9BE1584CBC27EACE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C04CA77500000000000000A6 /* Build configuration list for PBXNativeTarget "ContactsSilaTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C04CA77500000000000000A4 /* Debug */,
+				C04CA77500000000000000A5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
