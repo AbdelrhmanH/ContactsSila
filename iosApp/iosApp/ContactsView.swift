@@ -129,7 +129,11 @@ struct ContactsView: View {
     @ViewBuilder
     private func contactsContent(_ strings: ContactsLocalizedStrings) -> some View {
         VStack(spacing: 0) {
-            ContactsLimitedBanner(strings: strings, permissionProbeTick: permissionProbeTick)
+            ContactsLimitedBanner(
+                strings: strings,
+                permissionProbeTick: permissionProbeTick,
+                queryString: store.state.searchQuery
+            )
             ContactsFavoritesRow(
                 favorites: store.state.favorites,
                 strings: strings
@@ -297,6 +301,8 @@ private struct ContactsLimitedBanner: View {
     let strings: ContactsLocalizedStrings
     /// قراءة عند كل تغيير مسبار كي تُعاد الحالة بعد العودة من إعدادات النظام.
     let permissionProbeTick: Int
+    /// استعلام البحث الحي — توقيع `ContactAccessButton` الفعلي (iOS 18) يأخذ
+    /// `queryString` بلا أي بارامتر `for:` — ليتزامن العرض مع حقل البحث.
 
     var body: some View {
         if isLimitedAccess {
@@ -308,7 +314,7 @@ private struct ContactsLimitedBanner: View {
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 if #available(iOS 18.0, *) {
-                    ContactAccessButton(for: .contacts)
+                    ContactAccessButton(queryString: queryString)
                         .font(.footnote)
                 }
             }
@@ -390,8 +396,8 @@ private struct ContactsSearchField: View {
                 .foregroundStyle(.secondary)
             TextField(placeholder, text: text)
                 .submitLabel(.search)
-                .textInputAutocorrectionDisabled()
-                .autocapitalization(.none)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -407,7 +413,7 @@ private struct ContactsSearchField: View {
 private struct ContactsCategoryChipsRow: View {
 
     let selectedCategory: SharedLogic.Category?
-    let categoryCounts: [SharedLogic.Category: Int32]
+    let categoryCounts: [SharedLogic.Category: KotlinInt]
     let totalContactsCount: Int32
     let strings: ContactsLocalizedStrings
     let onSelect: (SharedLogic.Category?) -> Void
@@ -428,7 +434,7 @@ private struct ContactsCategoryChipsRow: View {
                 }
                 ForEach(Self.categories, id: \.self) { category in
                     ContactsCategoryChip(
-                        title: "\(strings.categoryTitle(category)) \(categoryCounts[category] ?? 0)",
+                        title: "\(strings.categoryTitle(category)) \(categoryCounts[category]?.intValue ?? 0)",
                         isSelected: selectedCategory == category
                     ) {
                         onSelect(category)
@@ -629,7 +635,7 @@ private struct ContactsRow: View {
     let onCall: (Contact) -> Void
 
     private var isSelected: Bool {
-        state.selection.contains(contact.id)
+        state.selection.contains(KotlinLong(value: contact.id))
     }
 
     var body: some View {
