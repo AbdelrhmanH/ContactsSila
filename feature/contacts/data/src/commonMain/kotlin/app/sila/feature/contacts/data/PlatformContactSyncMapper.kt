@@ -11,8 +11,12 @@ import app.sila.feature.contacts.domain.PlatformContact
  * - أعمدة صِلَة (`category`, `isFavorite`, `arham`, `ringtoneUri`, …)
  *   **لا تُملك من المنصة إطلاقاً** — قيمها الافتراضية هنا تُهمَل عند الدمج مع صف موجود.
  * - `normalizedName` يُطبَّع في الـ DAO (`ArabicTextNormalizer`) — هنا يُترك فارغاً عمداً.
- * - الحقول بلا عمود في المخطط المخفَّض (`emails`, `websites`, `addresses`, `dates`,
- *   `tags`, `customFields`) تُسقَط — قيد مخطط v2 الحالي الموثّق في PR الميزة.
+ * - T6 (v2 · Issue #27 · ADR-0012): `emails` و`websites` أصبحتا أطفال معكوسة من
+ *   المنصة — تنعكس هنا حرفياً (كانتا تُسقَطان في مخطط v1). `notes` تُسقَط عند
+ *   الإنشاء الأول فقط (تبنّي حالة المنصة عند التبني — Android يقرأها فيصير محتواها
+ *   بذر صِلَة)، ثم **لا تُعاد قراءتها أبداً** في الدمج (صِلَة-فقط بعد التبني). أما
+ *   `addresses`/`dates`/`customFields` فلا تُقرأ من المنصة أصلاً (ليست في
+ *   [PlatformContact] المجمد — العقد T1 لا يحملها)، و`tags` خارج نطاق T6 موثقاً.
  */
 internal fun PlatformContact.toDomainContact(nowMillis: Long): Contact = Contact(
     id = 0L,
@@ -21,6 +25,8 @@ internal fun PlatformContact.toDomainContact(nowMillis: Long): Contact = Contact
     name = name,
     photoUri = photoUri,
     phones = phones,
+    emails = emails,
+    websites = websites,
     organization = organization,
     notes = notes,
     account = account,

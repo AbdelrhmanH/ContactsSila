@@ -50,6 +50,7 @@ import app.sila.core.model.ContactName
 import app.sila.core.model.DisputeStatus
 import app.sila.core.model.KinshipLayer
 import app.sila.core.model.Phone
+import app.sila.core.model.RecentInteraction
 import app.sila.core.model.Relation
 import app.sila.core.model.Service
 import app.sila.core.model.ServiceVisibility
@@ -597,6 +598,13 @@ class LocalSilaDatabase internal constructor(
                     durationSec = event.durationSec,
                     source = event.source,
                 )
+            }
+        }
+
+    override suspend fun findContactsByE164(e164: String, excludeContactId: Long?): List<Contact> =
+        withContext(dispatchers.io) {
+            contactsState.value.filter { contact ->
+                contact.id != excludeContactId && contact.phones.any { it.e164 == e164 }
             }
         }
 
