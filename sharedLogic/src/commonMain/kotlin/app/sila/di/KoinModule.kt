@@ -24,19 +24,24 @@ import app.sila.feature.contacts.data.ContactsRepositoryImpl
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.feature.contacts.data.OnboardingRepositoryImpl
 import app.sila.feature.contacts.data.SyncStateSourceAdapter
+import app.sila.feature.contacts.domain.ArhamOccasionRecorder
 import app.sila.feature.contacts.domain.BulkCategorizeUseCase
 import app.sila.feature.contacts.domain.BulkSetFavoriteUseCase
 import app.sila.feature.contacts.domain.ContactsListPreferencesRepository
 import app.sila.feature.contacts.domain.ContactsRepository
+import app.sila.feature.contacts.domain.CreateArhamOccasionUseCase
 import app.sila.feature.contacts.domain.DeleteContactUseCase
+import app.sila.feature.contacts.domain.DeleteContactWithUndoUseCase
 import app.sila.feature.contacts.domain.DeleteContactsUseCase
 import app.sila.feature.contacts.domain.DetectDuplicatesUseCase
 import app.sila.feature.contacts.domain.ObserveCategoryCountsUseCase
+import app.sila.feature.contacts.domain.ObserveContactDetailsUseCase
 import app.sila.feature.contacts.domain.ObserveContactsPagedUseCase
 import app.sila.feature.contacts.domain.ObserveContactsUseCase
 import app.sila.feature.contacts.domain.ObserveFavoriteContactsUseCase
 import app.sila.feature.contacts.domain.ObserveSuggestionsUseCase
 import app.sila.feature.contacts.domain.RecordInAppCallUseCase
+import app.sila.feature.contacts.domain.SaveContactUseCase
 import app.sila.feature.contacts.domain.SearchContactsUseCase
 import app.sila.feature.contacts.domain.SmartCategorizeContactUseCase
 import app.sila.feature.contacts.domain.SyncStateSource
@@ -87,6 +92,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
 
     // مصدر جهات الاتصال من المنصة (Issue #22 · ADR-0009 §3) — actuals per-platform.
     includes(platformContactsSourceModule)
+
+    // كتابة جهات الاتصال إلى المنصة (T6 · Issue #27 · ADR-0012) — actuals per-platform:
+    // الكاتب الضيق + معالج الصورة + كاشف التطبيقات المتصلة.
+    includes(platformContactsWriterModule)
 
     // قاعدة Room KMP الوحيدة (PR B · ADR-0011): [LocalSilaDatabase] هي واجهة الوصول
     // الموحّدة — تنفّذ واجهات DAO الخمس مباشرة (كتابات مركّبة بـ SQL خام داخل معاملات
@@ -150,6 +159,15 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { DeleteContactsUseCase(repository = get()) }
     factory { ToggleFavoriteUseCase(repository = get()) }
     factory { RecordInAppCallUseCase(repository = get(), clock = get()) }
+    // T6 (Issue #27 · ADR-0012): تفاصيل/تحرير جهة — ميثاق الاتساق J-1 يعيش في SaveContactUseCase،
+    // وجسر أرحام J-4 يُنفَّذ في جذر التركيب (ArhamBridgeOccasionRecorder) بعكس التبعية.
+    single<ArhamOccasionRecorder> {
+        ArhamBridgeOccasionRecorder(arhamRepository = get())
+    }
+    factory { SaveContactUseCase(writer = get(), repository = get(), imageProcessor = get(), clock = get()) }
+    factory { ObserveContactDetailsUseCase(repository = get()) }
+    factory { DeleteContactWithUndoUseCase(writer = get(), repository = get(), clock = get()) }
+    factory { CreateArhamOccasionUseCase(recorder = get()) }
     single {
         ContactsViewModel(
             observeContactsPaged = get(),
