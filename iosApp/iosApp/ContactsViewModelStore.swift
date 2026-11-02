@@ -74,12 +74,19 @@ final class ContactsViewModelStore {
 
     let effectRouter: any ContactsEffectRouting
 
+    /**
+     * الراوتر اختياري بافتراض صفرّي ويُبنى هنا داخل جسم الـ init المعزول على
+     * MainActor: مُولِّدات الوسائط الافتراضية تُجمَّع بلا عزل في Swift 5،
+     * و`DefaultContactsEffectRouter()` معزول على MainActor — بناؤه في توقيع
+     * الـ init كان يفشل الترجمة على CI (iOS 18.2 SDK / Xcode 16.2).
+     * مواقع الاستدعاء القائمة (iOSApp و#Preview) تبقى كما هي بلا وسيطة.
+     */
     init(
         viewModel: ContactsViewModel = IosKoinBootstrap.shared.getContactsViewModel(),
-        effectRouter: any ContactsEffectRouting = DefaultContactsEffectRouter()
+        effectRouter: (any ContactsEffectRouting)? = nil
     ) {
         self.viewModel = viewModel
-        self.effectRouter = effectRouter
+        self.effectRouter = effectRouter ?? DefaultContactsEffectRouter()
         self.state = viewModel.state.value
     }
 
@@ -122,7 +129,7 @@ final class ContactsViewModelStore {
 
     // مُرسلات مكتوبة النمط (بلا منطق — بناء Intent فقط، كما في MainViewModelStore).
 
-    func selectCategory(_ category: Category?) {
+    func selectCategory(_ category: SharedLogic.Category?) {
         send(ContactsIntentSelectCategory(category: category))
     }
 
@@ -152,7 +159,7 @@ final class ContactsViewModelStore {
         send(ContactsIntentClearSelection.shared)
     }
 
-    func bulkCategorize(_ category: Category) {
+    func bulkCategorize(_ category: SharedLogic.Category) {
         send(ContactsIntentBulkCategorize(category: category))
     }
 
@@ -175,7 +182,7 @@ final class ContactsViewModelStore {
 
     /// بطاقة الفلترة الذكية تنقلك لتصنيف غير المصنّف (نفس سلوك Compose T3).
     func selectSmartFilterSuggestion() {
-        selectCategory(Category.uncategorized)
+        selectCategory(SharedLogic.Category.uncategorized)
     }
 
     func swipe(_ contact: Contact, _ action: ContactSwipeAction) {

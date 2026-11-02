@@ -1,5 +1,6 @@
 import XCTest
 @testable import iosApp
+import SharedLogic
 
 /**
  * اختبار اكتمال مفاتيح موارد الترجمة لشاشة جهات الاتصال (T4 — Issue #25):
@@ -78,7 +79,7 @@ final class ContactsStringsTests: XCTestCase {
 
         let english = ContactsLocalizedStrings(language: AppLanguage.english)
         XCTAssertNotEqual(english.screenTitle, "contacts_title")
-        XCTAssertEqual(english.categoryTitle(Category.services), "Services")
+        XCTAssertEqual(english.categoryTitle(SharedLogic.Category.services), "Services")
 
         XCTAssertEqual(arabic.selectionTitle(5), "تم تحديد 5")
         XCTAssertEqual(english.deleteConfirmationMessage(2), "2 contacts will be permanently removed from Sila.")

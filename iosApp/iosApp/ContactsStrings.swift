@@ -79,7 +79,7 @@ struct ContactsLocalizedStrings {
     var limitedBanner: String { string("contacts_limited_banner") }
 
     /// أسماء التصنيفات (نفس موارد Compose category_*).
-    func categoryTitle(_ category: Category) -> String {
+    func categoryTitle(_ category: SharedLogic.Category) -> String {
         switch category {
         case .family: return string("category_family")
         case .friends: return string("category_friends")

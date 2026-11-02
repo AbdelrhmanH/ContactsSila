@@ -232,7 +232,9 @@ private struct ContactsSelectionBar: View {
 
     let count: Int32
     let strings: ContactsLocalizedStrings
-    let onCategorize: (Category) -> Void
+    // تأهيل SharedLogic.Category صراحةً: ObjectiveC.Category في iOS 18.2 SDK
+    // (Xcode 16.2) يتصادم مع enum الـ SKIE المولَّد في كل ملف يستورد SharedLogic.
+    let onCategorize: (SharedLogic.Category) -> Void
     let onFavorite: () -> Void
     let onUnfavorite: () -> Void
     let onShare: () -> Void
@@ -240,7 +242,7 @@ private struct ContactsSelectionBar: View {
     let onDone: () -> Void
 
     /// مرآة `Category.entries` في Compose — قائمة ثابتة بلا منطق.
-    private static let categories: [Category] = [
+    private static let categories: [SharedLogic.Category] = [
         .family, .friends, .work, .services, .emergency, .uncategorized,
     ]
 
@@ -369,7 +371,7 @@ private struct ContactsFavoritesRow: View {
     static let favoriteHeartColor = Color(red: 217 / 255, green: 63 / 255, blue: 63 / 255)
 
     private func ringColor(for contact: Contact) -> Color {
-        contact.category == Category.family
+        contact.category == SharedLogic.Category.family
             ? Self.familyRingColor
             : Color(.systemGray4)
     }
@@ -404,14 +406,14 @@ private struct ContactsSearchField: View {
 
 private struct ContactsCategoryChipsRow: View {
 
-    let selectedCategory: Category?
-    let categoryCounts: [Category: Int32]
+    let selectedCategory: SharedLogic.Category?
+    let categoryCounts: [SharedLogic.Category: Int32]
     let totalContactsCount: Int32
     let strings: ContactsLocalizedStrings
-    let onSelect: (Category?) -> Void
+    let onSelect: (SharedLogic.Category?) -> Void
 
     /// مرآة `Category.entries` في Compose — قائمة ثابتة بلا منطق.
-    private static let categories: [Category] = [
+    private static let categories: [SharedLogic.Category] = [
         .family, .friends, .work, .services, .emergency, .uncategorized,
     ]
 
