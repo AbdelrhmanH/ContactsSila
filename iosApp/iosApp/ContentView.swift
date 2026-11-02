@@ -5,6 +5,9 @@ struct ContentView: View {
 
     var store: MainViewModelStore
 
+    /// مخزن شاشة جهات الاتصال المشترك (T4 — Issue #25) — نمط MainViewModelStore نفسه.
+    var contactsStore: ContactsViewModelStore
+
     private var activeTabBinding: Binding<DefaultTab> {
         Binding(
             get: { store.state.activeTab },
@@ -38,6 +41,30 @@ struct ContentView: View {
         .environment(\.layoutDirection, store.state.preferences.language.isRtl ? .rightToLeft : .leftToRight)
         .environment(\.locale, Locale(identifier: store.state.preferences.language.code))
         .preferredColorScheme(colorScheme)
+        // ورقة الإضافة الذكية (FAB) — الحالة ملكية MainViewModel المشترك (نفس أندرويد):
+        // الإغلاق يُرسل DismissSmartAddSheet ولا تُخزَّن محلياً.
+        .confirmationDialog(
+            localized("smart_add_title"),
+            isPresented: Binding(
+                get: { store.state.isSmartAddSheetVisible },
+                set: { if !$0 { store.send(MainIntentDismissSmartAddSheet.shared) } }
+            ),
+            titleVisibility: .visible
+        ) {
+            // «جهة اتصال جديدة» و«مسح QR» يفتحان نموذج الإضافة — نطاق T6؛
+            // نفس أندرويد: بلا فعل الآن (موثق في PR).
+            Button(localized("smart_add_new_contact")) {}
+            Button(localized("smart_add_family")) {
+                store.selectTab(DefaultTab.arham)
+                store.send(MainIntentDismissSmartAddSheet.shared)
+            }
+            Button(localized("smart_add_service")) {
+                store.selectTab(DefaultTab.services)
+                store.send(MainIntentDismissSmartAddSheet.shared)
+            }
+            Button(localized("smart_add_qr")) {}
+            Button(localized("action_cancel"), role: .cancel) {}
+        }
         .task {
             await store.observeState()
         }
@@ -45,15 +72,11 @@ struct ContentView: View {
 
     private var tabsContent: some View {
         TabView(selection: activeTabBinding) {
-            tabItemView(
-                title: localized("nav_contacts"),
-                subtitle: localized("action_search"),
-                icon: "person.2.fill"
-            )
-            .tabItem {
-                Label(localized("nav_contacts"), systemImage: "person.2.fill")
-            }
-            .tag(DefaultTab.contacts)
+            contactsTabContent
+                .tabItem {
+                    Label(localized("nav_contacts"), systemImage: "person.2.fill")
+                }
+                .tag(DefaultTab.contacts)
 
             tabItemView(
                 title: localized("nav_services"),
@@ -76,6 +99,37 @@ struct ContentView: View {
             .badge(store.state.overdueArhamCount > 0 ? Int(store.state.overdueArhamCount) : 0)
             .tag(DefaultTab.arham)
         }
+    }
+
+    /**
+     * تبويب جهات الاتصال (T4 — Issue #25): شاشة SwiftUI تراقب الحالة المشتركة عبر
+     * [ContactsViewModelStore] مع الـ FAB الذكي في الغلاف (نفس أندرويد: الـ FAB
+     * ملك الغلاف ولا يظهر إلا في تبويب جهات الاتصال، وفتحه Intent مشترك).
+     */
+    private var contactsTabContent: some View {
+        ContactsView(store: contactsStore, language: store.state.preferences.language)
+            .overlay(alignment: .bottomTrailing) {
+                // الـ FAB يبقى ظاهراً والورقة مفتوحة فوقه — نفس أندرويد
+                // (floatingActionButton ثابت في SilaMainShell).
+                smartAddFab
+            }
+    }
+
+    private var smartAddFab: some View {
+        Button {
+            store.send(MainIntentToggleSmartAddSheet.shared)
+        } label: {
+            Text("＋")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(Color.emeraldSila, in: Circle()) // العلامة (#0F9D73 — امتداد T5)
+                .shadow(radius: 4, y: 2)
+        }
+        .accessibilityIdentifier("contacts_fab")
+        .accessibilityLabel(localized("smart_add_title"))
+        .padding(.trailing, 16)
+        .padding(.bottom, 16)
     }
 
     private func tabItemView(title: String, subtitle: String, icon: String) -> some View {
@@ -126,5 +180,8 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView(store: MainViewModelStore())
+    ContentView(
+        store: MainViewModelStore(),
+        contactsStore: ContactsViewModelStore()
+    )
 }

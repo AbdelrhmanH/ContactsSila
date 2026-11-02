@@ -80,3 +80,59 @@
 /* التهيئة الأولى — جارٍ التنظيم */
 "onboarding_organizing_title" = "جارٍ التنظيم…";
 "onboarding_organizing_body" = "نرتب جهات اتصالك محلياً على جهازك الآن — لن يزيد ذلك عن ثوانٍ.";
+
+/* الأفعال — قائمة جهات الاتصال (T4 — Issue #25) */
+"action_share" = "مشاركة";
+"action_delete" = "حذف";
+"action_confirm" = "تأكيد";
+
+/* التصنيفات */
+"category_all" = "الكل";
+"category_family" = "عائلة";
+"category_friends" = "أصدقاء";
+"category_work" = "عمل";
+"category_services" = "خدمات";
+"category_emergency" = "طوارئ";
+"category_uncategorized" = "غير مصنف";
+
+/* قائمة جهات الاتصال (Issue #25 — T4، مرآة قيم composeResources) */
+"contacts_title" = "جهات الاتصال";
+"contacts_search_hint" = "بحث في جهات الاتصال…";
+"contacts_loading" = "جارٍ التحميل…";
+"contacts_empty_title" = "دفترك فارغ";
+"contacts_empty_body" = "لم نجد أي جهات اتصال بعد. تأكد من منح الصلاحية ثم أعد المحاولة.";
+"contacts_empty_search_title" = "لا نتائج";
+"contacts_empty_search_body" = "لم نجد جهة تطابق بحثك. جرّب اسماً أو رقماً آخر.";
+"contacts_permission_denied_title" = "الصلاحية مرفوضة";
+"contacts_permission_denied_body" = "نحتاج صلاحية جهات الاتصال لعرض دفترك محلياً على جهازك.";
+"contacts_open_settings" = "فتح إعدادات التطبيق";
+"contacts_error_title" = "تعذّر عرض الجهات";
+"contacts_error_body" = "حدث خطأ أثناء قراءة جهات اتصالك. بياناتك محفوظة محلياً — جرّب مجدداً.";
+"contacts_retry" = "إعادة المحاولة";
+"contacts_suggestion_duplicates" = "مكررات محتملة (%d) — راجعها";
+"contacts_suggestion_smart_filter" = "جهات غير مصنفة (%d) — راجع الفلترة الذكية";
+"contacts_suggestion_dismiss" = "إغلاق";
+"contacts_selection_title" = "تم تحديد %d";
+"contacts_bulk_categorize" = "تصنيف";
+"contacts_bulk_favorite" = "إضافة للمفضلة";
+"contacts_bulk_unfavorite" = "إزالة من المفضلة";
+"contacts_done" = "تم";
+"contacts_delete_confirm_title" = "حذف جهات محددة";
+"contacts_delete_confirm_body" = "سيُحذف %d من جهاتك من صِلَة نهائياً.";
+"contacts_select_hint" = "اضغط مطولاً لتحديد جهة";
+"contacts_number_picker_title" = "اختر رقماً";
+"contacts_account_label" = "الحساب";
+"contacts_account_all" = "كل الحسابات";
+"contacts_account_device" = "هذا الجهاز";
+"contacts_account_google" = "Google";
+"contacts_account_other" = "حسابات أخرى";
+
+/* بانر الوصول الجزئي (ADR-0009 — حالة أصيلة لا تُعرض كحذف أبداً) */
+"contacts_limited_banner" = "وصول جزئي: تظهر الجهات المحددة فقط. الجهات غير المحددة لن تُحذف أبداً.";
+
+/* ورقة الإضافة الذكية (FAB — مرآة SilaMainShell المشترك) */
+"smart_add_title" = "إضافة ذكية";
+"smart_add_new_contact" = "جهة اتصال جديدة";
+"smart_add_family" = "فرد من العائلة (أرحام)";
+"smart_add_service" = "رقم خدمي";
+"smart_add_qr" = "مسح بطاقة QR";

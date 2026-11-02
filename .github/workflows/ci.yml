@@ -120,6 +120,20 @@ jobs:
           done
           echo "F-03 verified: contacts usage description present in the effective bundle (en + ar)."
 
+      - name: Swift Unit Tests - Contacts Binding (T4 - Issue #25)
+        run: >-
+          xcodebuild
+          -project iosApp/iosApp.xcodeproj
+          -scheme iosApp
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
+          -derivedDataPath iosApp/build/dd
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          CODE_SIGN_IDENTITY=""
+          test
+
       - name: Upload Kotlin/Native Test Reports
         if: failure()
         uses: actions/upload-artifact@v4

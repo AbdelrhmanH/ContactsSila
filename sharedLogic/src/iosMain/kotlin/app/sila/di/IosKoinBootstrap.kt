@@ -4,6 +4,7 @@ import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.feature.contacts.data.ContactsSyncEngine
+import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
 import app.sila.maintenance.RetentionCleanupCoordinator
@@ -149,4 +150,11 @@ object IosKoinBootstrap {
      * بمسار التخزين الدائم؛ تستعمله شاشات SwiftUI للتهيئة عبر نمط MainViewModelStore.
      */
     fun getOnboardingViewModel(): OnboardingViewModel = ensureStarted().get()
+
+    /**
+     * يسترجع [ContactsViewModel] المشترك (Issue #24 — T3) بعد ضمان تهيئة Koin
+     * بمسار التخزين الدائم؛ تستعمله شاشة جهات الاتصال SwiftUI (T4 — Issue #25)
+     * عبر نمط ContactsViewModelStore نفسه — الحالة ملكية Kotlin حصراً.
+     */
+    fun getContactsViewModel(): ContactsViewModel = ensureStarted().get()
 }
