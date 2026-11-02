@@ -53,6 +53,16 @@ interface ContactsSyncDao {
 
     /** إسقاط اللقطة المحفوظة (استرجاع من فساد التخزين — تليها إعادة مزامنة كاملة). */
     suspend fun clearSyncSnapshot()
+
+    /**
+     * قبر فردي بمعرّف Room (T6 — حذف من شاشة التفاصيل · Issue #27): نفس دلالات
+     * قبور [applySyncBatch] حرفياً — حذف ناعم (`systemDeletedAt = nowMillis`) +
+     * إزالة من FTS + إخلاؤه من كاش الذاكرة، بلا أي حذف فعلي (استرجاع 30 يوماً
+     * عبر [DataRetentionCleanupDao.cleanupExpiredData]؛ المزامنة قد تعيده إن أعادته
+     * المنصة). Idempotent: صف مقبرة سلفاً لا يُلَمْس. يُستدعى **بعد** نجاح حذف
+     * المنصة فقط (الكاتب المنصوي هو مصدر الحقيقة للحذف — ADR-0012).
+     */
+    suspend fun tombstoneContact(contactId: Long, nowMillis: Long)
 }
 
 /** صف فهرس المزامنة لمقارنات المصالحة (بلا دلالات عرض). */

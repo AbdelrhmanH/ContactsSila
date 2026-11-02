@@ -1,5 +1,7 @@
 package app.sila.core.database.dao
 
+import app.sila.core.model.CallDirection
+import app.sila.core.model.CallSource
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +24,15 @@ interface ContactDao {
     fun observeCategoryCounts(): Flow<Map<Category, Int>>
 
     suspend fun getContactById(id: Long): Contact?
+
+    /**
+     * مرصد تفاصيل جهة واحدة تفاعلي (T6 — Issue #27): يبثّ الحالة الكاملة (الأطفال
+     * والأرحام ضمنها) عند كل كتابة ناجحة. يُبنى فوق كاش الذاكرة — كل مسارات الكتابة
+     * (`upsertContact`/`applySyncBatch`/`upsertArhamInfo`/`recordContactCall`) تُحدّثه
+     * بعد نجاح COMMIT حصراً، فلا انحراف بين العرض والقرص.
+     * القبور تُبثّ `null` (حُذفت — الشاشة تُظهر الخروج/الرسالة المناسبة).
+     */
+    fun observeContactById(id: Long): Flow<Contact?>
 
     suspend fun upsertContact(contact: Contact)
 
@@ -55,4 +66,20 @@ interface ContactDao {
      * `IN_APP` محلياً — بلا `READ_CALL_LOG` وبلا أي وصول شبكي).
      */
     suspend fun recordInAppCallAttempt(callLogId: String, e164: String, timestampMillis: Long)
+
+    /**
+     * آخر N تفاعلات لأرقام جهة واحدة (T6 — «التفاعلات الأخيرة» في شاشة التفاصيل ·
+     * Issue #27): قراءة حصراً من `call_events` (Room SSOT) — لا CallLog منصوي هنا.
+     */
+    suspend fun getRecentCallEvents(e164s: List<String>, limit: Int): List<RecentInteraction>
 }
+
+/** تفاعل واحد لأغراض العرض في شاشة التفاصيل (T6) — بلا كيانات Room في العقد. */
+data class RecentInteraction(
+    val callLogId: String,
+    val e164: String,
+    val timestampMillis: Long,
+    val direction: CallDirection,
+    val durationSec: Int,
+    val source: CallSource,
+)

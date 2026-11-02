@@ -15,9 +15,14 @@ import app.sila.core.database.dao.ServiceEntityDao
 import app.sila.core.database.entity.ArhamEntity
 import app.sila.core.database.entity.ArhamInboxEntity
 import app.sila.core.database.entity.CallEventEntity
+import app.sila.core.database.entity.ContactAddressEntity
+import app.sila.core.database.entity.ContactCustomFieldEntity
+import app.sila.core.database.entity.ContactDateEntity
+import app.sila.core.database.entity.ContactEmailEntity
 import app.sila.core.database.entity.ContactEntity
 import app.sila.core.database.entity.ContactPhoneEntity
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
+import app.sila.core.database.entity.ContactWebsiteEntity
 import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.database.entity.ServiceEntity
 
@@ -27,13 +32,16 @@ import app.sila.core.database.entity.ServiceEntity
  *
  * PR B (F-04/F-05): هذه الفئة لم تعد شلاً تجميعياً — هي المنتِج الفعلي والوحيد
  * لجداول الإنتاج ومخططها عبر KSP (`SilaRoomDatabase_Impl`)، بمحرك
- * `BundledSQLiteDriver` على أندرويد و iOS معاً، والإصدار الأول الفعلي `version = 1`
- * (قواعد المستخدمين القائمة تُعتمَد من `user_version = 0` عبر مسار
- * create/validate المُوثَّق في ADR-0011 — ليس `Migration(0,1)`).
+ * `BundledSQLiteDriver` على أندرويد و iOS معاً، والإصدار الفعلي `version = 2`
+ * (قواعد المستخدمين القائمة من v1 تُرحَّل عبر `MIGRATION_1_2` — T6/Issue #27؛
+ * قواعد `user_version = 0` القديمة تُعتمَد عبر مسار create/validate المُوثَّق
+ * في ADR-0011 — ليس `Migration(0,1)`).
  *
- * الكيانات الثمانية (جداول فعلية مُدارة) — بلا كيانات شبحية:
+ * الكيانات الثلاثة عشر (جداول فعلية مُدارة) — بلا كيانات شبحية:
  * `scheduled_messages` و`emergency_ringing_sessions` أُزيلتا بعد التحقق من انعدام
- * مستهلكيها الفعليين (Decision 5 · ADR-0011).
+ * مستهلكيها الفعليين (Decision 5 · ADR-0011). خمسة جداول حقول قياسية أُضيفت في v2
+ * (`contact_emails`/`contact_addresses`/`contact_dates`/`contact_custom_fields`/
+ * `contact_websites` — ترحيل غير هدمي MIGRATION_1_2 · ADR-0012).
  *
  * جدول `contacts_fts` (FTS4 مستقل) **ليس كياناً هنا عمداً**: KSP على أهداف Native
  * (iOS) لا يعالج كيانات `@Fts4` المستقلة — `FtsTableEntityProcessor` يفشل في حلّ
@@ -44,11 +52,16 @@ import app.sila.core.database.entity.ServiceEntity
  * الدلالات الفيزيائية نفسها: مستقل بلا `content=`، توكنِزِر SIMPLE، `docid == contacts.id`.
  */
 @Database(
-    version = 1,
+    version = 2,
     exportSchema = true,
     entities = [
         ContactEntity::class,
         ContactPhoneEntity::class,
+        ContactEmailEntity::class,
+        ContactAddressEntity::class,
+        ContactDateEntity::class,
+        ContactCustomFieldEntity::class,
+        ContactWebsiteEntity::class,
         ArhamEntity::class,
         ServiceEntity::class,
         CallEventEntity::class,
