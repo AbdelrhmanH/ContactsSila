@@ -303,6 +303,7 @@ private struct ContactsLimitedBanner: View {
     let permissionProbeTick: Int
     /// استعلام البحث الحي — توقيع `ContactAccessButton` الفعلي (iOS 18) يأخذ
     /// `queryString` بلا أي بارامتر `for:` — ليتزامن العرض مع حقل البحث.
+    let queryString: String
 
     var body: some View {
         if isLimitedAccess {
