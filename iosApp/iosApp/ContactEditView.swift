@@ -228,7 +228,7 @@ struct ContactEditView: View {
                         }
                         .buttonStyle(.borderless)
                     }
-                    if let warning = store.state.duplicateWarning[row.key] {
+                    if let warning = store.state.duplicateWarning[KotlinLong(value: row.key)] {
                         // تحذير التكرار غير المانع (J-9) — بجانب صف الهاتف (AC).
                         Text(strings.duplicateWarning(warning))
                             .font(.caption2)
@@ -321,9 +321,9 @@ struct ContactEditView: View {
                                     store.updateDate(
                                         row.key,
                                         type: type,
-                                        month: row.month,
-                                        day: row.day,
-                                        year: row.year
+                                        month: row.month?.value,
+                                        day: row.day?.value,
+                                        year: row.year?.value
                                     )
                                 }
                             }
@@ -337,14 +337,14 @@ struct ContactEditView: View {
                         .buttonStyle(.borderless)
                     }
                     HStack(spacing: 12) {
-                        numberField(strings.monthLabel, value: row.month, width: 48) { month in
-                            store.updateDate(row.key, type: row.type, month: month, day: row.day, year: row.year)
+                        numberField(strings.monthLabel, value: row.month?.value, width: 48) { month in
+                            store.updateDate(row.key, type: row.type, month: month, day: row.day?.value, year: row.year?.value)
                         }
-                        numberField(strings.dayLabel, value: row.day, width: 48) { day in
-                            store.updateDate(row.key, type: row.type, month: row.month, day: day, year: row.year)
+                        numberField(strings.dayLabel, value: row.day?.value, width: 48) { day in
+                            store.updateDate(row.key, type: row.type, month: row.month?.value, day: day, year: row.year?.value)
                         }
-                        numberField(strings.yearLabel, value: row.year, width: 72) { year in
-                            store.updateDate(row.key, type: row.type, month: row.month, day: row.day, year: year)
+                        numberField(strings.yearLabel, value: row.year?.value, width: 72) { year in
+                            store.updateDate(row.key, type: row.type, month: row.month?.value, day: row.day?.value, year: year)
                         }
                     }
                     if row.type == "BIRTHDAY", store.state.category == SharedLogic.Category.family {

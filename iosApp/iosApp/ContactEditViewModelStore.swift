@@ -44,7 +44,9 @@ final class ContactEditViewModelStore {
      * [contactId] = `nil` نموذج إنشاء فارغ.
      */
     init(contactId: Int64?) {
-        let vm: ContactEditViewModel = IosKoinBootstrap.shared.getContactEditViewModel(contactId: contactId)
+        let vm: ContactEditViewModel = IosKoinBootstrap.shared.getContactEditViewModel(
+            contactId: contactId.map { KotlinLong(value: $0) }
+        )
         self.viewModel = vm
         self.state = vm.state.value
     }
@@ -160,8 +162,15 @@ final class ContactEditViewModelStore {
     }
 
     /// شهر/يوم إلزاميان للفعل، والسنة اختيارية (عيد ميلاد بلا سنة شائع).
+    /// أنواع Swift الأصلية هنا؛ الحدود الكوتلينية تُعلَّب عند الإرسال (SKIE لا يربط `Int?`).
     func updateDate(_ key: Int64, type: String, month: Int32?, day: Int32?, year: Int32?) {
-        send(ContactEditIntentUpdateDate(key: key, type: type, month: month, day: day, year: year))
+        send(ContactEditIntentUpdateDate(
+            key: key,
+            type: type,
+            month: month.map { KotlinInt(value: $0) },
+            day: day.map { KotlinInt(value: $0) },
+            year: year.map { KotlinInt(value: $0) }
+        ))
     }
 
     func removeDate(_ key: Int64) {

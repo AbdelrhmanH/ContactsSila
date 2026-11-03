@@ -136,7 +136,7 @@ class ContactDetailsViewModel(
     }
 
     override val state: StateFlow<ContactDetailsUiState> = combine(
-        observeDetails.observe(contactId),
+        observeDetails(contactId),
         undoWindowActive,
         connectedAppsFlow,
     ) { contact, undoActive, apps ->
@@ -232,13 +232,18 @@ class ContactDetailsViewModel(
 
     private fun latestContact(): Contact? = state.value.contact
 
+    /** تحرير صريح من مضيف iOS عند pop (لا `ViewModelStoreOwner` هناك) — نفس دلالات `onCleared` (J-5). */
+    fun clear() {
+        undoJob?.cancel()
+    }
+
     private companion object {
         const val MILLIS_PER_DAY = 86_400_000L
     }
 
     override fun onCleared() {
         // خروج الشاشة أثناء النافذة بلا تراجع = إلغاء بلا كتابة (تراجع ضمني — J-5).
-        undoJob?.cancel()
+        clear()
         super.onCleared()
     }
 }

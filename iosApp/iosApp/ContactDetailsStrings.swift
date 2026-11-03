@@ -280,6 +280,16 @@ struct ContactEditLocalizedStrings {
         }
     }
 
+    /// نوع العنوان — مرآة `labelForType` في Compose: الأنواع غير المعروفة تمرّ كما هي (تسمية مخصصة).
+    func addressTypeName(_ type: String) -> String {
+        switch type {
+        case "HOME": return string("details_type_home")
+        case "WORK": return string("details_type_work")
+        case "OTHER": return string("details_type_other")
+        default: return type.isEmpty ? string("details_type_other") : type
+        }
+    }
+
     func categoryTitle(_ category: SharedLogic.Category) -> String {
         string(categoryKey(category))
     }
@@ -377,7 +387,7 @@ func formatCallDuration(_ seconds: Int32) -> String {
 /** اتجاه التفاعل — مفاتيح details_direction_* (مرآة directionLabel). */
 func directionKey(_ direction: CallDirection) -> String {
     switch direction {
-    case .in_: return "details_direction_in"
+    case .`in`: return "details_direction_in"
     case .out: return "details_direction_out"
     default: return "details_direction_missed"
     }

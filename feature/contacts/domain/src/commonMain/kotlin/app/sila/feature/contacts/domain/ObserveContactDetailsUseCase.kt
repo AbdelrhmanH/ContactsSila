@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.Flow
 class ObserveContactDetailsUseCase(
     private val repository: ContactsRepository,
 ) {
-    fun observe(contactId: Long): Flow<Contact?> = repository.observeContactById(contactId)
+    operator fun invoke(contactId: Long): Flow<Contact?> = repository.observeContactById(contactId)
 
     suspend fun getOnce(contactId: Long): Contact? = repository.getContactById(contactId)
 

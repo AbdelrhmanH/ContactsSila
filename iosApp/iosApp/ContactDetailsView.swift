@@ -262,7 +262,7 @@ struct ContactDetailsView: View {
                     Text(strings.arhamFrequencyLabel(frequency))
                     Spacer()
                     if let days = store.state.arhamDaysSinceLastContact {
-                        Text(strings.arhamDaysLabel(days))
+                        Text(strings.arhamDaysLabel(days.value))
                             .font(.callout)
                             .foregroundColor(.secondary)
                     }
@@ -486,7 +486,7 @@ struct ContactDetailsView: View {
 
     private func iconName(for direction: CallDirection) -> String {
         switch direction {
-        case .in_: return "arrow.down.left"
+        case .`in`: return "arrow.down.left"
         case .out: return "arrow.up.right"
         default: return "phone.badge.xmark"
         }

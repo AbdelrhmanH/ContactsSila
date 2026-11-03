@@ -680,6 +680,11 @@ class ContactEditViewModel(
         account = account,
     )
 
+    /** تحرير صريح من مضيف iOS عند pop (لا `ViewModelStoreOwner` هناك) — إلغاء فحص التكرار المعلّق. */
+    fun clear() {
+        dupCheckJob?.cancel()
+    }
+
     private companion object {
         /** J-9 — فحص محلي بعد سكون الإدخال. */
         const val DUPLICATE_CHECK_DEBOUNCE_MILLIS = 400L
