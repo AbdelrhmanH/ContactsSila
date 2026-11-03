@@ -147,4 +147,170 @@
     <string name="contacts_account_device">This device</string>
     <string name="contacts_account_google">Google</string>
     <string name="contacts_account_other">Other accounts</string>
+
+    <!-- Contact details — T6 (Issue #27) -->
+    <string name="details_back_description">Back</string>
+    <string name="details_edit_description">Edit</string>
+    <string name="details_favorite_description">Add to favorites</string>
+    <string name="details_unfavorite_description">Remove from favorites</string>
+    <string name="details_more_description">More options</string>
+    <string name="details_quick_call">Call</string>
+    <string name="details_quick_message">Message</string>
+    <string name="details_quick_video">Video call</string>
+    <string name="details_quick_email">Email</string>
+    <string name="details_primary_phone">Primary number</string>
+    <string name="details_copy_number">Copy number</string>
+    <string name="details_phones_section">Phone numbers</string>
+    <string name="details_apps_section">Connected apps</string>
+    <string name="details_arham_section">Arham connection</string>
+    <string name="details_history_section">Recent interactions</string>
+    <string name="details_history_view_all">View all</string>
+    <string name="details_emails_section">Email</string>
+    <string name="details_addresses_section">Addresses</string>
+    <string name="details_dates_section">Important dates</string>
+    <string name="details_company_section">Company</string>
+    <string name="details_notes_section">Notes</string>
+    <string name="details_custom_fields_section">Custom fields</string>
+    <string name="details_websites_section">Websites</string>
+    <string name="details_account_section">Account</string>
+
+    <!-- Phone/email/address/date types -->
+    <string name="details_type_mobile">Mobile</string>
+    <string name="details_type_home">Home</string>
+    <string name="details_type_work">Work</string>
+    <string name="details_type_other">Other</string>
+    <string name="details_email_personal">Personal</string>
+    <string name="details_date_birthday">Birthday</string>
+    <string name="details_date_anniversary">Anniversary</string>
+    <string name="details_date_custom">Custom date</string>
+
+    <!-- Connected apps -->
+    <string name="details_app_whatsapp">WhatsApp</string>
+    <string name="details_app_telegram">Telegram</string>
+    <string name="details_app_signal">Signal</string>
+
+    <!-- Arham frequency and days since last contact -->
+    <string name="details_freq_daily">Daily</string>
+    <string name="details_freq_weekly">Weekly</string>
+    <string name="details_freq_biweekly">Every two weeks</string>
+    <string name="details_freq_monthly">Monthly</string>
+    <string name="details_freq_occasions">On occasions</string>
+    <string name="details_arham_days_today">Last contact: today</string>
+    <string name="details_arham_days_one">Last contact: yesterday</string>
+    <string name="details_arham_days_two">Last contact: 2 days ago</string>
+    <string name="details_arham_days_few">Last contact: %d days ago</string>
+    <string name="details_arham_days_many">Last contact: %d days ago</string>
+
+    <!-- Relative time for history rows -->
+    <string name="details_time_now">Just now</string>
+    <string name="details_time_minutes_one">A minute ago</string>
+    <string name="details_time_minutes_two">2 minutes ago</string>
+    <string name="details_time_minutes_few">%d minutes ago</string>
+    <string name="details_time_minutes_many">%d minutes ago</string>
+    <string name="details_time_hours_one">An hour ago</string>
+    <string name="details_time_hours_two">2 hours ago</string>
+    <string name="details_time_hours_few">%d hours ago</string>
+    <string name="details_time_hours_many">%d hours ago</string>
+    <string name="details_time_yesterday">Yesterday</string>
+    <string name="details_month_1">January</string>
+    <string name="details_month_2">February</string>
+    <string name="details_month_3">March</string>
+    <string name="details_month_4">April</string>
+    <string name="details_month_5">May</string>
+    <string name="details_month_6">June</string>
+    <string name="details_month_7">July</string>
+    <string name="details_month_8">August</string>
+    <string name="details_month_9">September</string>
+    <string name="details_month_10">October</string>
+    <string name="details_month_11">November</string>
+    <string name="details_month_12">December</string>
+    <string name="details_direction_in">Incoming</string>
+    <string name="details_direction_out">Outgoing</string>
+    <string name="details_direction_missed">Missed</string>
+
+    <!-- Undo window (J-5) and actions sheet -->
+    <string name="details_delete_undo_message">Contact deleted — you can undo</string>
+    <string name="details_action_share_vcard">Share vCard</string>
+    <string name="details_action_change_category">Change category</string>
+    <string name="details_action_delete">Delete contact</string>
+    <string name="details_delete_undo_hint">You can undo within 5 seconds after deletion</string>
+    <string name="details_not_found">Contact not found — it may have been deleted.</string>
+    <string name="details_delete_error">Could not delete contact</string>
+    <string name="details_no_phone">No phone number</string>
+
+    <!-- Additional kinship relations (the rest reuse the relation_* keys above) -->
+    <string name="relation_grandfather">Grandfather</string>
+    <string name="relation_grandmother">Grandmother</string>
+    <string name="relation_uncle_paternal">Uncle (paternal)</string>
+    <string name="relation_aunt_paternal">Aunt (paternal)</string>
+    <string name="relation_cousin_paternal">Cousin (paternal)</string>
+    <string name="relation_uncle_maternal">Uncle (maternal)</string>
+    <string name="relation_aunt_maternal">Aunt (maternal)</string>
+    <string name="relation_cousin_maternal">Cousin (maternal)</string>
+
+    <!-- Add/edit screen — T6 (Issue #27) -->
+    <string name="edit_new_title">New contact</string>
+    <string name="edit_edit_title">Edit contact</string>
+    <string name="edit_save">Save</string>
+    <string name="edit_close_description">Close</string>
+    <string name="edit_saving">Saving…</string>
+    <string name="edit_discard_title">Discard changes?</string>
+    <string name="edit_discard_message">Your edits to this contact will not be saved.</string>
+    <string name="edit_discard">Discard</string>
+    <string name="edit_keep_editing">Keep editing</string>
+    <string name="edit_add_photo">Add photo</string>
+    <string name="edit_change_photo">Change photo</string>
+    <string name="edit_remove_photo">Remove photo</string>
+    <string name="edit_photo_camera">Take with camera</string>
+    <string name="edit_photo_gallery">Choose from gallery</string>
+    <string name="edit_category_label">Category</string>
+    <string name="edit_first_name">First name</string>
+    <string name="edit_last_name">Last name</string>
+    <string name="edit_phone_label">Phone number</string>
+    <string name="edit_country_key">Country key</string>
+    <string name="edit_show_more">Show more</string>
+    <string name="edit_show_less">Show less</string>
+    <string name="edit_prefix">Prefix (Mr., Dr.)</string>
+    <string name="edit_middle_name">Middle name</string>
+    <string name="edit_suffix">Suffix (Jr.)</string>
+    <string name="edit_nickname">Nickname</string>
+    <string name="edit_file_as">File as</string>
+    <string name="edit_phonetic">Phonetic name</string>
+    <string name="edit_add_phone">Add phone</string>
+    <string name="edit_add_email">Add email</string>
+    <string name="edit_add_website">Add website</string>
+    <string name="edit_add_date">Add date</string>
+    <string name="edit_add_address">Add address</string>
+    <string name="edit_add_custom_field">Add custom field</string>
+    <string name="edit_remove_row">Remove</string>
+    <string name="edit_email_label">Email</string>
+    <string name="edit_website_label">Website</string>
+    <string name="edit_company">Company</string>
+    <string name="edit_department">Department</string>
+    <string name="edit_job_title">Job title</string>
+    <string name="edit_notes">Notes</string>
+    <string name="edit_dates_section">Dates</string>
+    <string name="edit_addresses_section">Addresses</string>
+    <string name="edit_custom_fields_section">Custom fields</string>
+    <string name="edit_account_label">Account</string>
+    <string name="edit_account_device">Device</string>
+    <string name="edit_type_custom">Custom</string>
+    <string name="edit_custom_type_placeholder">Custom type…</string>
+    <string name="edit_month">Month</string>
+    <string name="edit_day">Day</string>
+    <string name="edit_year">Year</string>
+    <string name="edit_street">Street</string>
+    <string name="edit_city">City</string>
+    <string name="edit_region">Region</string>
+    <string name="edit_postal_code">Postal code</string>
+    <string name="edit_country">Country</string>
+    <string name="edit_custom_field_label">Label</string>
+    <string name="edit_custom_field_value">Value</string>
+    <string name="edit_validation_name_or_phone">Enter a name or phone number</string>
+    <string name="edit_duplicate_warning">Similar number belongs to: %s</string>
+    <string name="edit_invalid_phone">Invalid phone number</string>
+    <string name="edit_category_prompt_title">Categorize this contact</string>
+    <string name="edit_category_prompt_later">Later</string>
+    <string name="edit_arham_birthday_hint">The birthday is tracked automatically in Arham</string>
+    <string name="edit_save_error">Could not save contact</string>
 </resources>
