@@ -79,7 +79,7 @@ internal enum class LegacySchemaLevel {
     /** FTS بستة أعمدة (بعد T3) — يشمل L3 (بوابة F-01 لم تُغيّر المخطط الفيزيائي). */
     L2_OR_L3,
 
-    /** المخطط الهدف كاملاً (incl. `contact_phones` PK يعلن NOT NULL) — لا شيم مطلوب. */
+    /** المخطط الهدف كاملاً (v2 — جداول الحقول الخمسة + عمودا الهواتف + PK يعلن NOT NULL) — لا شيم مطلوب. */
     PARITY_DONE,
 
     /** قاعدة تديرها Room أصلاً (`user_version != 0`) — يتصرف Room مباشرة. */
@@ -98,11 +98,16 @@ internal enum class LegacySchemaLevel {
  */
 internal object LegacySchemaFingerprint {
 
-    /** جداول المستخدم المستهدفة (8 فعلية + FTS — بلا الكيانين الشبحيين، ADR-0011). */
+    /** جداول الحقول القياسية الخمسة (v2 — T6 · Issue #27 · ADR-0012). */
+    private val STANDARD_FIELD_TABLES = setOf(
+        "contact_emails", "contact_addresses", "contact_dates", "contact_custom_fields", "contact_websites",
+    )
+
+    /** جداول المستخدم المستهدفة (8 فعلية + FTS + جداول الحقول القياسية الخمسة — T6 · v2). */
     private val TARGET_TABLES = setOf(
         "contacts", "contact_phones", "arham", "services", "call_events",
         "arham_inbox", "dispute_logs", "contacts_sync_checkpoints", "contacts_fts",
-    )
+    ) + STANDARD_FIELD_TABLES
 
     private val CORE_TABLES = setOf(
         "contacts", "contact_phones", "arham", "services", "call_events", "arham_inbox", "dispute_logs",
@@ -160,13 +165,73 @@ internal object LegacySchemaFingerprint {
     private val TARGET_CONTACT_COLUMN_SPECS: Set<LegacyColumn> =
         L0_CONTACT_COLUMN_SPECS + PARITY_CONTACT_COLUMN_SPECS
 
-    /** أعمدة `contact_phones` غير المفتاح الأساسي (ثابتة عبر L0..PARITY_DONE). */
+    /** أعمدة `contact_phones` غير المفتاح الأساسي — **الشكل التاريخي** (L0..L3 قبل الشيم). */
     private val CONTACT_PHONES_NON_PK_SPECS: Set<LegacyColumn> = setOf(
         LegacyColumn("contactId", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
         LegacyColumn("raw", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
         LegacyColumn("e164", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
         LegacyColumn("type", "TEXT", notNull = true, pkPosition = 0, defaultValue = "'MOBILE'"),
         LegacyColumn("isPrimary", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+    )
+
+    /**
+     * الشكل الهدف لغير المفتاح (v2 — T6): العمودان الجديدان `label`/`sortOrder`
+     * (AC 8 «تُسمَّى وتُرتَّب») — عليهما تُبنى حالة `PARITY_DONE` بعد الشيم.
+     */
+    private val CONTACT_PHONES_V2_NON_PK_SPECS: Set<LegacyColumn> =
+        CONTACT_PHONES_NON_PK_SPECS + setOf(
+            LegacyColumn("label", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("sortOrder", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+        )
+
+    /**
+     * مواصفات أعمدة جداول الحقول القياسية الخمسة (v2) — تُفحص **عند وجود الجدول حصراً**:
+     * قواعد التاريخ القديمة (L0..L3) لا تحملها، وقاعدة ما بعد الشيم (وRoom المُدارة)
+     * تحملها كاملة بمطابقة تامة.
+     */
+    private val STANDARD_FIELD_TABLE_COLUMN_SPECS: Map<String, Set<LegacyColumn>> = mapOf(
+        "contact_emails" to setOf(
+            LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
+            LegacyColumn("contactId", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("address", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("type", "TEXT", notNull = true, pkPosition = 0, defaultValue = "'PERSONAL'"),
+            LegacyColumn("label", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("sortOrder", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+        ),
+        "contact_addresses" to setOf(
+            LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
+            LegacyColumn("contactId", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("street", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("city", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("region", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("postalCode", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("country", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("type", "TEXT", notNull = true, pkPosition = 0, defaultValue = "'HOME'"),
+            LegacyColumn("sortOrder", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+        ),
+        "contact_dates" to setOf(
+            LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
+            LegacyColumn("contactId", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("type", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("label", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("month", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("day", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("year", "INTEGER", notNull = false, pkPosition = 0, defaultValue = null),
+            LegacyColumn("sortOrder", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+        ),
+        "contact_custom_fields" to setOf(
+            LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
+            LegacyColumn("contactId", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("label", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("value", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("sortOrder", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+        ),
+        "contact_websites" to setOf(
+            LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
+            LegacyColumn("contactId", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("url", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+            LegacyColumn("sortOrder", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+        ),
     )
 
     /**
@@ -245,6 +310,11 @@ internal object LegacySchemaFingerprint {
         "arham_inbox" to "id",
         "dispute_logs" to "id",
         "contacts_sync_checkpoints" to "key",
+        "contact_emails" to "id",
+        "contact_addresses" to "id",
+        "contact_dates" to "id",
+        "contact_custom_fields" to "id",
+        "contact_websites" to "id",
     )
 
     private val INVARIANT_TABLE_INDEX_SPECS: Map<String, Set<LegacyIndex>> = mapOf(
@@ -265,6 +335,21 @@ internal object LegacySchemaFingerprint {
         ),
         "dispute_logs" to emptySet(),
         "contacts_sync_checkpoints" to emptySet(),
+        "contact_emails" to setOf(
+            LegacyIndex("idx_contact_emails_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC")),
+        ),
+        "contact_addresses" to setOf(
+            LegacyIndex("idx_contact_addresses_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC")),
+        ),
+        "contact_dates" to setOf(
+            LegacyIndex("idx_contact_dates_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC")),
+        ),
+        "contact_custom_fields" to setOf(
+            LegacyIndex("idx_contact_custom_fields_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC")),
+        ),
+        "contact_websites" to setOf(
+            LegacyIndex("idx_contact_websites_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC")),
+        ),
     )
 
     private val BASE_CONTACT_INDEX_SPECS: Set<LegacyIndex> = setOf(
@@ -457,12 +542,14 @@ internal object LegacySchemaFingerprint {
         if (contactsColumns != TARGET_CONTACT_COLUMN_SPECS) return UNKNOWN
         if (!hasValidV2ContactsIndices(snapshot)) return UNKNOWN
 
-        if (ftsShapeIsTarget(snapshot) &&
+        // الحالة الهدف (v2 — T6): كامل شكل المخطط الحالي — FTS موحّد، فهارس contacts،
+        // PK هواتف يعلن NOT NULL، عمودا الهواتف الجديدان، والجداول الخمسة موجودة كاملة.
+        val reachesFullV2Parity = ftsShapeIsTarget(snapshot) &&
             hasTargetContactsIndices(snapshot) &&
-            phonesPkDeclaresNotNull(snapshot)
-        ) {
-            return PARITY_DONE
-        }
+            phonesPkDeclaresNotNull(snapshot) &&
+            phonesHaveV2Columns(snapshot) &&
+            snapshot.columnsByTable.keys.containsAll(STANDARD_FIELD_TABLES)
+        if (reachesFullV2Parity) return PARITY_DONE
 
         return when {
             ftsShapeIsTarget(snapshot) -> L2_OR_L3
@@ -474,15 +561,25 @@ internal object LegacySchemaFingerprint {
     private fun hasExpectedInvariantColumns(snapshot: LegacySchemaSnapshot, tables: Set<String>): Boolean {
         val phonesColumns = snapshot.columnsByTable["contact_phones"]
             ?.map { it.normalized() } ?: return false
-        if (phonesColumns.size != CONTACT_PHONES_NON_PK_SPECS.size + 1) return false
         val phonesPk = phonesColumns.firstOrNull { it.name == "id" } ?: return false
         if (phonesPk.type != "INTEGER" || phonesPk.pkPosition != 1 || phonesPk.defaultValue != null) {
             return false
         }
+        // شكلان مسموحان: التاريخي (L0..L3 — ستة أعمدة) والهدف (v2 — بعمودي label/sortOrder).
         val phonesNonPk = phonesColumns.filterNot { it.name == "id" }.toSet()
-        if (phonesNonPk != CONTACT_PHONES_NON_PK_SPECS) return false
+        if (phonesNonPk != CONTACT_PHONES_NON_PK_SPECS && phonesNonPk != CONTACT_PHONES_V2_NON_PK_SPECS) {
+            return false
+        }
 
         for ((table, expectedSpecs) in INVARIANT_TABLE_COLUMN_SPECS) {
+            val actualList = snapshot.columnsByTable[table]?.map { it.normalized() } ?: return false
+            if (actualList.size != expectedSpecs.size || actualList.toSet() != expectedSpecs) {
+                return false
+            }
+        }
+        // جداول الحقول القياسية (v2): تُفحص عند وجودها حصراً — القواعد التاريخية بلا جداول.
+        for ((table, expectedSpecs) in STANDARD_FIELD_TABLE_COLUMN_SPECS) {
+            if (table !in tables) continue
             val actualList = snapshot.columnsByTable[table]?.map { it.normalized() } ?: return false
             if (actualList.size != expectedSpecs.size || actualList.toSet() != expectedSpecs) {
                 return false
@@ -609,4 +706,11 @@ internal object LegacySchemaFingerprint {
         snapshot.columnsByTable["contact_phones"]
             ?.firstOrNull { it.pkPosition > 0 }
             ?.notNull == true
+
+    /** `contact_phones` بالشكل الهدف v2 (عمودا `label`/`sortOrder` — شرط `PARITY_DONE`). */
+    private fun phonesHaveV2Columns(snapshot: LegacySchemaSnapshot): Boolean =
+        snapshot.columnsByTable["contact_phones"]
+            ?.filterNot { it.pkPosition > 0 }
+            ?.map { it.normalized() }
+            ?.toSet() == CONTACT_PHONES_V2_NON_PK_SPECS
 }

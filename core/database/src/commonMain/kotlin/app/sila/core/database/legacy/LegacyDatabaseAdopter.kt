@@ -7,6 +7,7 @@ import androidx.sqlite.async.prepare
 import androidx.sqlite.async.step
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import app.sila.core.common.ArabicTextNormalizer
+import app.sila.core.database.StandardFieldTablesDdl
 
 /** فشل آمن: مخطط قاعدة غير مصنَّف — لا يُعدَّل ولا يُفتح (فحص الدخول قبل أي شيء). */
 internal class LegacySchemaUnknownException(safeSummary: String) :
@@ -34,13 +35,17 @@ internal data class LegacyAdoptionResult(
  *
  * قواعد لا تُكسر:
  * - **لا `Migration(0,1)`** — الاعتماد عبر «إنشاء/تحقق إصدار-صفر» في Room: الكيانات تطابق
- *   الحقيقة الفيزيائية بعد الشيم، وRoom يتحقق ويُسجل `user_version = 1` عند أول فتح.
+ *   الحقيقة الفيزيائية بعد الشيم، وRoom يتحقق ويُسجل إصدار مخططه الحالي
+ *   (`SILA_ROOM_VERSION` — v2 منذ T6) عند أول فتح. لذلك **يجب أن يوصل الشيم القاعدة
+ *   لشكل المخطط الحالي كاملاً** — أعمدة التكافؤ التاريخية وجداول الحقول القياسية الخمسة
+ *   وعمودا `contact_phones` الجديدان (T6 · Issue #27) — إذ تتحقق Room من مخطط
+ *   إصدار-صفر مباشرةً ضد كيانات المخطط الحالي، لا ضد شكل v1 التاريخي.
  * - **فشل آمن**: مخطط غير مصنَّف (مشغّلات/FKs/جداول غير معروفة/أعمدة خارج الهدف) ⇒ نسخة
  *   احتياطية ثم رمي [LegacySchemaUnknownException] — **لا تعديل إطلاقاً**.
  * - **لا دمج ولا إزالة تكرار**: كل سجلات المستخدم تُحفظ كما هي (Decision 2 — فهرس
  *   `systemContactId` غير فريد).
  * - الشيم **idempotent**: يستهدف فجوات الحالة (أعمدة غائبة/PK بلا NOT NULL/FTS بأعمدة
- *   ناقصة) — فحالات الانقطاع الجزئي تُستأنف بأمان.
+ *   ناقصة/جداول قياسية غائبة) — فحالات الانقطاع الجزئي تُستأنف بأمان.
  */
 internal class LegacyDatabaseAdopter(
     private val dbFilePath: String,
@@ -237,8 +242,10 @@ internal class LegacyDatabaseAdopter(
             try {
                 ensureContactParityColumns(conn)
                 rebuildContactPhonesWithNotNullPk(conn)
+                ensurePhoneParityColumns(conn)
                 rebuildFtsIfNeeded(conn)
                 ensureCheckpointsTable(conn)
+                ensureStandardFieldTables(conn)
                 normalizeContactsIndices(conn)
                 ensurePhonesIndices(conn)
                 backfillFtsFromContacts(conn)
@@ -288,10 +295,13 @@ internal class LegacyDatabaseAdopter(
                 raw TEXT NOT NULL,
                 e164 TEXT NOT NULL,
                 type TEXT NOT NULL DEFAULT 'MOBILE',
-                isPrimary INTEGER NOT NULL DEFAULT 0
+                isPrimary INTEGER NOT NULL DEFAULT 0,
+                label TEXT,
+                sortOrder INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent(),
         )
+        // الأعمدة الجديدة (label/sortOrder) تأخذ قيمها الافتراضية — بيانات المستخدم القديمة كما هي.
         conn.executeSQL(
             """
             INSERT INTO contact_phones (id, contactId, raw, e164, type, isPrimary)
@@ -300,6 +310,32 @@ internal class LegacyDatabaseAdopter(
         )
         conn.executeSQL("DROP TABLE contact_phones_legacy_shim")
         // فهارس الجدول المُعاد تسميته سقطت مع DROP — تُعاد إنشاؤها في ensurePhonesIndices.
+    }
+
+    /**
+     * عمودا `contact_phones` الجديدان في v2 (T6 · AC 8 «تُسمَّى وتُرتَّب») — غير هدميين
+     * وidempotent (يُضاف الغائب فقط). يُنفَّذ بعد إعادة البناء فيغطي الحالتين: جدول
+     * مُعاد بناؤه يحمل العمودين أصلاً، وجدول تاريخي سليم PK يحتاج الإضافة.
+     */
+    private suspend fun ensurePhoneParityColumns(conn: SQLiteConnection) {
+        val existing = mutableSetOf<String>()
+        conn.prepare("PRAGMA table_info(contact_phones)").use { stmt ->
+            while (stmt.step()) existing += stmt.getText(1)
+        }
+        if ("label" !in existing) conn.executeSQL("ALTER TABLE contact_phones ADD COLUMN label TEXT")
+        if ("sortOrder" !in existing) {
+            conn.executeSQL("ALTER TABLE contact_phones ADD COLUMN sortOrder INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    /**
+     * جداول الحقول القياسية الخمسة (v2 — T6 · Issue #27) بDDL وحيد مشترك مع `MIGRATION_1_2`
+     * ([StandardFieldTablesDdl]) — يجب وجودها قبل فتح Room لأن قواعد إصدار-صفر تتحقق
+     * مباشرةً ضد كيانات المخطط الحالي. جداول فارغة جديدة — لا بيانات تُنقل إليها.
+     */
+    private suspend fun ensureStandardFieldTables(conn: SQLiteConnection) {
+        StandardFieldTablesDdl.CREATE_TABLE_STATEMENTS.forEach { conn.executeSQL(it) }
+        StandardFieldTablesDdl.CREATE_INDEX_STATEMENTS.forEach { conn.executeSQL(it) }
     }
 
     /**

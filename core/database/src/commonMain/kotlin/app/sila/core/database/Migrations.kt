@@ -9,8 +9,10 @@ import androidx.sqlite.async.executeSQL
  *
  * ## MIGRATION_1_2 — T6 (Issue #27): جداول الحقول القياسية متعددة القيم
  *
- * الجداول المضافة (أعمدة كل جدول تطابق كيان Room المُصرَّح حرفياً — التحقق عبر
- * `MigrationTestHelper` على مخططي 1.json/2.json):
+ * الجداول المضافة (أعمدة كل جدول تطابق كيان Room المُصرَّح حرفياً — DDL من مصدر وحيد
+ * [StandardFieldTablesDdl]، والتحقق الفعلي عبر اختبار [MIGRATION_1_2] المباشر على اتصال
+ * خام بشكل v1 — `core/database/src/commonTest/.../T6MigrationTest.kt` — إذ لا يوجد
+ * تصدير مخطط 1.json):
  * - `contact_emails` — بريد جهة الاتصال (معكوس من المنصة — ADR-0012).
  * - `contact_addresses` — العناوين البريدية (صِلَة-فقط — ADR-0012).
  * - `contact_dates` — التواريخ الهامة/الميلاد (صِلَة-فقط؛ أساس اشتقاق مناسبات أرحام — J-4).
@@ -21,83 +23,15 @@ import androidx.sqlite.async.executeSQL
  * - `label TEXT` — تسمية مخصصة (صِلَة-فقط).
  * - `sortOrder INTEGER NOT NULL DEFAULT 0` — ترتيب داخل المجموعة.
  *
- * **غير هدمي حصراً:** `CREATE TABLE` + `ALTER TABLE ADD COLUMN` — لا إعادة بناء ولا فقد
- * بيانات؛ جداول FTS لا تُمس (لا أعمدة جديدة فيها — ADR-0011 §FTS4). بلا قيود FK فيزيائية
- * (توثيقية فقط — ADR-0011 · Decision 5).
+ * **غير هدمي حصراً**: `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ADD COLUMN` — بلا
+ * إسقاطات ولا نسخ بيانات، وFTS غير مُماس إطلاقاً. نفس الجداول/الأعمدة تُنشئها كذلك
+ * شيم الاعتماد الآمن للقواعد `user_version = 0` (الذي يوصلها لشكل المخطط الحالي كاملاً
+ * — انظر [StandardFieldTablesDdl]) — المساران ينتجان الشكل الفيزيائي نفسه حرفاً.
  */
 val MIGRATION_1_2: Migration = object : Migration(1, 2) {
     override suspend fun migrate(db: SQLiteConnection) {
-        db.executeSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `contact_emails` (
-                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                `contactId` INTEGER NOT NULL,
-                `address` TEXT NOT NULL,
-                `type` TEXT NOT NULL DEFAULT 'PERSONAL',
-                `label` TEXT,
-                `sortOrder` INTEGER NOT NULL DEFAULT 0
-            )
-            """.trimIndent()
-        )
-        db.executeSQL("CREATE INDEX IF NOT EXISTS `idx_contact_emails_cid` ON `contact_emails` (`contactId`)")
-
-        db.executeSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `contact_addresses` (
-                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                `contactId` INTEGER NOT NULL,
-                `street` TEXT,
-                `city` TEXT,
-                `region` TEXT,
-                `postalCode` TEXT,
-                `country` TEXT,
-                `type` TEXT NOT NULL DEFAULT 'HOME',
-                `sortOrder` INTEGER NOT NULL DEFAULT 0
-            )
-            """.trimIndent()
-        )
-        db.executeSQL("CREATE INDEX IF NOT EXISTS `idx_contact_addresses_cid` ON `contact_addresses` (`contactId`)")
-
-        db.executeSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `contact_dates` (
-                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                `contactId` INTEGER NOT NULL,
-                `type` TEXT NOT NULL,
-                `label` TEXT,
-                `month` INTEGER NOT NULL,
-                `day` INTEGER NOT NULL,
-                `year` INTEGER,
-                `sortOrder` INTEGER NOT NULL DEFAULT 0
-            )
-            """.trimIndent()
-        )
-        db.executeSQL("CREATE INDEX IF NOT EXISTS `idx_contact_dates_cid` ON `contact_dates` (`contactId`)")
-
-        db.executeSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `contact_custom_fields` (
-                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                `contactId` INTEGER NOT NULL,
-                `label` TEXT NOT NULL,
-                `value` TEXT NOT NULL,
-                `sortOrder` INTEGER NOT NULL DEFAULT 0
-            )
-            """.trimIndent()
-        )
-        db.executeSQL("CREATE INDEX IF NOT EXISTS `idx_contact_custom_fields_cid` ON `contact_custom_fields` (`contactId`)")
-
-        db.executeSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `contact_websites` (
-                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                `contactId` INTEGER NOT NULL,
-                `url` TEXT NOT NULL,
-                `sortOrder` INTEGER NOT NULL DEFAULT 0
-            )
-            """.trimIndent()
-        )
-        db.executeSQL("CREATE INDEX IF NOT EXISTS `idx_contact_websites_cid` ON `contact_websites` (`contactId`)")
+        StandardFieldTablesDdl.CREATE_TABLE_STATEMENTS.forEach { db.executeSQL(it) }
+        StandardFieldTablesDdl.CREATE_INDEX_STATEMENTS.forEach { db.executeSQL(it) }
 
         // توسعة غير هدمية لجدول الهواتف القائم (صفوف المستخدمين محفوظة حرفياً).
         db.executeSQL("ALTER TABLE `contact_phones` ADD COLUMN `label` TEXT")

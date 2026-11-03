@@ -19,6 +19,7 @@ import app.sila.core.common.PhoneNormalizer
 import app.sila.core.database.SilaRoomDatabase
 import app.sila.core.database.SilaRoomDatabaseConstructor
 import app.sila.core.database.SILA_MIGRATIONS
+import app.sila.core.database.SILA_ROOM_VERSION
 import app.sila.core.database.entity.ArhamEntity
 import app.sila.core.database.entity.ArhamInboxEntity
 import app.sila.core.database.entity.CallEventEntity
@@ -69,13 +70,14 @@ import kotlinx.coroutines.withContext
  * وحيد (Single Source of Truth — ARCHITECTURE.md §5 · ADR-0011).
  *
  * PR B (F-04/F-05) — قواعد ADR-0011 الصارمة:
- * - **المخطط:** `SilaRoomDatabase` (`@Database(version = 2)` — v1→v2 ترحيل T6 غير هدمي)
- *   هو المنتِج الوحيد للجداول عبر KSP — لا CREATE TABLE يدوي هنا إطلاقاً. التثبيت الجديد
- *   تنشئ Room مباشرة.
+ * - **المخطط:** `SilaRoomDatabase` (`@Database(version = SILA_ROOM_VERSION)` — v1→v2 ترحيل
+ *   T6 غير هدمي) هو المنتِج الوحيد للجداول عبر KSP — لا CREATE TABLE يدوي هنا إطلاقاً.
+ *   التثبيت الجديد تنشئ Room مباشرة.
  * - **الاعتماد الآمن:** قواعد المستخدمين القديمة (`user_version = 0`) تُعتمد قبل فتح Room
  *   عبر [LegacyDatabaseAdopter]: بصمة بنية → تصنيف صارم → نسخة واقية موثقة
  *   (`sila_local.pre-room-backup` — VACUUM INTO بلا نسخ خام تحت WAL) → شيم ضيق داخل
- *   معاملة واحدة → Room يتحقق ويسجل `user_version = 1` عند أول فتح. ليست `Migration(0,1)`.
+ *   معاملة واحدة → Room يتحقق ويسجل إصداره الحالي (`SILA_ROOM_VERSION`) عند أول فتح.
+ *   ليست `Migration(0,1)`.
  *   النسخة الواقية تُحذف بعد أول عملية Room ناجحة (اعتماد موثق) حصراً.
  * - **مسار الكتابة المنقسم:** الكتابات المركّبة (upsertContact/deleteContact(s)/البذر/
  *   applySyncBatch/cleanupExpiredData) بـ SQL خام **حرفي** داخل
@@ -151,7 +153,7 @@ class LocalSilaDatabase internal constructor(
     /**
      * قاعدة Room الفعلية — تُبنى مرة واحدة: بعد الاعتماد الآمن للمسارات الملفية، أو
      * في الذاكرة لحاضنة الاختبارات. الفتح نفسه (إنشاء الجداول/التحقق/تسجيل
-     * `user_version = 1`) يتم بترف عند أول عملية.
+     * `user_version = SILA_ROOM_VERSION`) يتم بترف عند أول عملية.
      */
     val room: SilaRoomDatabase = buildRoomDatabase()
 
@@ -229,8 +231,9 @@ class LocalSilaDatabase internal constructor(
 
     /**
      * حذف النسخة الواقية بعد اكتمال القراءات الأولية والتحقق من سلامة القاعدة الحيّة (SR-04).
-     * لا تُحذف النسخة إلا بعد نجاح: فتح Room، التحقق من المخطط، `user_version == 1`،
-     * `PRAGMA integrity_check == "ok"`، قابلية قراءة `contacts_fts`، وقراءات DAOs الأربعة.
+     * لا تُحذف النسخة إلا بعد نجاح: فتح Room، التحقق من المخطط، `user_version` =
+     * [SILA_ROOM_VERSION]، `PRAGMA integrity_check == "ok"`، قابلية قراءة `contacts_fts`،
+     * وقراءات DAOs الأربعة.
      */
     private suspend fun deleteBackupAfterVerifiedAdoption() {
         if (dbFilePath == ":memory:") return
@@ -253,9 +256,11 @@ class LocalSilaDatabase internal constructor(
             adoptionStageHook?.invoke(AdoptionVerificationStage.VERSION_CHECK)
             transactor.usePrepared("PRAGMA user_version") { stmt ->
                 val version = if (stmt.step()) stmt.getLong(0).toInt() else -1
-                if (version != 1) {
+                // الإصدار المتوقع = إصدار Room الحالي ([SILA_ROOM_VERSION]) — Room يختم
+                // إصداره على القاعدة الحية بعد الافتتاح/الترحيل (T6: v2 بعد MIGRATION_1_2).
+                if (version != SILA_ROOM_VERSION) {
                     throw LegacyAdoptionException(
-                        "PR_B adoption verification: expected user_version=1, actual=$version",
+                        "PR_B adoption verification: expected user_version=$SILA_ROOM_VERSION, actual=$version",
                     )
                 }
             }

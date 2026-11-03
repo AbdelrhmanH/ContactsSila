@@ -27,12 +27,19 @@ import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.database.entity.ServiceEntity
 
 /**
+ * إصدار مخطط Room الحالي — مصدر الحقيقة الوحيد للإصدار: يُستهلك في `@Database`
+ * وفي التحقق اللاحق للاعتماد الآمن (`PRAGMA user_version`) حرفاً — أي ترقية مستقبلي
+ * يعدّل هذا الثابت حصراً (T6 · Issue #27 · ADR-0011/0012).
+ */
+const val SILA_ROOM_VERSION: Int = 2
+
+/**
  * قاعدة بيانات Room 3 KMP المركزية لتطبيق صِلَة — **صاحبة المخطط الوحيدة**
  * (Single Source of Truth — ARCHITECTURE.md §5 · DATA_MODEL.md §2 · ADR-0011).
  *
  * PR B (F-04/F-05): هذه الفئة لم تعد شلاً تجميعياً — هي المنتِج الفعلي والوحيد
  * لجداول الإنتاج ومخططها عبر KSP (`SilaRoomDatabase_Impl`)، بمحرك
- * `BundledSQLiteDriver` على أندرويد و iOS معاً، والإصدار الفعلي `version = 2`
+ * `BundledSQLiteDriver` على أندرويد و iOS معاً، والإصدار الفعلي [SILA_ROOM_VERSION]
  * (قواعد المستخدمين القائمة من v1 تُرحَّل عبر `MIGRATION_1_2` — T6/Issue #27؛
  * قواعد `user_version = 0` القديمة تُعتمَد عبر مسار create/validate المُوثَّق
  * في ADR-0011 — ليس `Migration(0,1)`).
@@ -52,7 +59,7 @@ import app.sila.core.database.entity.ServiceEntity
  * الدلالات الفيزيائية نفسها: مستقل بلا `content=`، توكنِزِر SIMPLE، `docid == contacts.id`.
  */
 @Database(
-    version = 2,
+    version = SILA_ROOM_VERSION,
     exportSchema = true,
     entities = [
         ContactEntity::class,
