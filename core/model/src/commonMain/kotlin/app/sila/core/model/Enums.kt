@@ -148,10 +148,35 @@ enum class CallDirection {
     MISSED
 }
 
+/**
+ * منشأ الدليل لحدث المكالمة (ADR-0006 §عقد `CallEventSource`) — تمثيلٌ للمصدر لا ضماناً
+ * بأن كل مصدر يوفر كل الحقول.
+ *
+ * قِيَم `CALL_LOG` و`OBSERVER` قِيَم إرثية من المرحلة 0: تُحفظ في البيانات القديمة
+ * وتدور عبر `valueOf` أثناء الهجرة (خطة T8 §G.3) ولا يكتبها أي مسار جديد.
+ */
 @Serializable
 enum class CallSource {
+    /** إرثي: سجل اتصال النظام — القراءة منه ممنوعة (`READ_CALL_LOG`)، احتُفظ بالقيمة للبيانات القديمة فقط. */
+    @Deprecated("قيمة إرثية للبيانات القديمة فقط — لا يكتبها أي مسار جديد (ADR-0006)", level = DeprecationLevel.WARNING)
     CALL_LOG,
+
+    /** مكالمة بدأتها صِلَة عبر نية اتصال من داخل التطبيق. */
     IN_APP,
+
+    /** إرثي: مراقب المرحلة 0 العام — استُبدل بمصادر المراقبة المسماة أدناه. */
+    @Deprecated("قيمة إرثية للبيانات القديمة فقط — استُبدلت بمصادر المراقبة المسماة (ADR-0006)", level = DeprecationLevel.WARNING)
     OBSERVER,
-    MANUAL
+
+    /** إدخال/تأكيد المستخدم اليدوي. */
+    MANUAL,
+
+    /** دور فرز المكالمات الاختياري على Android (`CallScreeningService` بعد `ROLE_CALL_SCREENING`). */
+    ANDROID_CALL_SCREENING,
+
+    /** مراقب حالة الهاتف على Android (`TelephonyCallback`/`PhoneStateListener`) — حالة فقط بلا هوية. */
+    ANDROID_TELEPHONY_OBSERVER,
+
+    /** مراقب المكالمات على iOS (`CXCallObserver`) ضمن حياة التطبيق فقط. */
+    IOS_CALL_OBSERVER
 }
