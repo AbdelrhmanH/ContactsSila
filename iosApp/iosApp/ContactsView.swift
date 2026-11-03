@@ -19,6 +19,11 @@ struct ContactsView: View {
     var store: ContactsViewModelStore
     let language: AppLanguage
 
+    /// نقرة الصف في الوضع العادي تفتح التفاصيل (معيار قبول T6 · Issue #27) —
+    /// معايرة إضافية يملكها الغلاف المشترك عبر NavigationStack التبويب؛ جسر
+    /// T3 (store) يبقى كما هو بلا أي تغيير (تجميده).
+    var onOpenContact: (Int64) -> Void = { _ in }
+
     @Environment(\.scenePhase) private var scenePhase
 
     /// تأكيد الحذف عرض عابر محلي (نفس `remember` في Compose) — الفعل عبر Intent.
@@ -186,7 +191,8 @@ struct ContactsView: View {
                 onToggleSelect: { store.toggleSelect($0) },
                 onToggleFavorite: { store.toggleFavorite($0) },
                 onCall: { store.call($0) },
-                onSwipe: { store.swipe($0, $1) }
+                onSwipe: { store.swipe($0, $1) },
+                onOpenContact: onOpenContact
             )
         }
     }
@@ -532,6 +538,7 @@ private struct ContactsGroupedList: View {
     let onToggleFavorite: (Contact) -> Void
     let onCall: (Contact) -> Void
     let onSwipe: (Contact, ContactSwipeAction) -> Void
+    var onOpenContact: (Int64) -> Void = { _ in }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -583,7 +590,8 @@ private struct ContactsGroupedList: View {
                 strings: strings,
                 onToggleSelect: onToggleSelect,
                 onToggleFavorite: onToggleFavorite,
-                onCall: onCall
+                onCall: onCall,
+                onOpenContact: onOpenContact
             )
         } else {
             ContactsRow(
@@ -592,7 +600,8 @@ private struct ContactsGroupedList: View {
                 strings: strings,
                 onToggleSelect: onToggleSelect,
                 onToggleFavorite: onToggleFavorite,
-                onCall: onCall
+                onCall: onCall,
+                onOpenContact: onOpenContact
             )
             // دلالة البداية/النهاية منطقية من تفضيلات المستخدم وتنعكس تلقائياً
             // في RTL (نفس دلالة SwipeToDismissBox المنطقية في Compose)؛ الفعل
@@ -634,6 +643,7 @@ private struct ContactsRow: View {
     let onToggleSelect: (Contact) -> Void
     let onToggleFavorite: (Contact) -> Void
     let onCall: (Contact) -> Void
+    var onOpenContact: (Int64) -> Void = { _ in }
 
     private var isSelected: Bool {
         state.selection.contains(KotlinLong(value: contact.id))
@@ -685,11 +695,14 @@ private struct ContactsRow: View {
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-        // نقرة الصف في وضع العادي = «التفاصيل» — لكن شاشة/ورقة التفاصيل نطاق T6،
-        // فالنقرة العادية مؤجلة عمداً ولا تبدأ اتصالاً (نفس قرار T3 الموثق).
+        // نقرة الصف في الوضع العادي تفتح التفاصيل (معيار قبول T6 · Issue #27) —
+        // المعايرة onOpenContact يملكها الغلاف المشترك عبر NavigationStack التبويب
+        // (جسر T3: store والتأثيرات كما هي بلا تغيير).
         .onTapGesture {
             if state.isSelectionMode {
                 onToggleSelect(contact)
+            } else {
+                onOpenContact(contact.id)
             }
         }
         // ضغطة مطولة تفتح الاختيار المتعدد وتحدد الصف المضغوط (عقد T3).

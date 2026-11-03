@@ -4,9 +4,17 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<!-- F-03: سبب الوصول لجهات الاتصال — إلزامي لطلب CNContactStore.authorization,
+	<!-- F-03: سبب الوصول لجهات الاتصال — إلزامي لطلب CNContactStore.authorization،
 	     والطلب يُطلق من تدفق التهيئة الأول حصراً (OnboardingViewModelStore). -->
 	<key>NSContactsUsageDescription</key>
 	<string>ContactsSila needs access to your contacts to organize them into categories and gently remind you to keep in touch with your family — your data stays on your device only.</string>
+	<!-- T6 (Issue #27): مخططات التطبيقات المتصلة — canOpenURL لكاشف
+	     ConnectedAppsDetector (حد أقصى 50 مخططاً؛ القائمة المغلقة نفسها أندرويد). -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+		<string>tg</string>
+		<string>sgnl</string>
+	</array>
 </dict>
 </plist>
