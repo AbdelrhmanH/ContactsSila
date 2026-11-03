@@ -162,14 +162,16 @@ final class ContactEditViewModelStore {
     }
 
     /// شهر/يوم إلزاميان للفعل، والسنة اختيارية (عيد ميلاد بلا سنة شائع).
-    /// أنواع Swift الأصلية هنا؛ الحدود الكوتلينية تُعلَّب عند الإرسال (SKIE لا يربط `Int?`).
-    func updateDate(_ key: Int64, type: String, month: Int32?, day: Int32?, year: Int32?) {
+    /// أنواع Swift أصلية (`Int?`) — `.intValue` على KotlinInt (NSNumber) يعيد `Int` هنا.
+    /// الحدود الكوتلينية تُعلَّب عند الإرسال، وما لا يتسع لـ Int32 يُعامل كقيمة فارغة —
+    /// بمرآة `toIntOrNull` في Compose (تجاوز النطاق = null لا قيمة مبتورة).
+    func updateDate(_ key: Int64, type: String, month: Int?, day: Int?, year: Int?) {
         send(ContactEditIntentUpdateDate(
             key: key,
             type: type,
-            month: month.map { KotlinInt(value: $0) },
-            day: day.map { KotlinInt(value: $0) },
-            year: year.map { KotlinInt(value: $0) }
+            month: month.flatMap { Int32(exactly: $0) }.map { KotlinInt(value: $0) },
+            day: day.flatMap { Int32(exactly: $0) }.map { KotlinInt(value: $0) },
+            year: year.flatMap { Int32(exactly: $0) }.map { KotlinInt(value: $0) }
         ))
     }
 

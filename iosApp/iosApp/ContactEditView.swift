@@ -419,11 +419,13 @@ struct ContactEditView: View {
     }
 
     /// حقل رقمي اختياري (شهر/يوم/سنة) — `nil` = فارغ؛ القيم غير الصالحة تُهمل (عرض فقط).
+    /// `Int?` (وليس Int32?): `.intValue` على KotlinInt المعلَّبة يعيد `Int` في Swift —
+    /// والحد النهائي Int32 يُفرَض عند تعليب الحدّ في الـ store.
     private func numberField(
         _ placeholder: String,
-        value: Int32?,
+        value: Int?,
         width: CGFloat,
-        onChange: @escaping (Int32?) -> Void
+        onChange: @escaping (Int?) -> Void
     ) -> some View {
         TextField(
             placeholder,
@@ -431,7 +433,7 @@ struct ContactEditView: View {
                 get: { value.map(String.init) ?? "" },
                 set: { text in
                     let trimmed = text.trimmingCharacters(in: .whitespaces)
-                    onChange(trimmed.isEmpty ? nil : Int32(trimmed))
+                    onChange(trimmed.isEmpty ? nil : Int(trimmed))
                 }
             )
         )

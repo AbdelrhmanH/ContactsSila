@@ -262,8 +262,9 @@ struct ContactDetailsView: View {
                     Text(strings.arhamFrequencyLabel(frequency))
                     Spacer()
                     if let days = store.state.arhamDaysSinceLastContact {
-                        // KotlinLong : NSNumber (تصدير K/N) — لا مفتاح `.value` في Swift؛ موصّلات NSNumber هي الصحيحة.
-                        Text(strings.arhamDaysLabel(days.longLongValue))
+                        // KotlinLong : NSNumber (تصدير K/N) — لا مفتاح `.value` في Swift؛
+                        // `longLongValue` مُعاد تسميته في واجهة Swift إلى `int64Value` (Int64).
+                        Text(strings.arhamDaysLabel(days.int64Value))
                             .font(.callout)
                             .foregroundColor(.secondary)
                     }
