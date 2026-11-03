@@ -4,8 +4,13 @@ import androidx.room3.Dao
 import androidx.room3.Insert
 import androidx.room3.Query
 import androidx.room3.Upsert
+import app.sila.core.database.entity.ContactAddressEntity
+import app.sila.core.database.entity.ContactCustomFieldEntity
+import app.sila.core.database.entity.ContactDateEntity
+import app.sila.core.database.entity.ContactEmailEntity
 import app.sila.core.database.entity.ContactEntity
 import app.sila.core.database.entity.ContactPhoneEntity
+import app.sila.core.database.entity.ContactWebsiteEntity
 import app.sila.core.model.Category
 import kotlinx.coroutines.flow.Flow
 
@@ -78,10 +83,14 @@ interface ContactEntityDao {
 
     // ===== contact_phones =====
 
-    @Query("SELECT * FROM contact_phones WHERE contactId = :contactId ORDER BY id ASC")
+    @Query("SELECT * FROM contact_phones WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
     suspend fun getPhonesForContact(contactId: Long): List<ContactPhoneEntity>
 
-    @Query("SELECT * FROM contact_phones ORDER BY id ASC")
+    /** مرصد هواتف جهة (T6 — تفاصيل جهة الاتصال تفاعلية عبر InvalidationTracker). */
+    @Query("SELECT * FROM contact_phones WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    fun observePhonesForContact(contactId: Long): Flow<List<ContactPhoneEntity>>
+
+    @Query("SELECT * FROM contact_phones ORDER BY sortOrder ASC, id ASC")
     suspend fun getAllPhones(): List<ContactPhoneEntity>
 
     @Query("DELETE FROM contact_phones WHERE contactId = :contactId")
@@ -89,4 +98,91 @@ interface ContactEntityDao {
 
     @Insert
     suspend fun insertPhones(phones: List<ContactPhoneEntity>)
+
+    // ===== contact_emails (T6 · v2) =====
+
+    @Query("SELECT * FROM contact_emails WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    suspend fun getEmailsForContact(contactId: Long): List<ContactEmailEntity>
+
+    @Query("SELECT * FROM contact_emails WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    fun observeEmailsForContact(contactId: Long): Flow<List<ContactEmailEntity>>
+
+    @Query("DELETE FROM contact_emails WHERE contactId = :contactId")
+    suspend fun deleteEmailsForContact(contactId: Long)
+
+    @Insert
+    suspend fun insertEmails(emails: List<ContactEmailEntity>)
+
+    // ===== contact_addresses (T6 · v2) =====
+
+    @Query("SELECT * FROM contact_addresses WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAddressesForContact(contactId: Long): List<ContactAddressEntity>
+
+    @Query("SELECT * FROM contact_addresses WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    fun observeAddressesForContact(contactId: Long): Flow<List<ContactAddressEntity>>
+
+    @Query("DELETE FROM contact_addresses WHERE contactId = :contactId")
+    suspend fun deleteAddressesForContact(contactId: Long)
+
+    @Insert
+    suspend fun insertAddresses(addresses: List<ContactAddressEntity>)
+
+    // ===== contact_dates (T6 · v2) =====
+
+    @Query("SELECT * FROM contact_dates WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    suspend fun getDatesForContact(contactId: Long): List<ContactDateEntity>
+
+    @Query("SELECT * FROM contact_dates WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    fun observeDatesForContact(contactId: Long): Flow<List<ContactDateEntity>>
+
+    @Query("DELETE FROM contact_dates WHERE contactId = :contactId")
+    suspend fun deleteDatesForContact(contactId: Long)
+
+    @Insert
+    suspend fun insertDates(dates: List<ContactDateEntity>)
+
+    // ===== contact_custom_fields (T6 · v2) =====
+
+    @Query("SELECT * FROM contact_custom_fields WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    suspend fun getCustomFieldsForContact(contactId: Long): List<ContactCustomFieldEntity>
+
+    @Query("SELECT * FROM contact_custom_fields WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    fun observeCustomFieldsForContact(contactId: Long): Flow<List<ContactCustomFieldEntity>>
+
+    @Query("DELETE FROM contact_custom_fields WHERE contactId = :contactId")
+    suspend fun deleteCustomFieldsForContact(contactId: Long)
+
+    @Insert
+    suspend fun insertCustomFields(fields: List<ContactCustomFieldEntity>)
+
+    // ===== contact_websites (T6 · v2) =====
+
+    @Query("SELECT * FROM contact_websites WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    suspend fun getWebsitesForContact(contactId: Long): List<ContactWebsiteEntity>
+
+    @Query("SELECT * FROM contact_websites WHERE contactId = :contactId ORDER BY sortOrder ASC, id ASC")
+    fun observeWebsitesForContact(contactId: Long): Flow<List<ContactWebsiteEntity>>
+
+    @Query("DELETE FROM contact_websites WHERE contactId = :contactId")
+    suspend fun deleteWebsitesForContact(contactId: Long)
+
+    @Insert
+    suspend fun insertWebsites(websites: List<ContactWebsiteEntity>)
+
+    // ===== قراءات جماعية (تغذية كاش الذاكرة — قراءة كاملة حصراً · ADR-0012) =====
+
+    @Query("SELECT * FROM contact_emails ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAllEmails(): List<ContactEmailEntity>
+
+    @Query("SELECT * FROM contact_addresses ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAllAddresses(): List<ContactAddressEntity>
+
+    @Query("SELECT * FROM contact_dates ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAllDates(): List<ContactDateEntity>
+
+    @Query("SELECT * FROM contact_custom_fields ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAllCustomFields(): List<ContactCustomFieldEntity>
+
+    @Query("SELECT * FROM contact_websites ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAllWebsites(): List<ContactWebsiteEntity>
 }

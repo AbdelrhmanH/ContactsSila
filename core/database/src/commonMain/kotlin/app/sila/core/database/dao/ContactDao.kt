@@ -2,6 +2,7 @@ package app.sila.core.database.dao
 
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
+import app.sila.core.model.RecentInteraction
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -22,6 +23,15 @@ interface ContactDao {
     fun observeCategoryCounts(): Flow<Map<Category, Int>>
 
     suspend fun getContactById(id: Long): Contact?
+
+    /**
+     * مرصد تفاصيل جهة واحدة تفاعلي (T6 — Issue #27): يبثّ الحالة الكاملة (الأطفال
+     * والأرحام ضمنها) عند كل كتابة ناجحة. يُبنى فوق كاش الذاكرة — كل مسارات الكتابة
+     * (`upsertContact`/`applySyncBatch`/`upsertArhamInfo`/`recordContactCall`) تُحدّثه
+     * بعد نجاح COMMIT حصراً، فلا انحراف بين العرض والقرص.
+     * القبور تُبثّ `null` (حُذفت — الشاشة تُظهر الخروج/الرسالة المناسبة).
+     */
+    fun observeContactById(id: Long): Flow<Contact?>
 
     suspend fun upsertContact(contact: Contact)
 
@@ -55,4 +65,24 @@ interface ContactDao {
      * `IN_APP` محلياً — بلا `READ_CALL_LOG` وبلا أي وصول شبكي).
      */
     suspend fun recordInAppCallAttempt(callLogId: String, e164: String, timestampMillis: Long)
+
+    /**
+     * آخر N تفاعلات لأرقام جهة واحدة (T6 — «التفاعلات الأخيرة» في شاشة التفاصيل ·
+     * Issue #27): قراءة حصراً من `call_events` (Room SSOT) — لا CallLog منصوي هنا.
+     */
+    suspend fun getRecentCallEvents(e164s: List<String>, limit: Int): List<RecentInteraction>
+
+    /**
+     * فحص التكرار المحلي (T6 · J-9): جهات حيّة تملك الرقم [e164] حرفياً — من كاش
+     * الذاكرة الكامل (SSOT المتطابق مع Room بعد كل COMMIT). [excludeContactId]
+     * يُستثنى (فحص التفاصيل قيد التحرير لا يكرر نفسه). لا يمنع الحفظ أبداً.
+     */
+    suspend fun findContactsByE164(e164: String, excludeContactId: Long? = null): List<Contact>
+
+    /**
+     * تعليم قبر فردي بحذف ناعم (T6 · J-5 — حذف شاشة التفاصيل بعد نجاح حذف المنصة
+     * حصراً): نفس دلالات قبور [ContactsSyncDao.applySyncBatch] حرفياً — 30 يوماً
+     * استرجاعاً (ADR-0010 §6). لا حذف فعلي في هذا المسار (مسار T3 الجماعي مجمد).
+     */
+    suspend fun tombstoneContact(contactId: Long, nowMillis: Long)
 }

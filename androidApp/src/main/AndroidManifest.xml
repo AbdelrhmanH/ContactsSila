@@ -2,7 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- قراءة جهات الاتصال للعرض والمزامنة محلياً فقط (لا رفع للسيرفر — ADR-0009 §6) -->
+    <!-- صلاحية جهات الاتصال القرائية للتصنيف الذكي (T3/T5 — ADR-0009 §6) -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- صلاحية الكتابة — تفاصيل/إضافة/حذف جهة (T6 · Issue #27 · ميثاق J-1) -->
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+
+    <!-- استعلام الحزم المسمّى لكاشف التطبيقات المتصلة (T6) — بلا QUERY_ALL_PACKAGES -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.thoughtcrime.securesms" />
+    </queries>
 
     <application
         android:name=".SilaApplication"

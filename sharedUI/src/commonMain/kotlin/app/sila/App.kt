@@ -35,6 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import app.sila.core.designsystem.ActionSheetItem
 import app.sila.core.designsystem.SilaActionSheet
 import app.sila.core.designsystem.SilaColors
@@ -65,11 +68,16 @@ import app.sila.feature.settings.presentation.SettingsViewModel
  * بوابة التهيئة الأولى (Issue #26 — T5): ما دام `onboardingCompleted` غير مُعاد
  * من DataStore (Single Source of Truth) تعرض شاشة التهيئة (ضيف فقط) بدل الصفحة الرئيسة،
  * ولا تُعرض التهيئة إطلاقاً بعد اكتمالها.
+ *
+ * تفاصيل/إضافة جهة الاتصال (T6 · Issue #27): مكدس تنقل مستقل لتبويب جهات الاتصال
+ * ([ContactsNavFlow]) — [onContactsNavEffect] يسلّم آثار المنصة لغلاف المضيف
+ * (androidApp)، والمضيف المشترك لا ينفذ أي فعل منصة بنفسه.
  */
 @Composable
 @Preview
 fun App(
-    storageDirPath: String? = null
+    storageDirPath: String? = null,
+    onContactsNavEffect: (ContactsNavEffect) -> Unit = {}
 ) {
     val koin = remember(storageDirPath) { ensureKoinStarted(storageDirPath) }
     val mainViewModel = remember(koin) { koin.get<MainViewModel>() }
@@ -86,6 +94,12 @@ fun App(
     val onboardingStrings = rememberOnboardingStrings()
     val contactsStrings = rememberContactsStrings()
 
+    // مكدس التبويب مرفوع هنا (خارج التبديل الشرطي للتبويبات) — لا يُفقد الرجوع
+    // عند التنقل إلى تبويب آخر ثم العودة (J-2: مكدس مستقل لكل تبويب).
+    val contactsNavController = rememberNavController()
+    val contactsBackEntry by contactsNavController.currentBackStackEntryAsState()
+    val contactsAtRoot = contactsBackEntry?.destination?.hasRoute(ContactsListRoute::class) ?: true
+
     SilaTheme(darkTheme = isDark, isRtl = isRtl) {
         if (!state.preferences.onboardingCompleted) {
             OnboardingScreen(
@@ -96,10 +110,17 @@ fun App(
             SilaMainShell(
                 state = state,
                 onIntent = mainViewModel::onIntent,
+                showChrome = contactsAtRoot,
+                onNewContact = { contactsNavController.navigate(ContactEditRoute()) },
                 contactsContent = {
-                    ContactsScreen(
-                        viewModel = contactsViewModel,
-                        strings = contactsStrings
+                    ContactsNavFlow(
+                        koin = koin,
+                        contactsViewModel = contactsViewModel,
+                        contactsStrings = contactsStrings,
+                        detailsStrings = rememberContactDetailsStrings(),
+                        editStrings = rememberContactEditStrings(),
+                        navController = contactsNavController,
+                        onPlatformEffect = onContactsNavEffect
                     )
                 },
                 servicesContent = {
@@ -133,55 +154,59 @@ fun SilaMainShell(
     servicesContent: @Composable () -> Unit,
     arhamContent: @Composable () -> Unit,
     settingsContent: @Composable () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNewContact: () -> Unit = {},
+    showChrome: Boolean = true,
 ) {
     val isAr = state.preferences.language == AppLanguage.ARABIC
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 1.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = SilaDimens.Space16, vertical = SilaDimens.Space12),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            if (showChrome) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 1.dp
                 ) {
-                    Text(
-                        text = if (isAr) "صِلَة" else "Sila",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(SilaDimens.Space8)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = SilaDimens.Space16, vertical = SilaDimens.Space12),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedButton(
-                            onClick = { onIntent(MainIntent.ToggleLanguage) },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = if (isAr) "EN" else "عربي",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
+                        Text(
+                            text = if (isAr) "صِلَة" else "Sila",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
 
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .clickable { onIntent(MainIntent.ToggleSettingsSheet) }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(SilaDimens.Space8)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("⚙️", fontSize = 16.sp)
+                            OutlinedButton(
+                                onClick = { onIntent(MainIntent.ToggleLanguage) },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (isAr) "EN" else "عربي",
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onIntent(MainIntent.ToggleSettingsSheet) }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("⚙️", fontSize = 16.sp)
+                                }
                             }
                         }
                     }
@@ -189,7 +214,8 @@ fun SilaMainShell(
             }
         },
         floatingActionButton = {
-            if (state.activeTab == DefaultTab.CONTACTS) {
+            // إخفاء الكروم داخل التفاصيل/التعديل (T6) — شاشات مكدس بلا زر ذكي ولا شريط تبويبات.
+            if (showChrome && state.activeTab == DefaultTab.CONTACTS) {
                 FloatingActionButton(
                     onClick = { onIntent(MainIntent.ToggleSmartAddSheet) },
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -201,52 +227,54 @@ fun SilaMainShell(
             }
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
-            ) {
-                NavigationBarItem(
-                    selected = state.activeTab == DefaultTab.CONTACTS,
-                    onClick = { onIntent(MainIntent.SelectTab(DefaultTab.CONTACTS)) },
-                    label = { Text(if (isAr) "جهات الاتصال" else "Contacts") },
-                    icon = { Text("👥", fontSize = 18.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+            if (showChrome) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp
+                ) {
+                    NavigationBarItem(
+                        selected = state.activeTab == DefaultTab.CONTACTS,
+                        onClick = { onIntent(MainIntent.SelectTab(DefaultTab.CONTACTS)) },
+                        label = { Text(if (isAr) "جهات الاتصال" else "Contacts") },
+                        icon = { Text("👥", fontSize = 18.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        )
                     )
-                )
-                NavigationBarItem(
-                    selected = state.activeTab == DefaultTab.SERVICES,
-                    onClick = { onIntent(MainIntent.SelectTab(DefaultTab.SERVICES)) },
-                    label = { Text(if (isAr) "دليل الخدمات" else "Directory") },
-                    icon = { Text("🔧", fontSize = 18.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    NavigationBarItem(
+                        selected = state.activeTab == DefaultTab.SERVICES,
+                        onClick = { onIntent(MainIntent.SelectTab(DefaultTab.SERVICES)) },
+                        label = { Text(if (isAr) "دليل الخدمات" else "Directory") },
+                        icon = { Text("🔧", fontSize = 18.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        )
                     )
-                )
-                NavigationBarItem(
-                    selected = state.activeTab == DefaultTab.ARHAM,
-                    onClick = { onIntent(MainIntent.SelectTab(DefaultTab.ARHAM)) },
-                    label = { Text(if (isAr) "أرحام" else "Arham") },
-                    icon = {
-                        BadgedBox(
-                            badge = {
-                                if (state.overdueArhamCount > 0) {
-                                    Badge(containerColor = SilaColors.StatusOverdue) {
-                                        Text(
-                                            text = state.overdueArhamCount.toString(),
-                                            color = Color.White
-                                        )
+                    NavigationBarItem(
+                        selected = state.activeTab == DefaultTab.ARHAM,
+                        onClick = { onIntent(MainIntent.SelectTab(DefaultTab.ARHAM)) },
+                        label = { Text(if (isAr) "أرحام" else "Arham") },
+                        icon = {
+                            BadgedBox(
+                                badge = {
+                                    if (state.overdueArhamCount > 0) {
+                                        Badge(containerColor = SilaColors.StatusOverdue) {
+                                            Text(
+                                                text = state.overdueArhamCount.toString(),
+                                                color = Color.White
+                                            )
+                                        }
                                     }
                                 }
+                            ) {
+                                Text("🌿", fontSize = 18.sp)
                             }
-                        ) {
-                            Text("🌿", fontSize = 18.sp)
-                        }
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
+                        )
                     )
-                )
+                }
             }
         }
     ) { paddingValues ->
@@ -274,7 +302,10 @@ fun SilaMainShell(
                     iconEmoji = "👤",
                     title = if (isAr) "جهة اتصال جديدة" else "New Contact",
                     subtitle = if (isAr) "صديق، زميل، أو أي شخص" else "Friend, colleague, or personal",
-                    onClick = {}
+                    onClick = {
+                        onIntent(MainIntent.DismissSmartAddSheet)
+                        onNewContact()
+                    }
                 ),
                 ActionSheetItem(
                     iconEmoji = "👨‍👩‍👧",

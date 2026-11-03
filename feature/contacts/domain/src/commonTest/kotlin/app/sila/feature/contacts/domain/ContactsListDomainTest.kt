@@ -7,6 +7,7 @@ import app.sila.core.model.ContactAccount
 import app.sila.core.model.ContactName
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.Phone
+import app.sila.core.model.RecentInteraction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -78,6 +79,16 @@ class ContactsListDomainTest {
         override suspend fun recordInAppCallAttempt(callLogId: String, e164: String, timestampMillis: Long) {
             recordedCalls += e164
         }
+
+        // T6 (Issue #27) — أعضاء العقد الجديدة: بلا سلوك في اختبارات T3 (تفويض صامت).
+        override fun observeContactById(id: Long): Flow<Contact?> =
+            MutableStateFlow(state.value.find { it.id == id })
+
+        override suspend fun getRecentCallEvents(e164s: List<String>, limit: Int): List<RecentInteraction> = emptyList()
+
+        override suspend fun tombstoneContact(contactId: Long, nowMillis: Long) {}
+
+        override suspend fun findContactsByE164(e164: String, excludeContactId: Long?): List<Contact> = emptyList()
     }
 
     /** تفضيلات مزيفة لاستبعاد الاقتراحات. */

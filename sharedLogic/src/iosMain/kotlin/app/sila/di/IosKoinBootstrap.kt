@@ -4,6 +4,8 @@ import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.feature.contacts.data.ContactsSyncEngine
+import app.sila.feature.contacts.presentation.ContactDetailsViewModel
+import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
@@ -14,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
+import org.koin.core.parameter.parametersOf
 import org.koin.mp.KoinPlatformTools
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
@@ -157,4 +160,18 @@ object IosKoinBootstrap {
      * عبر نمط ContactsViewModelStore نفسه — الحالة ملكية Kotlin حصراً.
      */
     fun getContactsViewModel(): ContactsViewModel = ensureStarted().get()
+
+    /**
+     * يسترجع [ContactDetailsViewModel] لجهة محددة (T6 — Issue #27) عبر `parametersOf`
+     * — تعريف Koin المعياري يستقبل المعرّف من التنقل (كل زيارة شاشة = VM مستقل).
+     */
+    fun getContactDetailsViewModel(contactId: Long): ContactDetailsViewModel =
+        ensureStarted().get { parametersOf(contactId) }
+
+    /**
+     * يسترجع [ContactEditViewModel] (T6 — Issue #27): [contactId] = `null` نموذج
+     * إنشاء فارغ، وإلا نموذج تحرير يُملأ من لقطة الجهة القائمة.
+     */
+    fun getContactEditViewModel(contactId: Long?): ContactEditViewModel =
+        ensureStarted().get { parametersOf(contactId) }
 }

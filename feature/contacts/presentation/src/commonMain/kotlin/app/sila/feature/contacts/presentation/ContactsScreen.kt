@@ -73,14 +73,16 @@ import kotlinx.coroutines.launch
 fun ContactsScreen(
     viewModel: ContactsViewModel,
     strings: ContactsStrings,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenContact: (Long) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     ContactsContent(
         state = state,
         strings = strings,
         onIntent = viewModel::onIntent,
-        modifier = modifier
+        modifier = modifier,
+        onOpenContact = onOpenContact
     )
 }
 
@@ -90,7 +92,8 @@ fun ContactsContent(
     state: ContactsUiState,
     strings: ContactsStrings,
     onIntent: (ContactsIntent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenContact: (Long) -> Unit = {},
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showCategorizeMenu by remember { mutableStateOf(false) }
@@ -125,7 +128,7 @@ fun ContactsContent(
                 SearchField(state = state, strings = strings, onIntent = onIntent)
                 CategoryChipsRow(state = state, strings = strings, onIntent = onIntent)
                 SuggestionCards(state = state, strings = strings, onIntent = onIntent)
-                ContactsListArea(state = state, strings = strings, onIntent = onIntent)
+                ContactsListArea(state = state, strings = strings, onIntent = onIntent, onOpenContact = onOpenContact)
             }
         }
     }
@@ -335,18 +338,28 @@ private data class LetterGroup(val letter: String, val startIndex: Int)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ContactsListArea(state: ContactsUiState, strings: ContactsStrings, onIntent: (ContactsIntent) -> Unit) {
+private fun ContactsListArea(
+    state: ContactsUiState,
+    strings: ContactsStrings,
+    onIntent: (ContactsIntent) -> Unit,
+    onOpenContact: (Long) -> Unit = {},
+) {
     when {
         state.contacts.isEmpty() && state.isSearchActive -> NoResultsState(strings)
         state.contacts.isEmpty() && !state.isLoading -> EmptyState(strings)
         state.contacts.isEmpty() -> LoadingState(strings)
-        else -> GroupedContactList(state = state, strings = strings, onIntent = onIntent)
+        else -> GroupedContactList(state = state, strings = strings, onIntent = onIntent, onOpenContact = onOpenContact)
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun GroupedContactList(state: ContactsUiState, strings: ContactsStrings, onIntent: (ContactsIntent) -> Unit) {
+private fun GroupedContactList(
+    state: ContactsUiState,
+    strings: ContactsStrings,
+    onIntent: (ContactsIntent) -> Unit,
+    onOpenContact: (Long) -> Unit = {},
+) {
     val flatItems = remember(state.contacts) { buildFlatItems(state.contacts) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -381,7 +394,8 @@ private fun GroupedContactList(state: ContactsUiState, strings: ContactsStrings,
                         contact = item.contact,
                         state = state,
                         strings = strings,
-                        onIntent = onIntent
+                        onIntent = onIntent,
+                        onOpenContact = onOpenContact
                     )
                 }
             }
@@ -462,7 +476,8 @@ private fun ContactRow(
     contact: Contact,
     state: ContactsUiState,
     strings: ContactsStrings,
-    onIntent: (ContactsIntent) -> Unit
+    onIntent: (ContactsIntent) -> Unit,
+    onOpenContact: (Long) -> Unit = {},
 ) {
     val isSelected = contact.id in state.selection
 
@@ -480,10 +495,11 @@ private fun ContactRow(
                     onClick = {
                         if (state.isSelectionMode) {
                             onIntent(ContactsIntent.ToggleSelect(contact.id))
+                        } else {
+                            // نقرة الصف في الوضع العادي تفتح التفاصيل (معيار قبول T6 · Issue #27)
+                            // — المنقّح (onOpenContact) يملكه الغلاف المشترك عبر NavHost التبويب.
+                            onOpenContact(contact.id)
                         }
-                        // نقرة الصف في وضع العادي = «التفاصيل» (معيار القبول) — لكن شاشة/ورقة
-                        // التفاصيل نطاق T6 (Issue #24: «Contact details … (T6)»)، فالنقرة العادية
-                        // مؤجلة عمداً ولا تبدأ اتصالاً: النداء حصراً لزر 📞 وللفعل السحبي.
                     },
                     onLongClick = { onIntent(ContactsIntent.ToggleSelect(contact.id)) }
                 )

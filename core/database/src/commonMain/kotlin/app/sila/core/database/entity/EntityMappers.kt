@@ -1,10 +1,14 @@
 package app.sila.core.database.entity
 
 import app.sila.core.common.ArabicTextNormalizer
+import app.sila.core.model.Address
 import app.sila.core.model.ArhamInfo
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactAccount
 import app.sila.core.model.ContactName
+import app.sila.core.model.CustomField
+import app.sila.core.model.Email
+import app.sila.core.model.ImportantDate
 import app.sila.core.model.Organization
 import app.sila.core.model.Phone
 import app.sila.core.model.Rating
@@ -65,8 +69,8 @@ fun ContactPhoneEntity.toDomain(): Phone = Phone(
     raw = raw,
     e164 = e164,
     type = type,
-    // لا عمودان فيزيائيان لها — قيمة محايدة مطابقة للسلوك التاريخي عند القراءة.
-    label = null,
+    // عمودا T6 (v2) — label فيزيائي الآن؛ preferredSimSlot لا يزال غير مُخزَّن.
+    label = label,
     isPrimary = isPrimary,
     preferredSimSlot = null
 )
@@ -114,14 +118,99 @@ fun Contact.toContactEntity(): ContactEntity {
     )
 }
 
-fun Phone.toEntity(contactId: Long): ContactPhoneEntity = ContactPhoneEntity(
+fun Phone.toEntity(contactId: Long, sortOrder: Int = 0): ContactPhoneEntity = ContactPhoneEntity(
     id = 0L,
     contactId = contactId,
     raw = raw,
     e164 = e164,
     type = type,
-    isPrimary = isPrimary
+    isPrimary = isPrimary,
+    label = label,
+    sortOrder = sortOrder
 )
+
+// ===== Mappers متعددة القيم — T6 (ترحيل v1→v2 · Issue #27 · ADR-0012) =====
+// الملكية: الهواتف/البريد/المواقع معكوسة من المنصة؛ العناوين/التواريخ/الحقول المخصصة
+// صِلَة-فقط. الترتيب دائماً `sortOrder` ثم `id` — موضع العنصر في قائمة النطاق هو مصدره.
+
+fun ContactEmailEntity.toDomain(): Email = Email(
+    address = address,
+    type = type,
+    label = label
+)
+
+fun Email.toEntity(contactId: Long, sortOrder: Int = 0): ContactEmailEntity = ContactEmailEntity(
+    id = 0L,
+    contactId = contactId,
+    address = address,
+    type = type,
+    label = label,
+    sortOrder = sortOrder
+)
+
+fun ContactAddressEntity.toDomain(): Address = Address(
+    street = street,
+    city = city,
+    region = region,
+    postalCode = postalCode,
+    country = country,
+    type = type
+)
+
+fun Address.toEntity(contactId: Long, sortOrder: Int = 0): ContactAddressEntity = ContactAddressEntity(
+    id = 0L,
+    contactId = contactId,
+    street = street,
+    city = city,
+    region = region,
+    postalCode = postalCode,
+    country = country,
+    type = type,
+    sortOrder = sortOrder
+)
+
+fun ContactDateEntity.toDomain(): ImportantDate = ImportantDate(
+    type = type,
+    label = label,
+    month = month,
+    day = day,
+    year = year
+)
+
+fun ImportantDate.toEntity(contactId: Long, sortOrder: Int = 0): ContactDateEntity = ContactDateEntity(
+    id = 0L,
+    contactId = contactId,
+    type = type,
+    label = label,
+    month = month,
+    day = day,
+    year = year,
+    sortOrder = sortOrder
+)
+
+fun ContactCustomFieldEntity.toDomain(): CustomField = CustomField(
+    label = label,
+    value = value
+)
+
+fun CustomField.toEntity(contactId: Long, sortOrder: Int = 0): ContactCustomFieldEntity =
+    ContactCustomFieldEntity(
+        id = 0L,
+        contactId = contactId,
+        label = label,
+        value = value,
+        sortOrder = sortOrder
+    )
+
+fun ContactWebsiteEntity.toDomain(): String = url
+
+fun String.toWebsiteEntity(contactId: Long, sortOrder: Int = 0): ContactWebsiteEntity =
+    ContactWebsiteEntity(
+        id = 0L,
+        contactId = contactId,
+        url = this,
+        sortOrder = sortOrder
+    )
 
 fun ArhamInfo.toEntity(contactId: Long, createdAt: Long = 0L): ArhamEntity = ArhamEntity(
     contactId = contactId,

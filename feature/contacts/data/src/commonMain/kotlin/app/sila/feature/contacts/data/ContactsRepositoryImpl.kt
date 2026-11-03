@@ -3,6 +3,7 @@ package app.sila.feature.contacts.data
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
+import app.sila.core.model.RecentInteraction
 import app.sila.feature.contacts.domain.ContactsRepository
 import kotlinx.coroutines.flow.Flow
 
@@ -63,5 +64,23 @@ class ContactsRepositoryImpl(
             e164 = e164,
             timestampMillis = timestampMillis
         )
+    }
+
+    // ===== T6 — تفاصيل وتحرير جهة الاتصال (Issue #27 · ADR-0012) =====
+
+    override fun observeContactById(id: Long): Flow<Contact?> =
+        contactDao.observeContactById(id)
+
+    override suspend fun getRecentCallEvents(e164s: List<String>, limit: Int): List<RecentInteraction> =
+        contactDao.getRecentCallEvents(e164s, limit)
+
+    override suspend fun tombstoneContact(contactId: Long, nowMillis: Long) {
+        contactDao.tombstoneContact(contactId, nowMillis)
+    }
+
+    /** فحص التكرار المحلي (J-9): مطابقة E.164 حرفية على الكاش الكامل (SSOT). */
+    override suspend fun findContactsByE164(e164: String, excludeContactId: Long?): List<Contact> {
+        if (e164.isBlank()) return emptyList()
+        return contactDao.findContactsByE164(e164, excludeContactId)
     }
 }

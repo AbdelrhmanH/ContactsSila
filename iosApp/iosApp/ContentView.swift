@@ -1,12 +1,25 @@
 import SwiftUI
 import SharedLogic
 
+/**
+ * مسارات مكدس تبويب جهات الاتصال (T6 — Issue #27 · J-2): iOS يستعمل
+ * `NavigationStack(path:)` الأصلي — القائمة (T4) ← التفاصيل ← التعديل،
+ * والـ ViewModels المشتركة تُنشأ لكل شاشة عبر معايرات Koin.
+ */
+enum ContactsRoute: Hashable {
+    case details(Int64)
+    case edit(Int64?)
+}
+
 struct ContentView: View {
 
     var store: MainViewModelStore
 
     /// مخزن شاشة جهات الاتصال المشترك (T4 — Issue #25) — نمط MainViewModelStore نفسه.
     var contactsStore: ContactsViewModelStore
+
+    /// مكدس التبويب — حالة عرض أصلية (SwiftUI)؛ التنقل يبث من آثار الـ VM حصراً.
+    @State private var contactsPath: [ContactsRoute] = []
 
     private var activeTabBinding: Binding<DefaultTab> {
         Binding(
@@ -51,9 +64,12 @@ struct ContentView: View {
             ),
             titleVisibility: .visible
         ) {
-            // «جهة اتصال جديدة» و«مسح QR» يفتحان نموذج الإضافة — نطاق T6؛
-            // نفس أندرويد: بلا فعل الآن (موثق في PR).
-            Button(localized("smart_add_new_contact")) {}
+            // «جهة اتصال جديدة» تفتح نموذج الإضافة (T6 — Issue #27) — نفس أندرويد:
+            // إغلاق الورقة ثم الدفع إلى ContactEditRoute بلا معرف (نموذج إنشاء).
+            Button(localized("smart_add_new_contact")) {
+                store.send(MainIntentDismissSmartAddSheet.shared)
+                contactsPath.append(.edit(nil))
+            }
             Button(localized("smart_add_family")) {
                 store.selectTab(DefaultTab.arham)
                 store.send(MainIntentDismissSmartAddSheet.shared)
@@ -105,14 +121,53 @@ struct ContentView: View {
      * تبويب جهات الاتصال (T4 — Issue #25): شاشة SwiftUI تراقب الحالة المشتركة عبر
      * [ContactsViewModelStore] مع الـ FAB الذكي في الغلاف (نفس أندرويد: الـ FAB
      * ملك الغلاف ولا يظهر إلا في تبويب جهات الاتصال، وفتحه Intent مشترك).
+     *
+     * T6 — Issue #27: مكدس `NavigationStack(path:)` للقائمة ← التفاصيل ← التعديل؛
+     * الكروم الذكي (الـ FAB) مخفي داخل شاشات المكدس (نفس showChrome الأندرويدية)،
+     * وViewModels التفاصيل/التعديل تُنشأ لكل شاشة عبر Koin parametersOf.
      */
     private var contactsTabContent: some View {
-        ContactsView(store: contactsStore, language: store.state.preferences.language)
-            .overlay(alignment: .bottomTrailing) {
-                // الـ FAB يبقى ظاهراً والورقة مفتوحة فوقه — نفس أندرويد
-                // (floatingActionButton ثابت في SilaMainShell).
+        NavigationStack(path: $contactsPath) {
+            ContactsView(
+                store: contactsStore,
+                language: store.state.preferences.language,
+                onOpenContact: { contactId in
+                    contactsPath.append(.details(contactId))
+                }
+            )
+            .navigationDestination(for: ContactsRoute.self) { route in
+                switch route {
+                case .details(let contactId):
+                    ContactDetailsScreen(
+                        contactId: contactId,
+                        language: store.state.preferences.language,
+                        onBack: { popContactsPath() },
+                        onEdit: { editId in contactsPath.append(.edit(editId)) }
+                    )
+                case .edit(let contactId):
+                    ContactEditScreen(
+                        contactId: contactId,
+                        language: store.state.preferences.language,
+                        onBack: { popContactsPath() }
+                    )
+                }
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            // الـ FAB يبقى ظاهراً والورقة مفتوحة فوقه — نفس أندرويد
+            // (floatingActionButton ثابت في SilaMainShell)؛ ويختفي داخل
+            // شاشات المكدس (التفاصيل/التعديل — نفس showChrome).
+            if contactsPath.isEmpty {
                 smartAddFab
             }
+        }
+    }
+
+    /// إرجاع المكدس من معايرات الآثار (NavigateBack من الـ VM المشترك).
+    private func popContactsPath() {
+        if !contactsPath.isEmpty {
+            contactsPath.removeLast()
+        }
     }
 
     private var smartAddFab: some View {

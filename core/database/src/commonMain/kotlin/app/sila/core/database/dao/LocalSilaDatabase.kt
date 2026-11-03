@@ -18,16 +18,24 @@ import app.sila.core.common.DefaultAppDispatchers
 import app.sila.core.common.PhoneNormalizer
 import app.sila.core.database.SilaRoomDatabase
 import app.sila.core.database.SilaRoomDatabaseConstructor
+import app.sila.core.database.SILA_MIGRATIONS
+import app.sila.core.database.SILA_ROOM_VERSION
 import app.sila.core.database.entity.ArhamEntity
 import app.sila.core.database.entity.ArhamInboxEntity
 import app.sila.core.database.entity.CallEventEntity
+import app.sila.core.database.entity.ContactAddressEntity
+import app.sila.core.database.entity.ContactCustomFieldEntity
+import app.sila.core.database.entity.ContactDateEntity
+import app.sila.core.database.entity.ContactEmailEntity
 import app.sila.core.database.entity.ContactEntity
 import app.sila.core.database.entity.ContactPhoneEntity
+import app.sila.core.database.entity.ContactWebsiteEntity
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.database.entity.toContactEntity
 import app.sila.core.database.entity.toDomain
 import app.sila.core.database.entity.toEntity
+import app.sila.core.database.entity.toWebsiteEntity
 import app.sila.core.database.legacy.LegacyAdoptionException
 import app.sila.core.database.legacy.LegacyDatabaseAdopter
 import app.sila.core.database.legacy.LegacyFtsDdl
@@ -43,6 +51,7 @@ import app.sila.core.model.ContactName
 import app.sila.core.model.DisputeStatus
 import app.sila.core.model.KinshipLayer
 import app.sila.core.model.Phone
+import app.sila.core.model.RecentInteraction
 import app.sila.core.model.Relation
 import app.sila.core.model.Service
 import app.sila.core.model.ServiceVisibility
@@ -61,12 +70,14 @@ import kotlinx.coroutines.withContext
  * وحيد (Single Source of Truth — ARCHITECTURE.md §5 · ADR-0011).
  *
  * PR B (F-04/F-05) — قواعد ADR-0011 الصارمة:
- * - **المخطط:** `SilaRoomDatabase` (`@Database(version = 1)`) هو المنتِج الوحيد للجداول
- *   عبر KSP — لا CREATE TABLE يدوي هنا إطلاقاً. التثبيت الجديد تنشئ Room مباشرة.
+ * - **المخطط:** `SilaRoomDatabase` (`@Database(version = SILA_ROOM_VERSION)` — v1→v2 ترحيل
+ *   T6 غير هدمي) هو المنتِج الوحيد للجداول عبر KSP — لا CREATE TABLE يدوي هنا إطلاقاً.
+ *   التثبيت الجديد تنشئ Room مباشرة.
  * - **الاعتماد الآمن:** قواعد المستخدمين القديمة (`user_version = 0`) تُعتمد قبل فتح Room
  *   عبر [LegacyDatabaseAdopter]: بصمة بنية → تصنيف صارم → نسخة واقية موثقة
  *   (`sila_local.pre-room-backup` — VACUUM INTO بلا نسخ خام تحت WAL) → شيم ضيق داخل
- *   معاملة واحدة → Room يتحقق ويسجل `user_version = 1` عند أول فتح. ليست `Migration(0,1)`.
+ *   معاملة واحدة → Room يتحقق ويسجل إصداره الحالي (`SILA_ROOM_VERSION`) عند أول فتح.
+ *   ليست `Migration(0,1)`.
  *   النسخة الواقية تُحذف بعد أول عملية Room ناجحة (اعتماد موثق) حصراً.
  * - **مسار الكتابة المنقسم:** الكتابات المركّبة (upsertContact/deleteContact(s)/البذر/
  *   applySyncBatch/cleanupExpiredData) بـ SQL خام **حرفي** داخل
@@ -142,7 +153,7 @@ class LocalSilaDatabase internal constructor(
     /**
      * قاعدة Room الفعلية — تُبنى مرة واحدة: بعد الاعتماد الآمن للمسارات الملفية، أو
      * في الذاكرة لحاضنة الاختبارات. الفتح نفسه (إنشاء الجداول/التحقق/تسجيل
-     * `user_version = 1`) يتم بترف عند أول عملية.
+     * `user_version = SILA_ROOM_VERSION`) يتم بترف عند أول عملية.
      */
     val room: SilaRoomDatabase = buildRoomDatabase()
 
@@ -174,6 +185,7 @@ class LocalSilaDatabase internal constructor(
                 // الاختبارات: Unconfined يمرر التنفيذ تزامنياً — بلا خيوط حقيقية تخفيها
                 // runTest الافتراضية). بلا هذا، يفترض Room افتراضياً Dispatchers.IO حقيقياً.
                 .setQueryCoroutineContext(dispatchers.io)
+                .addMigrations(*SILA_MIGRATIONS)
                 .addCallback(ftsCallback)
                 .build()
         } else {
@@ -187,6 +199,9 @@ class LocalSilaDatabase internal constructor(
             Room.databaseBuilder<SilaRoomDatabase>(dbFilePath, factory)
                 .setDriver(BundledSQLiteDriver())
                 .setQueryCoroutineContext(dispatchers.io)
+                // ترحيل v1→v2 (جداول الحقول القياسية — T6/Issue #27). مسار الاعتماد
+                // (user_version = 0) يسبق هذا ويُنشئ المخطط النهائياً مباشرةً — ADR-0011.
+                .addMigrations(*SILA_MIGRATIONS)
                 .addCallback(ftsCallback)
                 .build()
         }
@@ -216,8 +231,9 @@ class LocalSilaDatabase internal constructor(
 
     /**
      * حذف النسخة الواقية بعد اكتمال القراءات الأولية والتحقق من سلامة القاعدة الحيّة (SR-04).
-     * لا تُحذف النسخة إلا بعد نجاح: فتح Room، التحقق من المخطط، `user_version == 1`،
-     * `PRAGMA integrity_check == "ok"`، قابلية قراءة `contacts_fts`، وقراءات DAOs الأربعة.
+     * لا تُحذف النسخة إلا بعد نجاح: فتح Room، التحقق من المخطط، `user_version` =
+     * [SILA_ROOM_VERSION]، `PRAGMA integrity_check == "ok"`، قابلية قراءة `contacts_fts`،
+     * وقراءات DAOs الأربعة.
      */
     private suspend fun deleteBackupAfterVerifiedAdoption() {
         if (dbFilePath == ":memory:") return
@@ -240,9 +256,11 @@ class LocalSilaDatabase internal constructor(
             adoptionStageHook?.invoke(AdoptionVerificationStage.VERSION_CHECK)
             transactor.usePrepared("PRAGMA user_version") { stmt ->
                 val version = if (stmt.step()) stmt.getLong(0).toInt() else -1
-                if (version != 1) {
+                // الإصدار المتوقع = إصدار Room الحالي ([SILA_ROOM_VERSION]) — Room يختم
+                // إصداره على القاعدة الحية بعد الافتتاح/الترحيل (T6: v2 بعد MIGRATION_1_2).
+                if (version != SILA_ROOM_VERSION) {
                     throw LegacyAdoptionException(
-                        "PR_B adoption verification: expected user_version=1, actual=$version",
+                        "PR_B adoption verification: expected user_version=$SILA_ROOM_VERSION, actual=$version",
                     )
                 }
             }
@@ -320,10 +338,24 @@ class LocalSilaDatabase internal constructor(
 
         if (contactEntities.isEmpty()) return emptyList()
 
+        // أطفال T6 (v2): القراءة للكاش **كاملة** حصراً (ADR-0012) — الكاش مصدر العرض،
+        // وأي جهة بلا أطفالها في الكاش ستُمحى بياناتها عند إعادة كتابتها (SSOT).
+        val emailsByContact = contactEntityDao.getAllEmails().groupBy { it.contactId }
+        val addressesByContact = contactEntityDao.getAllAddresses().groupBy { it.contactId }
+        val datesByContact = contactEntityDao.getAllDates().groupBy { it.contactId }
+        val customFieldsByContact = contactEntityDao.getAllCustomFields().groupBy { it.contactId }
+        val websitesByContact = contactEntityDao.getAllWebsites().groupBy { it.contactId }
+
         return contactEntities.map { entity ->
             entity.toDomain(
                 phones = phonesByContact[entity.id].orEmpty(),
                 arham = arhamByContact[entity.id],
+            ).copy(
+                emails = emailsByContact[entity.id].orEmpty().map { it.toDomain() },
+                addresses = addressesByContact[entity.id].orEmpty().map { it.toDomain() },
+                dates = datesByContact[entity.id].orEmpty().map { it.toDomain() },
+                customFields = customFieldsByContact[entity.id].orEmpty().map { it.toDomain() },
+                websites = websitesByContact[entity.id].orEmpty().map { it.toDomain() },
             )
         }
     }
@@ -359,6 +391,10 @@ class LocalSilaDatabase internal constructor(
     override suspend fun getContactById(id: Long): Contact? = withContext(dispatchers.io) {
         contactsState.value.find { it.id == id }
     }
+
+    override fun observeContactById(id: Long): Flow<Contact?> =
+        contactsState.map { list -> list.find { it.id == id } }
+            .flowOn(dispatchers.io)
 
     override suspend fun upsertContact(contact: Contact): Unit = withContext(dispatchers.io) {
         val normalized = contact.copy(
@@ -555,6 +591,28 @@ class LocalSilaDatabase internal constructor(
         }
     }
 
+    override suspend fun getRecentCallEvents(e164s: List<String>, limit: Int): List<RecentInteraction> =
+        withContext(dispatchers.io) {
+            if (e164s.isEmpty() || limit <= 0) return@withContext emptyList()
+            callEventEntityDao.getRecentForE164s(e164s, limit).map { event ->
+                RecentInteraction(
+                    callLogId = event.callLogId,
+                    e164 = event.e164,
+                    timestampMillis = event.timestamp,
+                    direction = event.direction,
+                    durationSec = event.durationSec,
+                    source = event.source,
+                )
+            }
+        }
+
+    override suspend fun findContactsByE164(e164: String, excludeContactId: Long?): List<Contact> =
+        withContext(dispatchers.io) {
+            contactsState.value.filter { contact ->
+                contact.id != excludeContactId && contact.phones.any { it.e164 == e164 }
+            }
+        }
+
     // ===== ArhamDao =====
 
     override fun observeArhamContacts(): Flow<List<Contact>> =
@@ -743,18 +801,36 @@ class LocalSilaDatabase internal constructor(
                         merged = normalizedIncoming.copy(updatedAt = nowMillis)
                     } else {
                         if (persisted.systemDeletedAt != null) restored++
+                        // تسميات الهواتف صِلَة-فقط (ADR-0012): تُحمل من الصف المخزَّن على
+                        // أرقام الوارد حرفياً (مطابقة e164 ثم raw) — الانعكاس يعيد raw/
+                        // e164/type/isPrimary من المنصة، والموضع في القائمة هو الترتيب.
+                        fun Phone.withCarriedLabel(): Phone {
+                            val previous = persisted.contact.phones.firstOrNull {
+                                it.e164 == e164 && it.raw == raw
+                            } ?: persisted.contact.phones.firstOrNull { it.e164 == e164 }
+                            return if (previous?.label != null) copy(label = previous.label) else this
+                        }
+                        val mergedPhones = normalizedIncoming.phones.map { it.withCarriedLabel() }
                         merged = persisted.contact.copy(
                             // أعمدة المنصة المعكوسة:
                             lookupKey = normalizedIncoming.lookupKey,
                             name = normalizedIncoming.name,
                             photoUri = normalizedIncoming.photoUri,
-                            phones = normalizedIncoming.phones,
+                            phones = mergedPhones,
+                            // T6 (ADR-0012): البريد والمواقع أطفال معكوسة من المنصة —
+                            // تُعاد كتابتها من دفتر الهاتف في كل دلتا.
+                            emails = normalizedIncoming.emails,
+                            websites = normalizedIncoming.websites,
                             organization = normalizedIncoming.organization,
-                            notes = normalizedIncoming.notes,
                             account = normalizedIncoming.account,
                             normalizedName = normalizedIncoming.normalizedName,
                             updatedAt = nowMillis
                         )
+                        // T6 (إصلاح فقد بيانات كامن): `notes` **ليست** في قائمة الانعكاس —
+                        // iOS بلا صلاحية الملاحظات يقرأها null، وكان الانعكاس القديم يمحو
+                        // ملاحظات Room في كل دلتا. `notes` صِلَة-فقط: تُحفظ حرفياً من
+                        // `persisted` (كما category/ringtone/voicemail/blocked/arham)،
+                        // والعناوين/التواريخ/الحقول المخصصة أطفال صِلَة-فقط تنجو تلقائياً.
                     }
                     val resolvedId = writeContactToSqlite(conn, merged)
                     cacheUpserts += merged.copy(id = resolvedId)
@@ -805,6 +881,35 @@ class LocalSilaDatabase internal constructor(
     override suspend fun clearSyncSnapshot(): Unit = withContext(dispatchers.io) {
         dbMutex.withLock {
             contactsSyncCheckpointEntityDao.delete(ContactsSyncCheckpointEntity.KEY_SNAPSHOT)
+        }
+    }
+
+    override suspend fun tombstoneContact(contactId: Long, nowMillis: Long): Unit = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            var tombstoned = false
+            inWriteTransaction { conn ->
+                conn.usePrepared("SELECT systemDeletedAt FROM contacts WHERE id = ?") { stmt ->
+                    stmt.bindLong(1, contactId)
+                    tombstoned = stmt.step() && stmt.isNull(0)
+                }
+                if (tombstoned) {
+                    conn.usePrepared(
+                        "UPDATE contacts SET systemDeletedAt = ?, updatedAt = ? WHERE id = ?"
+                    ) { stmt ->
+                        stmt.bindLong(1, nowMillis)
+                        stmt.bindLong(2, nowMillis)
+                        stmt.bindLong(3, contactId)
+                        stmt.step()
+                    }
+                    conn.usePrepared("DELETE FROM contacts_fts WHERE docid = ?") { stmt ->
+                        stmt.bindLong(1, contactId)
+                        stmt.step()
+                    }
+                }
+            }
+            if (tombstoned) {
+                contactsState.update { current -> current.filterNot { it.id == contactId } }
+            }
         }
     }
 
@@ -965,22 +1070,117 @@ class LocalSilaDatabase internal constructor(
         entity.systemDeletedAt?.let { stmt.bindLong(i++, it) } ?: stmt.bindNull(i++)
     }
 
-    /** الهواتف + أرحام + FTS لجهة تمت كتابة صفها بمعرّف [contactId]. */
+    /** الهواتف + أطفال T6 + أرحام + FTS لجهة تمت كتابة صفها بمعرّف [contactId]. */
     private suspend fun writeContactRelationsToSqlite(conn: Transactor, contactId: Long, contact: Contact) {
         conn.usePrepared("DELETE FROM contact_phones WHERE contactId = ?") { stmt ->
             stmt.bindLong(1, contactId)
             stmt.step()
         }
-        contact.phones.forEach { phone ->
-            val pe = phone.toEntity(contactId)
+        // الترتيب = موضع العنصر في قائمة النطاق (مصدر sortOrder — ADR-0012).
+        contact.phones.forEachIndexed { index, phone ->
+            val pe = phone.toEntity(contactId, sortOrder = index)
             conn.usePrepared(
-                "INSERT INTO contact_phones (contactId, raw, e164, type, isPrimary) VALUES (?, ?, ?, ?, ?)"
+                "INSERT INTO contact_phones (contactId, raw, e164, type, label, isPrimary, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?)"
             ) { stmt ->
                 stmt.bindLong(1, pe.contactId)
                 stmt.bindText(2, pe.raw)
                 stmt.bindText(3, pe.e164)
                 stmt.bindText(4, pe.type)
-                stmt.bindLong(5, if (pe.isPrimary) 1L else 0L)
+                pe.label?.let { stmt.bindText(5, it) } ?: stmt.bindNull(5)
+                stmt.bindLong(6, if (pe.isPrimary) 1L else 0L)
+                stmt.bindLong(7, pe.sortOrder.toLong())
+                stmt.step()
+            }
+        }
+
+        conn.usePrepared("DELETE FROM contact_emails WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        contact.emails.forEachIndexed { index, email ->
+            val ee = email.toEntity(contactId, sortOrder = index)
+            conn.usePrepared(
+                "INSERT INTO contact_emails (contactId, address, type, label, sortOrder) VALUES (?, ?, ?, ?, ?)"
+            ) { stmt ->
+                stmt.bindLong(1, ee.contactId)
+                stmt.bindText(2, ee.address)
+                stmt.bindText(3, ee.type)
+                ee.label?.let { stmt.bindText(4, it) } ?: stmt.bindNull(4)
+                stmt.bindLong(5, ee.sortOrder.toLong())
+                stmt.step()
+            }
+        }
+
+        conn.usePrepared("DELETE FROM contact_addresses WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        contact.addresses.forEachIndexed { index, address ->
+            val ae = address.toEntity(contactId, sortOrder = index)
+            conn.usePrepared(
+                "INSERT INTO contact_addresses (contactId, street, city, region, postalCode, country, type, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            ) { stmt ->
+                stmt.bindLong(1, ae.contactId)
+                ae.street?.let { stmt.bindText(2, it) } ?: stmt.bindNull(2)
+                ae.city?.let { stmt.bindText(3, it) } ?: stmt.bindNull(3)
+                ae.region?.let { stmt.bindText(4, it) } ?: stmt.bindNull(4)
+                ae.postalCode?.let { stmt.bindText(5, it) } ?: stmt.bindNull(5)
+                ae.country?.let { stmt.bindText(6, it) } ?: stmt.bindNull(6)
+                stmt.bindText(7, ae.type)
+                stmt.bindLong(8, ae.sortOrder.toLong())
+                stmt.step()
+            }
+        }
+
+        conn.usePrepared("DELETE FROM contact_dates WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        contact.dates.forEachIndexed { index, date ->
+            val de = date.toEntity(contactId, sortOrder = index)
+            conn.usePrepared(
+                "INSERT INTO contact_dates (contactId, type, label, month, day, year, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            ) { stmt ->
+                stmt.bindLong(1, de.contactId)
+                stmt.bindText(2, de.type)
+                de.label?.let { stmt.bindText(3, it) } ?: stmt.bindNull(3)
+                stmt.bindLong(4, de.month.toLong())
+                stmt.bindLong(5, de.day.toLong())
+                de.year?.let { stmt.bindLong(6, it.toLong()) } ?: stmt.bindNull(6)
+                stmt.bindLong(7, de.sortOrder.toLong())
+                stmt.step()
+            }
+        }
+
+        conn.usePrepared("DELETE FROM contact_custom_fields WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        contact.customFields.forEachIndexed { index, field ->
+            val fe = field.toEntity(contactId, sortOrder = index)
+            conn.usePrepared(
+                "INSERT INTO contact_custom_fields (contactId, label, value, sortOrder) VALUES (?, ?, ?, ?)"
+            ) { stmt ->
+                stmt.bindLong(1, fe.contactId)
+                stmt.bindText(2, fe.label)
+                stmt.bindText(3, fe.value)
+                stmt.bindLong(4, fe.sortOrder.toLong())
+                stmt.step()
+            }
+        }
+
+        conn.usePrepared("DELETE FROM contact_websites WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        contact.websites.forEachIndexed { index, url ->
+            val we = url.toWebsiteEntity(contactId, sortOrder = index)
+            conn.usePrepared(
+                "INSERT INTO contact_websites (contactId, url, sortOrder) VALUES (?, ?, ?)"
+            ) { stmt ->
+                stmt.bindLong(1, we.contactId)
+                stmt.bindText(2, we.url)
+                stmt.bindLong(3, we.sortOrder.toLong())
                 stmt.step()
             }
         }
@@ -1051,6 +1251,27 @@ class LocalSilaDatabase internal constructor(
             stmt.bindLong(1, contactId)
             stmt.step()
         }
+        // أطفال T6 (v2) — كامل الأطفال يُمسح مع الصف (نفس دلالات حذف الهواتف).
+        conn.usePrepared("DELETE FROM contact_emails WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        conn.usePrepared("DELETE FROM contact_addresses WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        conn.usePrepared("DELETE FROM contact_dates WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        conn.usePrepared("DELETE FROM contact_custom_fields WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
+        conn.usePrepared("DELETE FROM contact_websites WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            stmt.step()
+        }
         conn.usePrepared("DELETE FROM arham WHERE contactId = ?") { stmt ->
             stmt.bindLong(1, contactId)
             stmt.step()
@@ -1090,7 +1311,7 @@ class LocalSilaDatabase internal constructor(
         val e = entity ?: return null
         val phones = mutableListOf<ContactPhoneRow>()
         conn.usePrepared(
-            "SELECT id, contactId, raw, e164, type, isPrimary FROM contact_phones WHERE contactId = ? ORDER BY id ASC"
+            "SELECT id, contactId, raw, e164, type, label, sortOrder, isPrimary FROM contact_phones WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"
         ) { stmt ->
             stmt.bindLong(1, e.id)
             while (stmt.step()) {
@@ -1100,7 +1321,9 @@ class LocalSilaDatabase internal constructor(
                     raw = stmt.getText(2),
                     e164 = stmt.getText(3),
                     type = stmt.getText(4),
-                    isPrimary = stmt.getLong(5) != 0L,
+                    label = if (stmt.isNull(5)) null else stmt.getText(5),
+                    sortOrder = stmt.getLong(6).toInt(),
+                    isPrimary = stmt.getLong(7) != 0L,
                 )
             }
         }
@@ -1125,6 +1348,91 @@ class LocalSilaDatabase internal constructor(
                 )
             }
         }
+        // أطفال T6 — القراءة **كاملة** حصراً: الدمج يبني على `persisted.contact` ويُعيد
+        // كتابة كل الأطفال عبر writeContactRelationsToSqlite؛ أي عمود غير مقروء هنا
+        // سيمحو بيانات مستخدم في كل دلتا (عقد الاتساق ADR-0012).
+        val emails = mutableListOf<ContactEmailEntity>()
+        conn.usePrepared(
+            "SELECT id, contactId, address, type, label, sortOrder FROM contact_emails WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"
+        ) { stmt ->
+            stmt.bindLong(1, e.id)
+            while (stmt.step()) {
+                emails += ContactEmailEntity(
+                    id = stmt.getLong(0),
+                    contactId = stmt.getLong(1),
+                    address = stmt.getText(2),
+                    type = stmt.getText(3),
+                    label = if (stmt.isNull(4)) null else stmt.getText(4),
+                    sortOrder = stmt.getLong(5).toInt(),
+                )
+            }
+        }
+        val websites = mutableListOf<ContactWebsiteEntity>()
+        conn.usePrepared(
+            "SELECT id, contactId, url, sortOrder FROM contact_websites WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"
+        ) { stmt ->
+            stmt.bindLong(1, e.id)
+            while (stmt.step()) {
+                websites += ContactWebsiteEntity(
+                    id = stmt.getLong(0),
+                    contactId = stmt.getLong(1),
+                    url = stmt.getText(2),
+                    sortOrder = stmt.getLong(3).toInt(),
+                )
+            }
+        }
+        val addresses = mutableListOf<ContactAddressEntity>()
+        conn.usePrepared(
+            "SELECT id, contactId, street, city, region, postalCode, country, type, sortOrder FROM contact_addresses WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"
+        ) { stmt ->
+            stmt.bindLong(1, e.id)
+            while (stmt.step()) {
+                addresses += ContactAddressEntity(
+                    id = stmt.getLong(0),
+                    contactId = stmt.getLong(1),
+                    street = if (stmt.isNull(2)) null else stmt.getText(2),
+                    city = if (stmt.isNull(3)) null else stmt.getText(3),
+                    region = if (stmt.isNull(4)) null else stmt.getText(4),
+                    postalCode = if (stmt.isNull(5)) null else stmt.getText(5),
+                    country = if (stmt.isNull(6)) null else stmt.getText(6),
+                    type = stmt.getText(7),
+                    sortOrder = stmt.getLong(8).toInt(),
+                )
+            }
+        }
+        val dates = mutableListOf<ContactDateEntity>()
+        conn.usePrepared(
+            "SELECT id, contactId, type, label, month, day, year, sortOrder FROM contact_dates WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"
+        ) { stmt ->
+            stmt.bindLong(1, e.id)
+            while (stmt.step()) {
+                dates += ContactDateEntity(
+                    id = stmt.getLong(0),
+                    contactId = stmt.getLong(1),
+                    type = stmt.getText(2),
+                    label = if (stmt.isNull(3)) null else stmt.getText(3),
+                    month = stmt.getLong(4).toInt(),
+                    day = stmt.getLong(5).toInt(),
+                    year = if (stmt.isNull(6)) null else stmt.getLong(6).toInt(),
+                    sortOrder = stmt.getLong(7).toInt(),
+                )
+            }
+        }
+        val customFields = mutableListOf<ContactCustomFieldEntity>()
+        conn.usePrepared(
+            "SELECT id, contactId, label, value, sortOrder FROM contact_custom_fields WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"
+        ) { stmt ->
+            stmt.bindLong(1, e.id)
+            while (stmt.step()) {
+                customFields += ContactCustomFieldEntity(
+                    id = stmt.getLong(0),
+                    contactId = stmt.getLong(1),
+                    label = stmt.getText(2),
+                    value = stmt.getText(3),
+                    sortOrder = stmt.getLong(4).toInt(),
+                )
+            }
+        }
         return PersistedContact(
             contact = e.toDomain(
                 phones = phones.map { p ->
@@ -1134,10 +1442,18 @@ class LocalSilaDatabase internal constructor(
                         raw = p.raw,
                         e164 = p.e164,
                         type = p.type,
+                        label = p.label,
                         isPrimary = p.isPrimary,
+                        sortOrder = p.sortOrder,
                     )
                 },
                 arham = arham,
+            ).copy(
+                emails = emails.map { it.toDomain() },
+                websites = websites.map { it.toDomain() },
+                addresses = addresses.map { it.toDomain() },
+                dates = dates.map { it.toDomain() },
+                customFields = customFields.map { it.toDomain() },
             ),
             systemDeletedAt = e.systemDeletedAt,
         )
@@ -1150,6 +1466,8 @@ class LocalSilaDatabase internal constructor(
         val raw: String,
         val e164: String,
         val type: String,
+        val label: String?,
+        val sortOrder: Int,
         val isPrimary: Boolean,
     )
 

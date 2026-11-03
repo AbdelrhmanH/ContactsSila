@@ -124,7 +124,7 @@ class LegacyDatabaseAdoptionTest {
             db.closeConnection()
         }
 
-        // إعادة الفتح: user_version = 1 الآن ⇒ ROOM_MANAGED — بلا شيم وبلا نسخة جديدة:
+        // إعادة الفتح: user_version = إصدار Room الآن ⇒ ROOM_MANAGED — بلا شيم وبلا نسخة جديدة:
         val reopened = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
         try {
             assertEquals(1, reopened.observeContacts().first().size)
@@ -371,10 +371,10 @@ class LegacyDatabaseAdoptionTest {
         assertFalse(PlatformFileOps.fileExists(unreachableDbPath))
     }
 
-    // ===== 7) ختم الإصدار: أول فتح Room ناجح يُسجّل user_version = 1 + جدول الهوية =====
+    // ===== 7) ختم الإصدار: أول فتح Room ناجح يُسجّل إصدار المخطط + جدول الهوية =====
 
     @Test
-    fun adoption_firstSuccessfulRoomOpen_stampsUserVersion1_withRoomMasterIdentity() = runTest {
+    fun adoption_firstSuccessfulRoomOpen_stampsRoomSchemaVersion_withRoomMasterIdentity() = runTest {
         val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_adopt_stamp_${Random.nextLong(100_000, 999_999)}.db")
 
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L2_OR_L3) { conn ->
@@ -392,9 +392,10 @@ class LegacyDatabaseAdoptionTest {
             db.closeConnection()
         }
 
-        // Decision 3 (ADR-0011): أول إصدار Room فعلي = 1 — يُختم عبر مسار create/validate
-        // لإصدار-صفر، وليس Migration(0,1).
-        assertEquals(1, userVersionOf(tempDbPath), "Room يختم user_version = 1 عند أول فتح ناجح")
+        // Decision 3 (ADR-0011): أول إصدار Room فعلي يُختم عبر مسار create/validate
+        // لإصدار-صفر، وليس Migration — مع T6 الإصدار الحالي SILA_ROOM_VERSION = 2
+        // (v1→v2 عبر MIGRATION_1_2 يطبَّق في نفس الفتح الأول للقاعدة المعتمدة).
+        assertEquals(SILA_ROOM_VERSION, userVersionOf(tempDbPath), "Room يختم إصدار مخططه عند أول فتح ناجح")
         assertTrue(tableExists(tempDbPath, "room_master_table"), "جدول هوية Room مُنشأ")
         BundledSQLiteDriver().open(tempDbPath).use { conn ->
             conn.prepare("SELECT identity_hash FROM room_master_table").use { stmt ->
@@ -407,7 +408,7 @@ class LegacyDatabaseAdoptionTest {
     // ===== 8) تثبيت جديد: Room ينشئ المخطط النهائي مباشرة — بلا DDL يدوي وبلا جداول شبحية =====
 
     @Test
-    fun freshInstall_roomCreatesFinalSchemaDirectly_version1_noPhantomTables() = runTest {
+    fun freshInstall_roomCreatesFinalSchemaDirectly_noPhantomTables() = runTest {
         val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_fresh_${Random.nextLong(100_000, 999_999)}.db")
         assertFalse(PlatformFileOps.fileExists(tempDbPath), "التثبيت الجديد يبدأ بلا ملف قاعدة")
 
@@ -419,7 +420,7 @@ class LegacyDatabaseAdoptionTest {
             db.closeConnection()
         }
 
-        assertEquals(1, userVersionOf(tempDbPath), "المخطط الفعلي الأول يُنشأ منشأً عند الإصدار 1")
+        assertEquals(SILA_ROOM_VERSION, userVersionOf(tempDbPath), "المخطط الفعلي يُنشأ منشأً عند إصدار Room الحالي")
         // الجداول الثمانية المُدارة + FTS المستقل + جدول هوية Room:
         val managedTables = listOf(
             "contacts", "contact_phones", "arham", "services", "call_events",
@@ -964,7 +965,7 @@ class LegacyDatabaseAdoptionTest {
         val db = LocalSilaDatabase(dbFilePath = tempDbPath, dispatchers = testDispatchers)
         try {
             assertEquals(1, db.observeContacts().first().size)
-            assertEquals(1, userVersionOf(tempDbPath))
+            assertEquals(SILA_ROOM_VERSION, userVersionOf(tempDbPath))
             assertFalse(PlatformFileOps.fileExists(backupPath), "النسخة الواقية حُذفت بعد اكتمال الاستئناف")
         } finally {
             db.closeConnection()
@@ -989,7 +990,7 @@ class LegacyDatabaseAdoptionTest {
     }
 
     @Test
-    fun sr04_crashB_roomSetsUserVersion1_processStopsBeforeBackupDeletion_nextStartupCleansUpAfterVerification() = runTest {
+    fun sr04_crashB_roomStampsSchemaVersion_processStopsBeforeBackupDeletion_nextStartupCleansUpAfterVerification() = runTest {
         val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_sr04_crashB_${Random.nextLong(100_000, 999_999)}.db")
         val backupPath = SilaDatabaseBackup.backupPathFor(tempDbPath)
 
@@ -1000,7 +1001,7 @@ class LegacyDatabaseAdoptionTest {
             )
         }
 
-        // محاكاة Crash B: Room يفتح ويختم user_version = 1 ولكن العملية تتوقف قبل حذف النسخة الواقية:
+        // محاكاة Crash B: Room يفتح ويختم إصداره ولكن العملية تتوقف قبل حذف النسخة الواقية:
         assertFailsWith<IllegalStateException> {
             LocalSilaDatabase(
                 dbFilePath = tempDbPath,
@@ -1015,7 +1016,7 @@ class LegacyDatabaseAdoptionTest {
             )
         }
 
-        assertEquals(1, userVersionOf(tempDbPath), "Room ختم user_version = 1 بالفعل")
+        assertEquals(SILA_ROOM_VERSION, userVersionOf(tempDbPath), "Room ختم إصداره بالفعل")
         assertTrue(PlatformFileOps.fileExists(backupPath), "النسخة الواقية لم تُحذف بسبب التوقف")
 
         // التشغيل التالي (ROOM_MANAGED) يكتشف النسخة الواقية المتبقية، يتحقق من القاعدة الحيّة، ثم يحذفها:
