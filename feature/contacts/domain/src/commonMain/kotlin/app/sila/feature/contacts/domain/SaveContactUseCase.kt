@@ -61,6 +61,9 @@ class SaveContactUseCase(
 
         val draftWithStamp = draft.copy(
             normalizedName = draft.normalizedName.ifEmpty { draft.name.displayName },
+            // createdAt يُطبع مرة واحدة عند الإنشاء حصراً (عمود لا يُملأ لاحقاً —
+            // تحديث م-2 من مراجعة T6)؛ التحديث يحافظ على قيمة الأصل كما هي.
+            createdAt = original?.createdAt ?: now,
             updatedAt = now,
         )
 

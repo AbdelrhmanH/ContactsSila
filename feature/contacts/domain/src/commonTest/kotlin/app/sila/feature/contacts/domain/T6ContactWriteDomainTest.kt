@@ -316,7 +316,23 @@ class T6ContactWriteDomainTest {
 
         val saved = repo.stored.single()
         assertEquals(FIXED_NOW, saved.updatedAt, "طابع الوقت من ساعة النطاق حصراً")
+        assertEquals(FIXED_NOW, saved.createdAt, "createdAt يُطبع مرة واحدة عند الإنشاء (لا صفر أبداً)")
         assertEquals("منى أحمد", saved.normalizedName, "normalizedName الفارغ يسقط إلى الاسم المعروض")
+    }
+
+    @Test
+    fun update_preservesOriginalCreatedAt_andRestampsUpdatedAt() = runTest {
+        val writer = RecordingWriter(CallLog())
+        val repo = RecordingRepository(CallLog())
+        val useCase = SaveContactUseCase(writer, repo, FakeImageProcessor(), fixedClock)
+        val original = contact(id = 7L).copy(createdAt = 1_000L, updatedAt = 2_000L)
+        val draft = original.copy(name = original.name.copy(displayName = "منى عدّلت"))
+
+        useCase(original = original, draft = draft)
+
+        val saved = repo.stored.single()
+        assertEquals(1_000L, saved.createdAt, "التحديث لا يمس createdAt الأصلي إطلاقاً")
+        assertEquals(FIXED_NOW, saved.updatedAt, "updatedAt يُعاد طبعه من ساعة النطاق")
     }
 
     // ===== toWritable: الإسقاط المسموح (نقي) =====

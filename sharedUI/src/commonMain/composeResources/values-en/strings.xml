@@ -173,6 +173,7 @@
     <string name="details_custom_fields_section">Custom fields</string>
     <string name="details_websites_section">Websites</string>
     <string name="details_account_section">Account</string>
+    <string name="details_account_device">Device</string>
 
     <!-- Phone/email/address/date types -->
     <string name="details_type_mobile">Mobile</string>

@@ -333,13 +333,17 @@ private fun DetailsBody(
             item { SectionDivider() }
         }
 
-        item {
-            SectionTitle(strings.accountSection)
-            ValueRow(
-                value = contact.account?.accountName ?: strings.loading,
-                secondary = contact.account?.accountType,
-            )
-            Spacer(modifier = Modifier.height(SilaDimens.Space24))
+        // الحساب: يُعرض عند وجوده حصراً («الحقول الفارغة لا تُعرض» — AC)؛ غياب
+        // accountName يعني حساب الجهاز المحلي (نمط iOS ContactDetailsView حرفياً).
+        contact.account?.let { account ->
+            item {
+                SectionTitle(strings.accountSection)
+                ValueRow(
+                    value = account.accountName ?: strings.accountDevice,
+                    secondary = account.accountType,
+                )
+                Spacer(modifier = Modifier.height(SilaDimens.Space24))
+            }
         }
     }
 }

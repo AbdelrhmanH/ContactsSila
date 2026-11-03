@@ -16,6 +16,7 @@ import contactssila.sharedui.generated.resources.category_services
 import contactssila.sharedui.generated.resources.category_uncategorized
 import contactssila.sharedui.generated.resources.category_work
 import contactssila.sharedui.generated.resources.contacts_loading
+import contactssila.sharedui.generated.resources.details_account_device
 import contactssila.sharedui.generated.resources.details_account_section
 import contactssila.sharedui.generated.resources.details_action_change_category
 import contactssila.sharedui.generated.resources.details_action_delete
@@ -221,6 +222,7 @@ fun rememberContactDetailsStrings(): ContactDetailsStrings {
         customFieldsSection = stringResource(Res.string.details_custom_fields_section),
         websitesSection = stringResource(Res.string.details_websites_section),
         accountSection = stringResource(Res.string.details_account_section),
+        accountDevice = stringResource(Res.string.details_account_device),
         phoneTypeName = { type ->
             when (type) {
                 "MOBILE" -> typeMobile
@@ -374,6 +376,7 @@ private data class ResourceContactDetailsStrings(
     override val customFieldsSection: String,
     override val websitesSection: String,
     override val accountSection: String,
+    override val accountDevice: String,
     override val phoneTypeName: (type: String) -> String,
     override val emailTypeName: (type: String) -> String,
     override val addressTypeName: (type: String) -> String,

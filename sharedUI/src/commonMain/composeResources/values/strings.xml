@@ -173,6 +173,7 @@
     <string name="details_custom_fields_section">حقول مخصصة</string>
     <string name="details_websites_section">المواقع</string>
     <string name="details_account_section">الحساب</string>
+    <string name="details_account_device">جهاز</string>
 
     <!-- أنواع الهاتف والبريد والعنوان والتاريخ -->
     <string name="details_type_mobile">محمول</string>

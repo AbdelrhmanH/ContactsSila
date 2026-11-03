@@ -40,6 +40,9 @@ interface ContactDetailsStrings {
     val websitesSection: String
     val accountSection: String
 
+    /** اسم حساب الجهاز المحلي عند غياب `accountName` (نمط iOS `details_account_device`). */
+    val accountDevice: String
+
     // أسماء الأنواع (هواتف/بريد — قيم String في النموذج، تُترجم هنا)
     val phoneTypeName: (type: String) -> String
     val emailTypeName: (type: String) -> String
