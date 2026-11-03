@@ -318,13 +318,12 @@ struct ContactEditView: View {
                         Menu(strings.dateTypeName(row.type)) {
                             ForEach(dateTypes, id: \.self) { type in
                                 Button(strings.dateTypeName(type)) {
-                                    store.updateDate(
-                                        row.key,
-                                        type: type,
-                                        month: row.month?.value,
-                                        day: row.day?.value,
-                                        year: row.year?.value
-                                    )
+                                    // فكّ التغليف في متغيرات محلية (KotlinInt? : NSNumber) — تفجير تدقيق الأنواع
+                                    // في الشكل متعدد الوسائط سبّب «unable to type-check in reasonable time».
+                                    let month = row.month?.intValue
+                                    let day = row.day?.intValue
+                                    let year = row.year?.intValue
+                                    store.updateDate(row.key, type: type, month: month, day: day, year: year)
                                 }
                             }
                         }
@@ -337,14 +336,14 @@ struct ContactEditView: View {
                         .buttonStyle(.borderless)
                     }
                     HStack(spacing: 12) {
-                        numberField(strings.monthLabel, value: row.month?.value, width: 48) { month in
-                            store.updateDate(row.key, type: row.type, month: month, day: row.day?.value, year: row.year?.value)
+                        numberField(strings.monthLabel, value: row.month?.intValue, width: 48) { month in
+                            store.updateDate(row.key, type: row.type, month: month, day: row.day?.intValue, year: row.year?.intValue)
                         }
-                        numberField(strings.dayLabel, value: row.day?.value, width: 48) { day in
-                            store.updateDate(row.key, type: row.type, month: row.month?.value, day: day, year: row.year?.value)
+                        numberField(strings.dayLabel, value: row.day?.intValue, width: 48) { day in
+                            store.updateDate(row.key, type: row.type, month: row.month?.intValue, day: day, year: row.year?.intValue)
                         }
-                        numberField(strings.yearLabel, value: row.year?.value, width: 72) { year in
-                            store.updateDate(row.key, type: row.type, month: row.month?.value, day: row.day?.value, year: year)
+                        numberField(strings.yearLabel, value: row.year?.intValue, width: 72) { year in
+                            store.updateDate(row.key, type: row.type, month: row.month?.intValue, day: row.day?.intValue, year: year)
                         }
                     }
                     if row.type == "BIRTHDAY", store.state.category == SharedLogic.Category.family {
