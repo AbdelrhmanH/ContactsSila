@@ -32,6 +32,7 @@ import app.sila.core.database.entity.ContactPhoneEntity
 import app.sila.core.database.entity.ContactWebsiteEntity
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.database.entity.DisputeLogEntity
+import app.sila.core.database.entity.EmergencyRingingSessionEntity
 import app.sila.core.database.entity.toContactEntity
 import app.sila.core.database.entity.toDomain
 import app.sila.core.database.entity.toEntity
@@ -43,13 +44,18 @@ import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.database.legacy.SilaDatabaseBackup
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamInfo
+import app.sila.core.model.CallAssociation
+import app.sila.core.model.CallConfirmation
+import app.sila.core.model.CallConfidence
 import app.sila.core.model.CallDirection
+import app.sila.core.model.CallOutcome
 import app.sila.core.model.CallSource
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
 import app.sila.core.model.DisputeStatus
 import app.sila.core.model.KinshipLayer
+import app.sila.core.model.RingingStatus
 import app.sila.core.model.Phone
 import app.sila.core.model.RecentInteraction
 import app.sila.core.model.Relation
@@ -578,14 +584,30 @@ class LocalSilaDatabase internal constructor(
         timestampMillis: Long,
     ): Unit = withContext(dispatchers.io) {
         dbMutex.withLock {
+            // T8-02: الكاتب الإرثي (T6) يُصدر صف v3 بنفس محتوى معلوماته v2 حرفاً،
+            // معبَّراً بقواعد §H.2 نفسها (مصدر مفرد للدليل، الجديد كله NULL، الدURATION
+            // الصفر كما هي) — بلا اختراع دليل جديد (ATTEMPTED/startedAt قادمان مع
+            // مسار آلة الحالات في T8-03/T8-06 الذي يستبدل هذا المسار).
             callEventEntityDao.upsert(
                 CallEventEntity(
                     callLogId = callLogId,
                     e164 = e164,
-                    direction = CallDirection.OUT,
-                    durationSec = 0,
                     timestamp = timestampMillis,
-                    source = CallSource.IN_APP,
+                    primarySource = CallSource.IN_APP,
+                    evidenceSources = setOf(CallSource.IN_APP),
+                    remoteNumber = null,
+                    contactId = null,
+                    direction = CallDirection.OUT,
+                    startedAt = null,
+                    connectedAt = null,
+                    endedAt = null,
+                    durationSec = 0,
+                    outcome = CallOutcome.UNKNOWN,
+                    association = CallAssociation.UNASSOCIATED,
+                    confirmation = CallConfirmation.NOT_REQUIRED,
+                    confidence = CallConfidence.LOW,
+                    dedupeKey = null,
+                    simSlot = null,
                 )
             )
         }
@@ -594,15 +616,20 @@ class LocalSilaDatabase internal constructor(
     override suspend fun getRecentCallEvents(e164s: List<String>, limit: Int): List<RecentInteraction> =
         withContext(dispatchers.io) {
             if (e164s.isEmpty() || limit <= 0) return@withContext emptyList()
-            callEventEntityDao.getRecentForE164s(e164s, limit).map { event ->
-                RecentInteraction(
-                    callLogId = event.callLogId,
-                    e164 = event.e164,
-                    timestampMillis = event.timestamp,
-                    direction = event.direction,
-                    durationSec = event.durationSec,
-                    source = event.source,
-                )
+            // T8-02: صفوف اتجاهها NULL (إرث MISSED المهاجر) لا يمكن عرضها في عقد T6
+            // (اتجاه غير فارغ) — تُتخطى بلا اختلاق قيمة اتجاه (ADR-0006: لا يُستنتج).
+            // مسار أرحام الجديد (T8-03) يقرأ CallEvent الكاملة مباشرة.
+            callEventEntityDao.getRecentForE164s(e164s, limit).mapNotNull { event ->
+                event.direction?.let { direction ->
+                    RecentInteraction(
+                        callLogId = event.callLogId,
+                        e164 = event.e164,
+                        timestampMillis = event.timestamp,
+                        direction = direction,
+                        durationSec = event.durationSec ?: 0,
+                        source = event.primarySource,
+                    )
+                }
             }
         }
 
@@ -692,14 +719,33 @@ class LocalSilaDatabase internal constructor(
             conn.usePrepared("DELETE FROM call_events") { it.step() }
             events.forEach { e ->
                 conn.usePrepared(
-                    "INSERT INTO call_events (callLogId, e164, direction, durationSec, timestamp, source) VALUES (?, ?, ?, ?, ?, ?)"
+                    """
+                    INSERT INTO call_events (
+                        callLogId, e164, timestamp, primarySource, evidenceSources,
+                        remoteNumber, contactId, direction, startedAt, connectedAt,
+                        endedAt, durationSec, outcome, association, confirmation,
+                        confidence, dedupeKey, simSlot
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """.trimIndent()
                 ) { stmt ->
                     stmt.bindText(1, e.callLogId)
                     stmt.bindText(2, e.e164)
-                    stmt.bindText(3, e.direction.name)
-                    stmt.bindLong(4, e.durationSec.toLong())
-                    stmt.bindLong(5, e.timestamp)
-                    stmt.bindText(6, e.source.name)
+                    stmt.bindLong(3, e.timestamp)
+                    stmt.bindText(4, e.primarySource.name)
+                    stmt.bindText(5, e.evidenceSources.map { it.name }.sorted().joinToString(separator = ","))
+                    e.remoteNumber?.let { stmt.bindText(6, it) } ?: stmt.bindNull(6)
+                    e.contactId?.let { stmt.bindLong(7, it) } ?: stmt.bindNull(7)
+                    e.direction?.let { stmt.bindText(8, it.name) } ?: stmt.bindNull(8)
+                    e.startedAt?.let { stmt.bindLong(9, it) } ?: stmt.bindNull(9)
+                    e.connectedAt?.let { stmt.bindLong(10, it) } ?: stmt.bindNull(10)
+                    e.endedAt?.let { stmt.bindLong(11, it) } ?: stmt.bindNull(11)
+                    e.durationSec?.let { stmt.bindLong(12, it.toLong()) } ?: stmt.bindNull(12)
+                    stmt.bindText(13, e.outcome.name)
+                    stmt.bindText(14, e.association.name)
+                    stmt.bindText(15, e.confirmation.name)
+                    stmt.bindText(16, e.confidence.name)
+                    e.dedupeKey?.let { stmt.bindText(17, it) } ?: stmt.bindNull(17)
+                    e.simSlot?.let { stmt.bindLong(18, it.toLong()) } ?: stmt.bindNull(18)
                     stmt.step()
                 }
             }
@@ -746,6 +792,49 @@ class LocalSilaDatabase internal constructor(
             }
         }
     }
+
+    /** بذر جلسات طوارئ للاختبارات (D4 — T8-02): يستبدل محتوى `emergency_ringing_sessions` بالصفوف المُعطاة كاملة. */
+    suspend fun seedEmergencySessionsForTest(sessions: List<EmergencyRingingSessionEntity>) {
+        inWriteTransaction { conn ->
+            conn.usePrepared("DELETE FROM emergency_ringing_sessions") { it.step() }
+            sessions.forEach { s ->
+                conn.usePrepared(
+                    "INSERT INTO emergency_ringing_sessions (id, contactId, startedAt, lastAttemptAt, attempts, status) VALUES (?, ?, ?, ?, ?, ?)"
+                ) { stmt ->
+                    stmt.bindLong(1, s.id)
+                    stmt.bindLong(2, s.contactId)
+                    stmt.bindLong(3, s.startedAt)
+                    stmt.bindLong(4, s.lastAttemptAt)
+                    stmt.bindLong(5, s.attempts.toLong())
+                    stmt.bindText(6, s.status.name)
+                    stmt.step()
+                }
+            }
+        }
+    }
+
+    /** قراءة اختبار مباشرة لصفوف جلسات الطوارئ — عبر SQL خام على قارئ Room (ترتيب id تصاعدياً). */
+    internal suspend fun readEmergencySessionsForTest(): List<EmergencyRingingSessionEntity> =
+        room.useReaderConnection { conn ->
+            conn.usePrepared(
+                "SELECT id, contactId, startedAt, lastAttemptAt, attempts, status FROM emergency_ringing_sessions ORDER BY id ASC"
+            ) { stmt ->
+                buildList {
+                    while (stmt.step()) {
+                        add(
+                            EmergencyRingingSessionEntity(
+                                id = stmt.getLong(0),
+                                contactId = stmt.getLong(1),
+                                startedAt = stmt.getLong(2),
+                                lastAttemptAt = stmt.getLong(3),
+                                attempts = stmt.getLong(4).toInt(),
+                                status = RingingStatus.valueOf(stmt.getText(5))
+                            )
+                        )
+                    }
+                }
+            }
+        }
 
     /** فحص اختبار مباشر لفهرس FTS (docid = contacts.id) — عبر SQL خام على قارئ Room. */
     internal suspend fun queryFtsContactIds(matchQuery: String): List<Long> =
@@ -922,10 +1011,15 @@ class LocalSilaDatabase internal constructor(
             val inboxCutoff = nowMillis - (30L * dayMillis)
             val disputeCutoff = nowMillis - (90L * dayMillis)
             val tombstoneCutoff = nowMillis - (30L * dayMillis)
+            // جلسات الطوارئ المنتهية (v3 — قرار D4): نافذة 24 ساعة + هامش = 48 ساعة
+            // من آخر محاولة (§H من تقرير بوابة T8-02) — الجلسة الجارية (IN_PROGRESS)
+            // لا تُمس — قرارها بيد منطق الاستئناف/الإجهاض حصراً.
+            val emergencySessionCutoff = nowMillis - (2L * dayMillis)
 
             var deletedCalls = 0
             var deletedInbox = 0
             var archivedDisputes = 0
+            var deletedEmergencySessions = 0
             val expiredTombstoneIds = mutableListOf<Long>()
 
             // F-02: كل عمليات التنظيف داخل معاملة واحدة — إما أن تُنجز كلها أو لا شيء
@@ -935,6 +1029,21 @@ class LocalSilaDatabase internal constructor(
                 deletedCalls = countRowsWhere(conn, "SELECT COUNT(*) FROM call_events WHERE timestamp < ?", callCutoff)
                 conn.usePrepared("DELETE FROM call_events WHERE timestamp < ?") { stmt ->
                     stmt.bindLong(1, callCutoff)
+                    stmt.step()
+                }
+
+                deletedEmergencySessions = conn.usePrepared(
+                    "SELECT COUNT(*) FROM emergency_ringing_sessions WHERE lastAttemptAt < ? AND status <> ?"
+                ) { stmt ->
+                    stmt.bindLong(1, emergencySessionCutoff)
+                    stmt.bindText(2, RingingStatus.IN_PROGRESS.name)
+                    if (stmt.step()) stmt.getLong(0).toInt() else 0
+                }
+                conn.usePrepared(
+                    "DELETE FROM emergency_ringing_sessions WHERE lastAttemptAt < ? AND status <> ?"
+                ) { stmt ->
+                    stmt.bindLong(1, emergencySessionCutoff)
+                    stmt.bindText(2, RingingStatus.IN_PROGRESS.name)
                     stmt.step()
                 }
 
@@ -982,7 +1091,8 @@ class LocalSilaDatabase internal constructor(
                 deletedCallEvents = deletedCalls,
                 deletedInboxMessages = deletedInbox,
                 archivedDisputes = archivedDisputes,
-                deletedTombstonedContacts = expiredTombstoneIds.size
+                deletedTombstonedContacts = expiredTombstoneIds.size,
+                deletedEmergencySessions = deletedEmergencySessions
             )
         }
     }

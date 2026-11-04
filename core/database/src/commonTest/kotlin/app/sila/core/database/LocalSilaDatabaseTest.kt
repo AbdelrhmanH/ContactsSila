@@ -4,7 +4,6 @@ import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.legacy.PlatformFileOps
 import kotlinx.coroutines.Dispatchers
-import app.sila.core.database.entity.CallEventEntity
 import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamInfo
@@ -67,8 +66,8 @@ class LocalSilaDatabaseTest {
 
             db.seedCallEventsForTest(
                 listOf(
-                    CallEventEntity("old_1", "+201011112222", CallDirection.OUT, 45, now - (400 * dayMs), CallSource.CALL_LOG),
-                    CallEventEntity("recent_1", "+201011112222", CallDirection.OUT, 60, now - (10 * dayMs), CallSource.CALL_LOG)
+                    legacyCallEvent("old_1", "+201011112222", CallDirection.OUT, 45, now - (400 * dayMs), CallSource.CALL_LOG),
+                    legacyCallEvent("recent_1", "+201011112222", CallDirection.OUT, 60, now - (10 * dayMs), CallSource.CALL_LOG)
                 )
             )
             db.seedDisputesForTest(
