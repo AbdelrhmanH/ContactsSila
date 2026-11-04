@@ -84,7 +84,12 @@ class MainViewModelTest {
             val servicesRepo = ServicesRepositoryImpl(db)
             val settingsRepo = SettingsRepositoryImpl(SilaPreferencesDataSource())
             val getPriority = GetArhamPriorityListUseCase(ArhamRepositoryImpl(db), fixedClock, unconfinedDispatchers)
-            val getStats = GetArhamDashboardStatsUseCase(getPriority, unconfinedDispatchers)
+            val getStats = GetArhamDashboardStatsUseCase(
+                arhamRepository = ArhamRepositoryImpl(db),
+                callEventRepository = ArhamCallEventRepositoryImpl(db),
+                clock = fixedClock,
+                dispatchers = unconfinedDispatchers,
+            )
 
             val vm = MainViewModel(
                 contactsRepository = contactsRepo,
@@ -120,8 +125,10 @@ class MainViewModelTest {
                 servicesRepository = ServicesRepositoryImpl(db),
                 getArhamPriorityList = GetArhamPriorityListUseCase(ArhamRepositoryImpl(db), fixedClock, unconfinedDispatchers),
                 getArhamStats = GetArhamDashboardStatsUseCase(
-                    GetArhamPriorityListUseCase(ArhamRepositoryImpl(db), fixedClock, unconfinedDispatchers),
-                    unconfinedDispatchers,
+                    arhamRepository = ArhamRepositoryImpl(db),
+                    callEventRepository = ArhamCallEventRepositoryImpl(db),
+                    clock = fixedClock,
+                    dispatchers = unconfinedDispatchers,
                 ),
                 settingsRepository = SettingsRepositoryImpl(SilaPreferencesDataSource()),
                 clock = fixedClock
@@ -144,7 +151,12 @@ class MainViewModelTest {
             val servicesRepo = ServicesRepositoryImpl(db)
             val settingsRepo = SettingsRepositoryImpl(SilaPreferencesDataSource())
             val getPriority = GetArhamPriorityListUseCase(ArhamRepositoryImpl(db), fixedClock, unconfinedDispatchers)
-            val getStats = GetArhamDashboardStatsUseCase(getPriority, unconfinedDispatchers)
+            val getStats = GetArhamDashboardStatsUseCase(
+                arhamRepository = ArhamRepositoryImpl(db),
+                callEventRepository = ArhamCallEventRepositoryImpl(db),
+                clock = fixedClock,
+                dispatchers = unconfinedDispatchers,
+            )
 
             val vm = MainViewModel(
                 contactsRepository = contactsRepo,

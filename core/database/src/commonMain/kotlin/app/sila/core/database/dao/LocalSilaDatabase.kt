@@ -700,6 +700,12 @@ class LocalSilaDatabase internal constructor(
         callEventEntityDao.observePending().map { entities -> entities.map { it.toCallEvent() } }
             .flowOn(dispatchers.io)
 
+    /** أحداث النافذة `[fromMillis, toMillis]` (T8-07 · AC-2) — استعلام Room مباشر، قراءة حصراً. */
+    override fun observeCallEventsBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEvent>> =
+        callEventEntityDao.observeBetween(fromMillis = fromMillis, toMillis = toMillis)
+            .map { entities -> entities.map { it.toCallEvent() } }
+            .flowOn(dispatchers.io)
+
     override suspend fun upsertCallEvent(event: CallEvent, lastContactedUpdate: LastContactedUpdate?): Unit =
         withContext(dispatchers.io) {
             // مدقِّقا الخريطة (بلا رقم / اتجاه MISSED) يُخفقان مغلقَي الصمام قبل أي معاملة —

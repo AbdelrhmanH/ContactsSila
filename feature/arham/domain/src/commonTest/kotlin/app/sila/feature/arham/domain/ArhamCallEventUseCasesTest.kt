@@ -33,6 +33,9 @@ class ArhamCallEventUseCasesTest {
         override fun observePendingConfirmations(): Flow<List<CallEvent>> =
             MutableStateFlow(events.values.filter { it.confirmation == CallConfirmation.PENDING })
 
+        override fun observeEventsBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEvent>> =
+            MutableStateFlow(events.values.filter { it.timestamp in fromMillis..toMillis })
+
         override suspend fun findEventsBetween(fromMillis: Long, toMillis: Long): List<CallEvent> =
             events.values.filter { it.timestamp in fromMillis..toMillis }
 

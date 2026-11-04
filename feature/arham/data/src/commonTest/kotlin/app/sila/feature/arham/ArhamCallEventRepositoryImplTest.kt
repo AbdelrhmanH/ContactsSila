@@ -68,6 +68,9 @@ class ArhamCallEventRepositoryImplTest {
         override fun observePendingCallEvents(): Flow<List<CallEvent>> =
             kotlinx.coroutines.flow.flowOf(emptyList())
 
+        override fun observeCallEventsBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEvent>> =
+            kotlinx.coroutines.flow.flowOf(emptyList())
+
         override suspend fun getCallEventById(eventId: String): CallEvent? {
             failure?.let { throw it }
             return nextEvent

@@ -42,4 +42,11 @@ interface ArhamCallEventRepository {
      * مرتَّبة تنازلياً بالطابع الزمني (الأحدث أولاً).
      */
     fun observePendingConfirmations(): Flow<List<CallEvent>>
+
+    /**
+     * يرصد كل أحداث النافذة الشاملة `[fromMillis, toMillis]` (T8-07 · AC-2)، الأحدث أولاً —
+     * مصدر التجميع التفاعلي لإحصائيات اللوحة فوق أحداث حقيقية. تأهيلُ الأحداث (قاعدة AC-8)
+     * يُقيَّم في النطاق عبر آلة الحالات حصراً.
+     */
+    fun observeEventsBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEvent>>
 }

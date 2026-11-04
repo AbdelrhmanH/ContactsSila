@@ -24,6 +24,13 @@ interface ArhamDao {
     /** يرصد أحداث المكالمات غير المحسومة (تأكيدها `PENDING` حصراً — T8-06 · AC-7)، الأحدث أولاً. */
     fun observePendingCallEvents(): Flow<List<CallEvent>>
 
+    /**
+     * يرصد كل أحداث النافذة الشاملة `[fromMillis, toMillis]` (T8-07 · AC-2)، الأحدث أولاً —
+     * مرصدٌ تفاعلي لتجميع إحصائيات اللوحة فوق أحداث حقيقية؛ تأهيلُ كل حدث (قاعدة AC-8)
+     * قرار آلة الحالات في النطاق، لا هذا العقد.
+     */
+    fun observeCallEventsBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEvent>>
+
     /** يقرأ حدث مكالمة بمعرفه، أو `null` إن لم يوجد (T8-03). */
     suspend fun getCallEventById(eventId: String): CallEvent?
 

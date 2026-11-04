@@ -44,6 +44,7 @@ class GetArhamPriorityListUseCaseTest {
         name: String,
         frequency: ArhamFrequency,
         lastContactedDaysAgo: Int?,
+        pausedInDays: Int? = null,
     ) = Contact(
         id = id,
         systemContactId = "sys-$id",
@@ -52,6 +53,7 @@ class GetArhamPriorityListUseCaseTest {
             relation = Relation.UNCLE_PATERNAL,
             frequency = frequency,
             lastContactedAt = lastContactedDaysAgo?.let { baseMillis - it * 86_400_000L },
+            pausedUntil = pausedInDays?.let { baseMillis + it * 86_400_000L },
         ),
     )
 
@@ -108,5 +110,33 @@ class GetArhamPriorityListUseCaseTest {
         }
         val items: List<ArhamItem> = GetArhamPriorityListUseCase(repo, fixedClock)().first()
         assertEquals(listOf(1L), items.map { it.contactId })
+    }
+
+    @Test
+    fun pausedContact_hiddenFromList_andRenumberedWithoutGaps() = runTest {
+        // AC-2 «موقوف بعدد» — مؤجل من T8-05 إلى T8-07: الموقوف حالياً يخرج من القائمة
+        // حصراً، والترقيم يعاد بلا فراغات؛ عدده يظهر في اللوحة (pausedCount).
+        val repo = FakeArhamRepository().apply {
+            contacts = listOf(
+                contact(1, "أحمر", ArhamFrequency.WEEKLY, lastContactedDaysAgo = 14),
+                contact(2, "موقوف", ArhamFrequency.WEEKLY, lastContactedDaysAgo = 3, pausedInDays = 10),
+                contact(3, "أخضر", ArhamFrequency.WEEKLY, lastContactedDaysAgo = 1),
+                contact(4, "انتهى توقيفه", ArhamFrequency.WEEKLY, lastContactedDaysAgo = 5, pausedInDays = -1),
+            )
+        }
+        val items = GetArhamPriorityListUseCase(repo, fixedClock)().first()
+        assertEquals(listOf(1L, 4L, 3L), items.map { it.contactId }) // الموقوف 2 مخفي
+        assertEquals(listOf(1, 2, 3), items.map { it.rank })         // بلا فراغ ترقيم
+    }
+
+    @Test
+    fun allPausedContacts_yieldEmptyList() = runTest {
+        val repo = FakeArhamRepository().apply {
+            contacts = listOf(
+                contact(1, "موقوف أول", ArhamFrequency.WEEKLY, lastContactedDaysAgo = 2, pausedInDays = 7),
+                contact(2, "موقوف ثان", ArhamFrequency.MONTHLY, lastContactedDaysAgo = 2, pausedInDays = 7),
+            )
+        }
+        assertTrue(GetArhamPriorityListUseCase(repo, fixedClock)().first().isEmpty())
     }
 }

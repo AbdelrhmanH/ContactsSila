@@ -35,6 +35,13 @@ interface CallEventEntityDao {
     @Query("SELECT * FROM call_events WHERE confirmation = 'PENDING' ORDER BY timestamp DESC")
     fun observePending(): Flow<List<CallEventEntity>>
 
+    /**
+     * مرصد أحداث النافذة الشاملة `[fromMillis, toMillis]` (T8-07 · AC-2 تجميع اللوحة) —
+     * الأحدث أولاً. قراءة حصراً فوق العمود المفهرس `idx_call_events_ts`؛ لا تغيير مخطط.
+     */
+    @Query("SELECT * FROM call_events WHERE timestamp BETWEEN :fromMillis AND :toMillis ORDER BY timestamp DESC")
+    fun observeBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEventEntity>>
+
     /** مرصد آخر N تفاعلات لأرقام جهة واحدة — تفاعلي عبر InvalidationTracker (T6). */
     @Query("SELECT * FROM call_events WHERE e164 IN (:e164s) ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecentForE164s(e164s: List<String>, limit: Int): Flow<List<CallEventEntity>>

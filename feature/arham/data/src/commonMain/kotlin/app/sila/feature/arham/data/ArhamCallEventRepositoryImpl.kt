@@ -43,6 +43,10 @@ class ArhamCallEventRepositoryImpl(
     override fun observePendingConfirmations(): Flow<List<CallEvent>> =
         arhamDao.observePendingCallEvents()
 
+    /** تمرير مباشر فوق DAO (T8-07 · AC-2) — مرصد نافذة التجميع، قراءة حصراً. */
+    override fun observeEventsBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEvent>> =
+        arhamDao.observeCallEventsBetween(fromMillis = fromMillis, toMillis = toMillis)
+
     /** تقييم قاعدة ADR-0006 §6 / AC-8 عبر آلة الحالات — `null` = لا تحديث مصاحب. */
     private fun lastContactedUpdateFor(event: CallEvent): LastContactedUpdate? {
         val contactId = event.contactId ?: return null

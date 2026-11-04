@@ -34,7 +34,9 @@ data class ArhamDashboardStats(
     val totalFamilyCalls: Int = 0,
     val longestCallSec: Int = 0,
     val contactedRelatives: Int = 0,
-    val goalCompletion: Float = 0f
+    val goalCompletion: Float = 0f,
+    /** عدد الأقارب الموقوفين حالياً خارج القائمة المرتبة (AC-2 «موقوف بعدد» — T8-07). */
+    val pausedCount: Int = 0
 )
 
 @Serializable
@@ -81,10 +83,19 @@ data class EmergencyRingingSession(
 )
 
 /**
+ * هل يدخل هذا التكرار ترتيبَ الأولويات؟ (O-7 توحيد القاعدة — T8-07)
+ *
+ * «ب المناسبات» بلا إيقاعٍ دوري (urgency دوماً 0.0) — يُستبعد من القائمة المرتبة حصراً
+ * ويظهر عبر بطاقة/تنبيه المناسبة. هذه الخاصية هي المصدر الوحيد للقاعدة؛ كل مواقع
+ * الاستبعاد (حساب الإلحاح، فلترة القائمة) تقرأ منها حتى لا تنحرف.
+ */
+val ArhamFrequency.rankable: Boolean get() = this != ArhamFrequency.OCCASIONS
+
+/**
  * حساب الأولوية (Urgency) لقريب في أرحام (DATA_MODEL.md §5).
  */
 fun ArhamInfo.calculateUrgency(now: Instant): Double {
-    if (frequency == ArhamFrequency.OCCASIONS || frequency.days <= 0) return 0.0
+    if (!frequency.rankable || frequency.days <= 0) return 0.0
     val paused = pausedUntil
     if (paused != null && paused > now.toEpochMilliseconds()) return 0.0
     val last = lastContactedAt ?: return Double.MAX_VALUE

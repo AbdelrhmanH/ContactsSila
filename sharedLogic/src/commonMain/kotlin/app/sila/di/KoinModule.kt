@@ -18,6 +18,7 @@ import app.sila.feature.arham.data.ArhamRepositoryImpl
 import app.sila.feature.arham.domain.ArhamCallEventRepository
 import app.sila.feature.arham.domain.ArhamCelebrationPolicy
 import app.sila.feature.arham.domain.ArhamRepository
+import app.sila.feature.arham.domain.BuildArhamFamilyTreeUseCase
 import app.sila.feature.arham.domain.CallEventStateMachine
 import app.sila.feature.arham.domain.CelebrateTransitionUseCase
 import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
@@ -257,7 +258,18 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { CelebrateTransitionUseCase(policy = get(), clock = get()) }
 
     factory { GetArhamPriorityListUseCase(repository = get(), clock = get()) }
-    factory { GetArhamDashboardStatsUseCase(getPriorityList = get()) }
+
+    // T8-07 (Issue #29): تجميع اللوحة من أحداث حقيقية فوق قاعدة AC-8 (آلة الحالات مصدر
+    // القاعدة الوحيد) + بناء شجرة العائلة من الطبقات/الآباء.
+    factory {
+        GetArhamDashboardStatsUseCase(
+            arhamRepository = get(),
+            callEventRepository = get(),
+            clock = get(),
+            stateMachine = get(),
+        )
+    }
+    factory { BuildArhamFamilyTreeUseCase(repository = get(), clock = get()) }
     single {
         ArhamViewModel(
             getPriorityList = get(),
