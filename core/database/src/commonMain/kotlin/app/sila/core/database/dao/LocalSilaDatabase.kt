@@ -34,6 +34,8 @@ import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.database.entity.EmergencyRingingSessionEntity
 import app.sila.core.database.entity.toContactEntity
+import app.sila.core.database.entity.toCallEvent
+import app.sila.core.database.entity.toCallEventEntity
 import app.sila.core.database.entity.toDomain
 import app.sila.core.database.entity.toEntity
 import app.sila.core.database.entity.toWebsiteEntity
@@ -48,6 +50,7 @@ import app.sila.core.model.CallAssociation
 import app.sila.core.model.CallConfirmation
 import app.sila.core.model.CallConfidence
 import app.sila.core.model.CallDirection
+import app.sila.core.model.CallEvent
 import app.sila.core.model.CallOutcome
 import app.sila.core.model.CallSource
 import app.sila.core.model.Category
@@ -146,6 +149,14 @@ class LocalSilaDatabase internal constructor(
 
     /** خطاف حقن فشل داخل معاملة [cleanupExpiredData] — بنفس مبدأ [syncBatchFaultHook]. */
     internal var cleanupFaultHook: (() -> Throwable)? = null
+
+    /**
+     * خطاف حقن فشل حتمي داخل معاملة [upsertCallEvent] (T8-03) — يُرمى **بين العمليتين**
+     * (بعد كتابة صف الحدث وقبل تحديث آخر التواصل المؤهَّل) ليُثبت الاختبار أن انقطاع
+     * منتصف العملية المركّبة يُرجِع المعاملة كلها (قيود F-2 من مراجعة T8-01)؛ بنفس
+     * مبدأ [cleanupFaultHook].
+     */
+    internal var callEventWriteFaultHook: (() -> Throwable)? = null
 
     /** نسخة واقية بانتظار الحذف بعد اعتماد موثق (أول عملية Room ناجحة) — `null` = لا شيء. */
     private var pendingBackupDeletion: String? = null
@@ -677,6 +688,70 @@ class LocalSilaDatabase internal constructor(
                 }
             }
             updatedContact?.let { arhamEntityDao.recordContactCall(contactId, timestampMillis) }
+        }
+    }
+
+    // ===== ArhamDao — استمرارية إدخال أحداث المكالمات (T8-03 · ADR-0006 · Issue #29) =====
+    // القراءات عبر DAOs كيانات Room المولَّدة؛ والكتابة المركّبة (حدث + آخر تواصل مؤهَّل)
+    // SQL خام داخل معاملة IMMEDIATE واحدة حصراً — قيد F-2 من مراجعة T8-01: لا انفصام
+    // بين الحدث وتحديث `lastContactedAt` المؤهَّل (فشل أي جزء يُرجِع العملية كلها).
+
+    override suspend fun getCallEventById(eventId: String): CallEvent? = withContext(dispatchers.io) {
+        callEventEntityDao.getById(eventId)?.toCallEvent()
+    }
+
+    override suspend fun findCallEventsBetween(fromMillis: Long, toMillis: Long): List<CallEvent> =
+        withContext(dispatchers.io) {
+            callEventEntityDao.findBetween(fromMillis, toMillis).map { it.toCallEvent() }
+        }
+
+    override suspend fun upsertCallEvent(event: CallEvent, lastContactedUpdate: LastContactedUpdate?): Unit =
+        withContext(dispatchers.io) {
+            // مدقِّقا الخريطة (بلا رقم / اتجاه MISSED) يُخفقان مغلقَي الصمام قبل أي معاملة —
+            // لا صف جزئي ولا قيمة مُختلقة (§G.3 UNRESOLVED مؤجل لـ T8-06 · §H.4 · F-3).
+            val entity = event.toCallEventEntity()
+            dbMutex.withLock {
+                inWriteTransaction { conn ->
+                    writeCallEventToSqlite(conn, entity)
+                    // خطاف الفشل بين العمليتين حصراً: انقطاع هنا يُثبت أن الحدث وحده لا يبقى.
+                    callEventWriteFaultHook?.let { hook -> throw hook() }
+                    if (lastContactedUpdate != null) {
+                        writeLastContactedMaxToSqlite(conn, lastContactedUpdate)
+                    }
+                }
+                // تحديث كاش الذاكرة بعد نجاح COMMIT حصراً (عقد الكتابات المركّبة — SSOT).
+                if (lastContactedUpdate != null) {
+                    refreshLastContactedInCache(lastContactedUpdate)
+                }
+            }
+        }
+
+    override suspend fun updateLastContacted(contactId: Long, timestampMillis: Long): Unit =
+        withContext(dispatchers.io) {
+            dbMutex.withLock {
+                // كتابة أحادية العبارة عبر DAO كيان Room — max(...) لا تنقص قيمة أحدث قائماً
+                // (idempotent: استدعاء النطاق التالي للمسار المؤهَّل بلا أثر دلالي).
+                arhamEntityDao.updateLastContactedMax(contactId, timestampMillis)
+                refreshLastContactedInCache(LastContactedUpdate(contactId = contactId, timestampMillis = timestampMillis))
+            }
+        }
+
+    /** تحديث آخر تواصل في كاش الذاكرة بحدّه الأقصى — الصف الغائب من الأرحام لا يُنشأ. */
+    private fun refreshLastContactedInCache(update: LastContactedUpdate) {
+        contactsState.update { current ->
+            current.map { contact ->
+                if (contact.id == update.contactId && contact.arham != null) {
+                    val currentTs = contact.arham?.lastContactedAt
+                    val nextTs = if (currentTs == null || currentTs < update.timestampMillis) {
+                        update.timestampMillis
+                    } else {
+                        currentTs
+                    }
+                    contact.copy(arham = contact.arham?.copy(lastContactedAt = nextTs))
+                } else {
+                    contact
+                }
+            }
         }
     }
 
@@ -1323,6 +1398,61 @@ class LocalSilaDatabase internal constructor(
         }
 
         syncContactFts(conn, contactId, contact)
+    }
+
+    /**
+     * كتابة صف حدث مكالمة v3 (18 عموداً — نفس ترتيب أعمدة [CallEventsV3Ddl] حرفاً) —
+     * داخل معاملات Room حصراً (T8-03). التحويلات النصية للأعداد بصيغة `name` ومصادر
+     * الدليل مفصولة بفواصل مرتَّبة — نفس قواعد محولات `SilaTypeConverters` التي يطبقها
+     * مسار DAOs المولَّدة (عهد التطابق بين المسارين).
+     */
+    private suspend fun writeCallEventToSqlite(conn: Transactor, entity: CallEventEntity) {
+        conn.usePrepared(
+            """
+            INSERT OR REPLACE INTO call_events (
+                callLogId, e164, timestamp, primarySource, evidenceSources, remoteNumber,
+                contactId, direction, startedAt, connectedAt, endedAt, durationSec,
+                outcome, association, confirmation, confidence, dedupeKey, simSlot
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent()
+        ) { stmt ->
+            stmt.bindText(1, entity.callLogId)
+            stmt.bindText(2, entity.e164)
+            stmt.bindLong(3, entity.timestamp)
+            stmt.bindText(4, entity.primarySource.name)
+            stmt.bindText(5, entity.evidenceSources.map { it.name }.sorted().joinToString(separator = ","))
+            entity.remoteNumber?.let { stmt.bindText(6, it) } ?: stmt.bindNull(6)
+            entity.contactId?.let { stmt.bindLong(7, it) } ?: stmt.bindNull(7)
+            entity.direction?.let { stmt.bindText(8, it.name) } ?: stmt.bindNull(8)
+            entity.startedAt?.let { stmt.bindLong(9, it) } ?: stmt.bindNull(9)
+            entity.connectedAt?.let { stmt.bindLong(10, it) } ?: stmt.bindNull(10)
+            entity.endedAt?.let { stmt.bindLong(11, it) } ?: stmt.bindNull(11)
+            entity.durationSec?.let { stmt.bindLong(12, it.toLong()) } ?: stmt.bindNull(12)
+            stmt.bindText(13, entity.outcome.name)
+            stmt.bindText(14, entity.association.name)
+            stmt.bindText(15, entity.confirmation.name)
+            stmt.bindText(16, entity.confidence.name)
+            entity.dedupeKey?.let { stmt.bindText(17, it) } ?: stmt.bindNull(17)
+            entity.simSlot?.let { stmt.bindLong(18, it.toLong()) } ?: stmt.bindNull(18)
+            stmt.step()
+        }
+    }
+
+    /**
+     * تحديث آخر تواصل بحدّه الأقصى داخل المعاملة المركّبة — العبارة نفسها حرفياً في
+     * [ArhamEntityDao.updateLastContactedMax] (نمط T8-02: بيان COUNT/DELETE في
+     * `cleanupExpiredData` و DAO كيان `call_events`)؛ `COALESCE` يعامل «لم يُتواصل
+     * أبداً» (فارغة) كـ −∞ لأن `MAX` السكالارية في SQLite تُرجع فارغاً مع أي وسيط فارغ.
+     */
+    private suspend fun writeLastContactedMaxToSqlite(conn: Transactor, update: LastContactedUpdate) {
+        conn.usePrepared(
+            "UPDATE arham SET lastContactedAt = MAX(COALESCE(lastContactedAt, ?), ?) WHERE contactId = ?"
+        ) { stmt ->
+            stmt.bindLong(1, update.timestampMillis)
+            stmt.bindLong(2, update.timestampMillis)
+            stmt.bindLong(3, update.contactId)
+            stmt.step()
+        }
     }
 
     /**
