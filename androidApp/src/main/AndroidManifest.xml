@@ -8,6 +8,13 @@
     <!-- صلاحية الكتابة — تفاصيل/إضافة/حذف جهة (T6 · Issue #27 · ميثاق J-1) -->
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
 
+    <!-- إشعارات أرحام (T8-08 · §M): الإظهار يتطلب منح الإذن وقت التشغيل — طلبُه من
+         الواجهة مسؤولية T8-11؛ المستقبِل يفحص `areNotificationsEnabled` ويصمت بلا انهيار -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- إعادة جدولة التذكير اليومي بعد الإقلاع (T8-08 · D2 §8 — بلا إنذارات دقيقة) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- استعلام الحزم المسمّى لكاشف التطبيقات المتصلة (T6) — بلا QUERY_ALL_PACKAGES -->
     <queries>
         <package android:name="com.whatsapp" />
@@ -34,6 +41,27 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- مستقبِلات إشعارات أرحام (T8-08) — غير مُصدَّرة حصراً: الإنذار اليومي
+             (بلا مرشح — Intent صريح من الجدولة)، أفعال الإشعار، واستمرارية الجدولة
+             (بثوثٌ نظامية محمية — الإقلاع/تغيير الوقت/المنطقة). -->
+        <receiver
+            android:name="app.sila.arham.notification.ArhamReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="app.sila.arham.notification.ArhamNotificationActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="app.sila.arham.notification.ArhamBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

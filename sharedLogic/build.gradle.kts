@@ -87,10 +87,14 @@ kotlin {
         getByName("androidMain").dependencies {
             // androidContext() في appDeclaration (SilaApplication) — Issue #22.
             api(libs.koin.android)
+            // T8-08: NotificationCompat/NotificationManagerCompat لبناء إشعارات أرحام.
+            implementation(libs.androidx.core.ktx)
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.androidx.sqlite.bundled.jvm)
             implementation(libs.konsist)
+            // T8-08: إطار أندرويد محاكى فوق JVM — قنوات/إنذارات/إشعارات فوق Koin حقيقي.
+            implementation(libs.robolectric)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- نصوص إشعارات أرحام (T8-08 · §M) — العربية الافتراضية (لا نصوص ثابتة في الكود).
+     القيم الموضعية %1$s (اسم الظهور) و%2$d (عدد المتأخرين الآخرين) حصراً. -->
+<resources>
+    <string name="arham_notification_channel_name">تذكيرات أرحام</string>
+    <string name="arham_digest_title">حان وقت صلة الرحم</string>
+    <string name="arham_digest_body_one">%1$s يشتاق إليك</string>
+    <string name="arham_digest_body_many">%1$s يشتاق إليك، و%2$d آخرون</string>
+    <string name="arham_occasion_birthday_today">عيد ميلاد %1$s اليوم! اتصل به</string>
+    <string name="arham_occasion_birthday_tomorrow">غداً عيد ميلاد %1$s</string>
+    <string name="arham_occasion_anniversary_today">ذكرى %1$s اليوم! تواصل معه</string>
+    <string name="arham_occasion_anniversary_tomorrow">غداً ذكرى %1$s</string>
+    <string name="arham_action_call_now">اتصل الآن</string>
+    <string name="arham_action_remind_tomorrow">ذكّرني غداً</string>
+</resources>

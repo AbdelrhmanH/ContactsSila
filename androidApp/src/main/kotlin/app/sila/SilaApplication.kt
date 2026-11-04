@@ -1,19 +1,24 @@
 package app.sila
 
 import android.app.Application
+import app.sila.arham.notification.ArhamNotificationChannel
+import app.sila.arham.notification.ArhamReminderDispatch
 import app.sila.di.ensureKoinStarted
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.Koin
 
 /**
  * نقطة تهيئة التطبيق على Android — تضمن بدء Koin مرة واحدة على مستوى العملية (Process)
  * بحيث لا يُعاد فتح SQLite أو DataStore عند تدوير الشاشة، ثم تشغيل محرك المزامنة
- * التزايدية لجهات الاتصال على نطاق عمر التطبيق (Issue #23 · ADR-0010).
+ * التزايدية لجهات الاتصال على نطاق عمر التطبيق (Issue #23 · ADR-0010)، وضمان قناة
+ * إشعارات أرحام وإعادة جدولة تذكيرها اليومي (T8-08 · D2 — الموعد المفقود يُحسب
+ * من `now` عند كل تشغيل عملية).
  */
 class SilaApplication : Application() {
 
@@ -24,13 +29,17 @@ class SilaApplication : Application() {
 
     private var cleanupStarted = false
 
+    private var reminderRescheduled = false
+
     override fun onCreate() {
         super.onCreate()
         val koin = ensureKoinStarted(storageDirPath = filesDir.absolutePath) {
             androidContext(this@SilaApplication)
         }
+        ArhamNotificationChannel.ensure(this)
         startContactsSync(koin)
         startRetentionCleanup(koin)
+        rescheduleDailyReminder(koin)
     }
 
     /** تشغيل محرك المزامنة مرة واحدة (idempotent — onCreate قد يُستدعى على عملية جديدة فقط). */
@@ -49,5 +58,23 @@ class SilaApplication : Application() {
         if (cleanupStarted) return
         cleanupStarted = true
         koin.get<RetentionCleanupCoordinator>().launchIn(applicationScope)
+    }
+
+    /**
+     * T8-08 (D2 §8): إعادة جدولة التذكير اليومي عند كل تشغيل عملية — الميزة معطّلة؟
+     * لا شيء؛ وإلا خطةٌ جديدة من `now` (الموعد المفقود أثناء الغياب يُحسب من جديد،
+     * ويُسلَّم بنهاية ساعات الهدوء إن كانت سارية). idempotent بمرآة `engineStarted`.
+     */
+    private fun rescheduleDailyReminder(koin: Koin) {
+        if (reminderRescheduled) return
+        reminderRescheduled = true
+        applicationScope.launch {
+            ArhamReminderDispatch.rescheduleFromNow(
+                context = this@SilaApplication,
+                preferences = koin.get(),
+                planner = koin.get(),
+                scheduler = koin.get(),
+            )
+        }
     }
 }

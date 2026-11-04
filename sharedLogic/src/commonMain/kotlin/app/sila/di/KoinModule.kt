@@ -25,6 +25,8 @@ import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
 import app.sila.feature.arham.domain.IngestCallEventUseCase
 import app.sila.feature.arham.domain.ObservePendingConfirmationsUseCase
+import app.sila.feature.arham.domain.ObserveUpcomingOccasionsUseCase
+import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
 import app.sila.feature.arham.domain.RecordDialAttemptUseCase
 import app.sila.feature.arham.domain.RecordManualContactUseCase
 import app.sila.feature.arham.domain.ResolveConfirmationUseCase
@@ -109,6 +111,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // كتابة جهات الاتصال إلى المنصة (T6 · Issue #27 · ADR-0012) — actuals per-platform:
     // الكاتب الضيق + معالج الصورة + كاشف التطبيقات المتصلة.
     includes(platformContactsWriterModule)
+
+    // جدولة إشعارات أرحام على المنصة (T8-08 · D2) — actuals per-platform:
+    // أندرويد فوق AlarmManager (بلا دقة — D2)، وiOS فارغة حتى T8-12.
+    includes(platformArhamNotificationModule)
 
     // قاعدة Room KMP الوحيدة (PR B · ADR-0011): [LocalSilaDatabase] هي واجهة الوصول
     // الموحّدة — تنفّذ واجهات DAO الخمس مباشرة (كتابات مركّبة بـ SQL خام داخل معاملات
@@ -258,6 +264,17 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { CelebrateTransitionUseCase(policy = get(), clock = get()) }
 
     factory { GetArhamPriorityListUseCase(repository = get(), clock = get()) }
+
+    // T8-08 (Issue #29): اشتعال مناسبات أرحام القادمة (D1 مشتق — تسجيل Koin الأول، O-4)
+    // وتخطيط التذكير اليومي (§M): موعد + محتوى قرارٌ حتّي مشترك، والمنصة تُنفّذ.
+    factory { ObserveUpcomingOccasionsUseCase(repository = get(), clock = get()) }
+    factory {
+        PlanArhamDailyNotificationUseCase(
+            getPriorityList = get(),
+            observeUpcomingOccasions = get(),
+            clock = get(),
+        )
+    }
 
     // T8-07 (Issue #29): تجميع اللوحة من أحداث حقيقية فوق قاعدة AC-8 (آلة الحالات مصدر
     // القاعدة الوحيد) + بناء شجرة العائلة من الطبقات/الآباء.

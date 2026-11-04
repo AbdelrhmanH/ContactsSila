@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Arham notification strings (T8-08 · §M) — English override. -->
+<resources>
+    <string name="arham_notification_channel_name">Arham reminders</string>
+    <string name="arham_digest_title">Time for family connection</string>
+    <string name="arham_digest_body_one">%1$s misses you</string>
+    <string name="arham_digest_body_many">%1$s misses you, plus %2$d more</string>
+    <string name="arham_occasion_birthday_today">It\'s %1$s\'s birthday today! Call them</string>
+    <string name="arham_occasion_birthday_tomorrow">Tomorrow is %1$s\'s birthday</string>
+    <string name="arham_occasion_anniversary_today">%1$s\'s anniversary is today! Reach out</string>
+    <string name="arham_occasion_anniversary_tomorrow">Tomorrow is %1$s\'s anniversary</string>
+    <string name="arham_action_call_now">Call now</string>
+    <string name="arham_action_remind_tomorrow">Remind me tomorrow</string>
+</resources>

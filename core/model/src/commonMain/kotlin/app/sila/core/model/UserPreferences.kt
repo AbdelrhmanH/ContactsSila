@@ -40,6 +40,12 @@ data class UserPreferences(
     val arhamNotificationsEnabled: Boolean = true,
     val quietHoursStartHour: Int = 23,
     val quietHoursEndHour: Int = 8,
+    /** ساعة التذكير اليومي المفضلة بالتوقيت المحلي (§M «الوقت المفضل» — T8-08؛ الافتراضي 20:00). */
+    val arhamNotificationHour: Int = 20,
+    /** دقيقة التذكير اليومي المفضلة بالتوقيت المحلي (§M «الوقت المفضل» — T8-08). */
+    val arhamNotificationMinute: Int = 0,
+    /** تنبيه اليوم السابق للمناسبة (§M «اختيارياً» — T8-08 يمرِّر الراية؛ الافتراضي معطل). */
+    val arhamOccasionDayBeforeEnabled: Boolean = false,
     val confettiEnabled: Boolean = true,
     val searchRadiusKm: Int = 5,
     val autoUpdatePhonebookServices: Boolean = false,

@@ -37,6 +37,10 @@ interface UserPreferencesDataSource {
     suspend fun setDefaultTab(tab: DefaultTab)
     suspend fun setArhamNotificationsEnabled(enabled: Boolean)
     suspend fun setQuietHours(startHour: Int, endHour: Int)
+    /** الوقت المفضل للتذكير اليومي بالتوقيت المحلي (§M — T8-08). */
+    suspend fun setArhamNotificationTime(hour: Int, minute: Int)
+    /** تنبيه اليوم السابق للمناسبة (§M «اختيارياً» — T8-08). */
+    suspend fun setArhamOccasionDayBeforeEnabled(enabled: Boolean)
     suspend fun setConfettiEnabled(enabled: Boolean)
     suspend fun setSearchRadiusKm(radiusKm: Int)
     suspend fun setAutoUpdatePhonebookServices(enabled: Boolean)
@@ -88,6 +92,9 @@ class SilaPreferencesDataSource(
             arhamNotificationsEnabled = prefs[KEY_ARHAM_NOTIFICATIONS] ?: initialPreferences.arhamNotificationsEnabled,
             quietHoursStartHour = prefs[KEY_QUIET_START] ?: initialPreferences.quietHoursStartHour,
             quietHoursEndHour = prefs[KEY_QUIET_END] ?: initialPreferences.quietHoursEndHour,
+            arhamNotificationHour = prefs[KEY_ARHAM_NOTIFICATION_HOUR] ?: initialPreferences.arhamNotificationHour,
+            arhamNotificationMinute = prefs[KEY_ARHAM_NOTIFICATION_MINUTE] ?: initialPreferences.arhamNotificationMinute,
+            arhamOccasionDayBeforeEnabled = prefs[KEY_ARHAM_OCCASION_DAY_BEFORE] ?: initialPreferences.arhamOccasionDayBeforeEnabled,
             confettiEnabled = prefs[KEY_CONFETTI] ?: initialPreferences.confettiEnabled,
             searchRadiusKm = prefs[KEY_SEARCH_RADIUS] ?: initialPreferences.searchRadiusKm,
             autoUpdatePhonebookServices = prefs[KEY_AUTO_UPDATE_SERVICES] ?: initialPreferences.autoUpdatePhonebookServices,
@@ -151,6 +158,28 @@ class SilaPreferencesDataSource(
                 quietHoursEndHour = coercedEnd
             )
         }
+    }
+
+    /** الوقت المفضل للتذكير اليومي بالتوقيت المحلي (§M «الوقت المفضل» — T8-08). القيم تُضاقَط نطاقها. */
+    override suspend fun setArhamNotificationTime(hour: Int, minute: Int) {
+        val coercedHour = hour.coerceIn(0, 23)
+        val coercedMinute = minute.coerceIn(0, 59)
+        dataStore?.edit {
+            it[KEY_ARHAM_NOTIFICATION_HOUR] = coercedHour
+            it[KEY_ARHAM_NOTIFICATION_MINUTE] = coercedMinute
+        }
+        _memoryState.update {
+            it.copy(
+                arhamNotificationHour = coercedHour,
+                arhamNotificationMinute = coercedMinute
+            )
+        }
+    }
+
+    /** تنبيه اليوم السابق للمناسبة (§M «اختيارياً» — T8-08). */
+    override suspend fun setArhamOccasionDayBeforeEnabled(enabled: Boolean) {
+        dataStore?.edit { it[KEY_ARHAM_OCCASION_DAY_BEFORE] = enabled }
+        _memoryState.update { it.copy(arhamOccasionDayBeforeEnabled = enabled) }
     }
 
     override suspend fun setConfettiEnabled(enabled: Boolean) {
@@ -261,6 +290,9 @@ class SilaPreferencesDataSource(
         private val KEY_ARHAM_NOTIFICATIONS = booleanPreferencesKey("arham_notifications_enabled")
         private val KEY_QUIET_START = intPreferencesKey("quiet_hours_start")
         private val KEY_QUIET_END = intPreferencesKey("quiet_hours_end")
+        private val KEY_ARHAM_NOTIFICATION_HOUR = intPreferencesKey("arham_notification_hour")
+        private val KEY_ARHAM_NOTIFICATION_MINUTE = intPreferencesKey("arham_notification_minute")
+        private val KEY_ARHAM_OCCASION_DAY_BEFORE = booleanPreferencesKey("arham_occasion_day_before")
         private val KEY_CONFETTI = booleanPreferencesKey("confetti_enabled")
         private val KEY_SEARCH_RADIUS = intPreferencesKey("search_radius_km")
         private val KEY_AUTO_UPDATE_SERVICES = booleanPreferencesKey("auto_update_phonebook_services")
