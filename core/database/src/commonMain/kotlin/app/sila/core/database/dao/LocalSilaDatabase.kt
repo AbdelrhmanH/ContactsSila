@@ -125,7 +125,7 @@ class LocalSilaDatabase internal constructor(
     private val seedDemoData: Boolean,
     private val adoptionStageHook: ((AdoptionVerificationStage) -> Unit)?,
     private val backupDeleteOverride: (() -> Boolean)?,
-) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao {
+) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao, TopFiveMaterializationDao {
 
     constructor(
         dbFilePath: String = ":memory:",
@@ -157,6 +157,13 @@ class LocalSilaDatabase internal constructor(
      * مبدأ [cleanupFaultHook].
      */
     internal var callEventWriteFaultHook: (() -> Throwable)? = null
+
+    /**
+     * خطاف حقن فشل حتمي داخل معاملة [applyTopFiveMaterialization] (T8-04) — يُرمى بعد
+     * كتابة الدفعة وقبل `COMMIT` (سبق [syncBatchFaultHook]) ليُثبت الاختبار أن انقطاع
+     * منتصف الدفعة يُرجِعها كلها ولا يُرفع الخاد (§F.8/§F.11-د).
+     */
+    internal var materializationFaultHook: (() -> Throwable)? = null
 
     /** نسخة واقية بانتظار الحذف بعد اعتماد موثق (أول عملية Room ناجحة) — `null` = لا شيء. */
     private var pendingBackupDeletion: String? = null
@@ -752,6 +759,133 @@ class LocalSilaDatabase internal constructor(
                     contact
                 }
             }
+        }
+    }
+
+    // ===== TopFiveMaterializationDao — تجسيد «أهم 5» ذرّي (T8-04 · §F · Issue #29) =====
+    // القراءات من كاش الذاكرة الكامل (المرآة الحيّة المتطابقة مع Room بعد كل COMMIT —
+    // القبور تُزال من الكاش عند التعليم)، والكتابة SQL خام مُوجَّه داخل معاملة IMMEDIATE
+    // واحدة حصراً (§F.8/§F.9): `category = FAMILY` مُوجَّهاً بلا أعمدة أخرى، وصف `arham`
+    // يُملأ فقط بغيابه على حقيقة القاعدة (حارس NOT EXISTS = قرار F.5 حتى بعد أي تسابق)،
+    // بلا `updatedAt` ولا FTS (سبق updateCategories)، وبلا صفوف وهمية (§F.7).
+
+    override suspend fun hasLiveContacts(): Boolean = withContext(dispatchers.io) {
+        contactsState.value.isNotEmpty()
+    }
+
+    override suspend fun findContactsBySystemContactIds(systemContactIds: Set<String>): List<Contact> =
+        withContext(dispatchers.io) {
+            if (systemContactIds.isEmpty()) return@withContext emptyList()
+            contactsState.value
+                .filter { contact -> contact.systemContactId in systemContactIds }
+                .sortedBy { it.id }
+        }
+
+    override suspend fun applyTopFiveMaterialization(
+        updates: List<TopFiveMaterializationUpdate>,
+    ): TopFiveMaterializationWriteResult = withContext(dispatchers.io) {
+        // هوية واحدة قد تتكرر في الدفعة (اختيار مكرر) — أول هدف يكسب (idempotent — §F.6).
+        val targets = updates
+            .distinctBy { it.contactId }
+            .sortedBy { it.contactId }
+        if (targets.isEmpty()) {
+            return@withContext TopFiveMaterializationWriteResult(materialized = 0, preservedUserOwned = 0, skippedMissing = 0)
+        }
+        dbMutex.withLock {
+            var materialized = 0
+            var preservedUserOwned = 0
+            var skippedMissing = 0
+            inWriteTransaction { conn ->
+                targets.forEach { target ->
+                    // حقيقة ما بعد التسابق: الجهة الحيّة وقت الكتابة (لا الكاش ولا اللقطة) —
+                    // كتابة متزامنة (مزامنة/مستخدم) تحت نفس القفل لا تُداس (§F.8).
+                    val liveCreatedAt = getLiveContactCreatedAt(conn, target.contactId)
+                    if (liveCreatedAt == null) {
+                        skippedMissing++
+                        return@forEach
+                    }
+                    // التصنيف: تحديث مُوجَّه بقيمة صِلَة حصراً — سبق updateCategories
+                    // (بلا updatedAt ولا FTS — §F.9).
+                    conn.usePrepared("UPDATE contacts SET category = 'FAMILY' WHERE id = ?") { stmt ->
+                        stmt.bindLong(1, target.contactId)
+                        stmt.step()
+                    }
+                    val arhamRowExists = arhamRowExistsInSqlite(conn, target.contactId)
+                    if (arhamRowExists) {
+                        preservedUserOwned++
+                    } else {
+                        // الحارس على حقيقة القاعدة وقت الكتابة: صف `arham` غائب فقط يُملأ
+                        // من الاختيار (§F.5 — معلومة المستخدم القائمة تكسب بعد أي تسابق).
+                        upsertArhamRowToSqlite(conn, target.contactId, target.arham, liveCreatedAt)
+                        materialized++
+                    }
+                }
+                // خطاف الفشل بعد كتابة الدفعة وقبل COMMIT — التراجع يثبت الذرّية (§F.11-د).
+                materializationFaultHook?.let { hook -> throw hook() }
+            }
+            // تحديث كاش الذاكرة بعد نجاح COMMIT حصراً — بنفس دلالة الغياب المكتوبة
+            // على القرص (المسار المعني فقط؛ SSOT بلا انحراف).
+            contactsState.update { current ->
+                current.map { contact ->
+                    val target = targets.firstOrNull { it.contactId == contact.id } ?: return@map contact
+                    contact.copy(category = Category.FAMILY, arham = contact.arham ?: target.arham)
+                }
+            }
+            TopFiveMaterializationWriteResult(
+                materialized = materialized,
+                preservedUserOwned = preservedUserOwned,
+                skippedMissing = skippedMissing,
+            )
+        }
+    }
+
+    /** `createdAt` للجهة الحيّة من القاعدة وقت الكتابة (حقيقة مُتسابَقة — لا كاش)، أو `null` إن غابت/قُبرت. */
+    private suspend fun getLiveContactCreatedAt(conn: Transactor, contactId: Long): Long? {
+        var createdAt: Long? = null
+        conn.usePrepared(
+            "SELECT createdAt FROM contacts WHERE id = ? AND systemDeletedAt IS NULL LIMIT 1"
+        ) { stmt ->
+            stmt.bindLong(1, contactId)
+            if (stmt.step()) createdAt = stmt.getLong(0)
+        }
+        return createdAt
+    }
+
+    /** هل يوجد صف أرحام للجهة على حقيقة القاعدة؟ (قراءة داخل المعاملة — نمط countRowsWhere). */
+    private suspend fun arhamRowExistsInSqlite(conn: Transactor, contactId: Long): Boolean {
+        var exists = false
+        conn.usePrepared("SELECT 1 FROM arham WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            exists = stmt.step()
+        }
+        return exists
+    }
+
+    /**
+     * كتابة صف أرحام جديد لجهة قائمة (T8-04) — أعمدة العهد نفسها كما في
+     * [writeContactRelationsToSqlite] حرفاً، مع حارس `WHERE NOT EXISTS` على حقيقة
+     * القاعدة (الصف القائم لا يُستبدل أبداً — §F.5)، حصراً داخل معاملة Room قائمة.
+     */
+    private suspend fun upsertArhamRowToSqlite(conn: Transactor, contactId: Long, arham: ArhamInfo, contactCreatedAt: Long) {
+        val ae = arham.toEntity(contactId, contactCreatedAt)
+        conn.usePrepared(
+            """
+            INSERT INTO arham (
+                contactId, relation, layer, parentContactId, frequency, lastContactedAt, pausedUntil, createdAt
+            ) SELECT ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE NOT EXISTS (SELECT 1 FROM arham WHERE contactId = ?)
+            """.trimIndent()
+        ) { stmt ->
+            stmt.bindLong(1, ae.contactId)
+            stmt.bindText(2, ae.relation.name)
+            stmt.bindText(3, ae.layer.name)
+            ae.parentContactId?.let { stmt.bindLong(4, it) } ?: stmt.bindNull(4)
+            stmt.bindText(5, ae.frequency.name)
+            ae.lastContactedAt?.let { stmt.bindLong(6, it) } ?: stmt.bindNull(6)
+            ae.pausedUntil?.let { stmt.bindLong(7, it) } ?: stmt.bindNull(7)
+            stmt.bindLong(8, ae.createdAt)
+            stmt.bindLong(9, contactId)
+            stmt.step()
         }
     }
 

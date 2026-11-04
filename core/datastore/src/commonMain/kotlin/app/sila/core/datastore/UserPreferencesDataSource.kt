@@ -44,6 +44,13 @@ interface UserPreferencesDataSource {
     suspend fun setOnboardingResumeStep(step: String?)
     suspend fun setOnboardingContactsPermission(permission: String?)
     suspend fun setOnboardingTopFiveSelections(selections: List<TopFiveSelection>)
+
+    /**
+     * رفع علامة إنجاز تجسيد «أهم 5» لمرة واحدة (T8-04 · §F.10) — بلا مسار تصفير:
+     * العلامة لا تُعاد فتحها أبداً بعد أول نجاح (Issue #29 — one-shot)، وإعادة
+     * الاختيار أثناء التهيئة تكتب القائمة المعلّقة حصراً (§F.6).
+     */
+    suspend fun setTopFiveMaterialized(materialized: Boolean)
     /** استبعاد بطاقة اقتراح نهائياً (Issue #24 — لا تعود لنفس العناصر). */
     suspend fun dismissSuggestion(id: String)
     /** ضبط أفعال السحب (بداية/نهاية منطقيتان — Issue #24). */
@@ -87,6 +94,7 @@ class SilaPreferencesDataSource(
                         json.decodeFromString(ListSerializer(TopFiveSelection.serializer()), raw)
                     }.getOrNull()
                 } ?: initialPreferences.onboardingTopFiveSelections,
+            topFiveMaterialized = prefs[KEY_TOP_FIVE_MATERIALIZED] ?: initialPreferences.topFiveMaterialized,
             dismissedSuggestionIds = prefs[KEY_DISMISSED_SUGGESTIONS] ?: initialPreferences.dismissedSuggestionIds,
             swipeStartAction = prefs[KEY_SWIPE_START]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
                 ?: initialPreferences.swipeStartAction,
@@ -185,6 +193,12 @@ class SilaPreferencesDataSource(
         _memoryState.update { it.copy(onboardingTopFiveSelections = selections) }
     }
 
+    override suspend fun setTopFiveMaterialized(materialized: Boolean) {
+        // مسار رفع حصراً بحكم العقد (one-shot — §F.10): لا يوجد مسار استدعاء لتصفير العلامة.
+        dataStore?.edit { prefs -> prefs[KEY_TOP_FIVE_MATERIALIZED] = materialized }
+        _memoryState.update { it.copy(topFiveMaterialized = materialized) }
+    }
+
     override suspend fun dismissSuggestion(id: String) {
         dataStore?.edit { prefs ->
             prefs[KEY_DISMISSED_SUGGESTIONS] = (prefs[KEY_DISMISSED_SUGGESTIONS] ?: emptySet()) + id
@@ -229,6 +243,7 @@ class SilaPreferencesDataSource(
         private val KEY_ONBOARDING_RESUME_STEP = stringPreferencesKey("onboarding_resume_step")
         private val KEY_ONBOARDING_CONTACTS_PERMISSION = stringPreferencesKey("onboarding_contacts_permission")
         private val KEY_ONBOARDING_TOP_FIVE = stringPreferencesKey("onboarding_top_five_selections")
+        private val KEY_TOP_FIVE_MATERIALIZED = booleanPreferencesKey("top_five_materialized")
         private val KEY_DISMISSED_SUGGESTIONS = stringSetPreferencesKey("dismissed_suggestion_ids")
         private val KEY_SWIPE_START = stringPreferencesKey("swipe_start_action")
         private val KEY_SWIPE_END = stringPreferencesKey("swipe_end_action")

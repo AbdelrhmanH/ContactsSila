@@ -2,6 +2,8 @@ package app.sila.core.datastore
 
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
+import app.sila.core.model.Relation
+import app.sila.core.model.TopFiveSelection
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
@@ -45,5 +47,34 @@ class UserPreferencesDataSourceTest {
         val loaded = ds2.preferences.first()
         assertEquals(AppLanguage.ENGLISH, loaded.language)
         assertEquals(AppThemeMode.DARK, loaded.themeMode)
+    }
+
+    @Test
+    fun topFiveMarker_defaultsFalse_thenRaisedAndEmitted() = runTest {
+        val dataSource = SilaPreferencesDataSource()
+
+        assertFalse(dataSource.preferences.first().topFiveMaterialized, "T8-04 §F.10: الافتراضي غير مُجسَّدة")
+
+        dataSource.setTopFiveMaterialized(materialized = true)
+        assertTrue(dataSource.preferences.first().topFiveMaterialized, "الرفع يُبثّ في التدفق")
+    }
+
+    @Test
+    fun topFiveMarker_neverResetByReSelection() = runTest {
+        val dataSource = SilaPreferencesDataSource()
+        dataSource.setTopFiveMaterialized(materialized = true)
+
+        // §F.6/§F.10: إعادة الاختيار أثناء التهيئة تكتب القائمة المعلّقة حصراً — والعلامة لا تُصفَّر.
+        dataSource.setOnboardingTopFiveSelections(
+            listOf(
+                TopFiveSelection(
+                    systemContactId = "sys_one",
+                    displayName = "العم أيمن",
+                    relation = Relation.UNCLE_PATERNAL,
+                ),
+            ),
+        )
+
+        assertTrue(dataSource.preferences.first().topFiveMaterialized, "علامة الإنجاز لا تُعاد فتحها أبداً (one-shot §F.10)")
     }
 }
