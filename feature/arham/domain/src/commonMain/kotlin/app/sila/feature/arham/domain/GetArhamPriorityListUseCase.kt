@@ -3,6 +3,7 @@ package app.sila.feature.arham.domain
 import app.sila.core.common.AppClock
 import app.sila.core.common.AppDispatchers
 import app.sila.core.common.DefaultAppDispatchers
+import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamItem
 import app.sila.core.model.calculateUrgency
 import app.sila.core.model.toArhamStatus
@@ -14,6 +15,10 @@ private const val MILLIS_PER_DAY = 86_400_000L
 
 /**
  * حالة استخدام أحادية المسؤولية: جلب قائمة أولويات أرحام مرتبة تنازلياً حسب Urgency (PRD §10.2).
+ *
+ * استبعاد OCCASIONS (AC-2 — خطة §P-T8-05): جهات التكرار «ب المناسبات» لا تدخل الترتيب
+ * حصراً — إنما تظهر عبر بطاقة/تنبيه المناسبة قبل موعدها (`ObserveUpcomingOccasionsUseCase`)
+ * وفق المواصفة §القائمة المرقمة وD1 المصادَق (اقتضائية: urgency=0.0 لها دوماً، فلا معنى لترتيبها).
  */
 class GetArhamPriorityListUseCase(
     private val repository: ArhamRepository,
@@ -43,6 +48,7 @@ class GetArhamPriorityListUseCase(
                 primaryPhone = contact.phones.firstOrNull()?.e164 ?: ""
             )
         }
+            .filter { it.frequency != ArhamFrequency.OCCASIONS }
             .sortedByDescending { it.urgency }
             .mapIndexed { index, item -> item.copy(rank = index + 1) }
     }.flowOn(dispatchers.default)
