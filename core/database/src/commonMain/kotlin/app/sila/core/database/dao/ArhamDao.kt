@@ -21,7 +21,8 @@ interface ArhamDao {
 
     suspend fun upsertArhamInfo(contactId: Long, info: ArhamInfo)
 
-    suspend fun recordContactCall(contactId: Long, timestampMillis: Long)
+    /** يرصد أحداث المكالمات غير المحسومة (تأكيدها `PENDING` حصراً — T8-06 · AC-7)، الأحدث أولاً. */
+    fun observePendingCallEvents(): Flow<List<CallEvent>>
 
     /** يقرأ حدث مكالمة بمعرفه، أو `null` إن لم يوجد (T8-03). */
     suspend fun getCallEventById(eventId: String): CallEvent?

@@ -27,16 +27,11 @@ class ObserveUpcomingOccasionsUseCaseTest {
     private class FakeArhamRepository : ArhamRepository {
         var contacts: List<Contact> = emptyList()
         val upserts = mutableListOf<Pair<Long, ArhamInfo>>()
-        val calls = mutableListOf<Pair<Long, Long>>()
 
         override fun observeArhamContacts(): Flow<List<Contact>> = MutableStateFlow(contacts)
 
         override suspend fun upsertArhamInfo(contactId: Long, info: ArhamInfo) {
             upserts += contactId to info
-        }
-
-        override suspend fun recordContactCall(contactId: Long, timestampMillis: Long) {
-            calls += contactId to timestampMillis
         }
     }
 

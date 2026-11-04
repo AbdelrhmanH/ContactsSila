@@ -5,6 +5,7 @@ import app.sila.core.database.dao.LastContactedUpdate
 import app.sila.core.model.CallEvent
 import app.sila.feature.arham.domain.ArhamCallEventRepository
 import app.sila.feature.arham.domain.CallEventStateMachine
+import kotlinx.coroutines.flow.Flow
 
 /**
  * تنفيذ مستودع أحداث المكالمات (طبقة Data داخل :feature:arham:data — T8-03 · Issue #29).
@@ -37,6 +38,10 @@ class ArhamCallEventRepositoryImpl(
     override suspend fun updateLastContacted(contactId: Long, timestampMillis: Long) {
         arhamDao.updateLastContacted(contactId = contactId, timestampMillis = timestampMillis)
     }
+
+    /** تمرير مباشر فوق DAO (T8-06 · AC-7) — قراءة حصراً، بلا كتابة ولا حسم هنا. */
+    override fun observePendingConfirmations(): Flow<List<CallEvent>> =
+        arhamDao.observePendingCallEvents()
 
     /** تقييم قاعدة ADR-0006 §6 / AC-8 عبر آلة الحالات — `null` = لا تحديث مصاحب. */
     private fun lastContactedUpdateFor(event: CallEvent): LastContactedUpdate? {

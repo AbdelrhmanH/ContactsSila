@@ -13,11 +13,20 @@ import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.dao.ServiceDao
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
+import app.sila.feature.arham.data.ArhamCallEventRepositoryImpl
 import app.sila.feature.arham.data.ArhamRepositoryImpl
+import app.sila.feature.arham.domain.ArhamCallEventRepository
+import app.sila.feature.arham.domain.ArhamCelebrationPolicy
 import app.sila.feature.arham.domain.ArhamRepository
+import app.sila.feature.arham.domain.CallEventStateMachine
+import app.sila.feature.arham.domain.CelebrateTransitionUseCase
 import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
-import app.sila.feature.arham.domain.RecordArhamCallUseCase
+import app.sila.feature.arham.domain.IngestCallEventUseCase
+import app.sila.feature.arham.domain.ObservePendingConfirmationsUseCase
+import app.sila.feature.arham.domain.RecordDialAttemptUseCase
+import app.sila.feature.arham.domain.RecordManualContactUseCase
+import app.sila.feature.arham.domain.ResolveConfirmationUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.data.ContactsListPreferencesRepositoryImpl
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
@@ -232,14 +241,30 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
 
     // :feature:arham (Domain UseCases + Data Repository + Presentation ViewModel)
     single<ArhamRepository> { ArhamRepositoryImpl(arhamDao = get()) }
+
+    // T8-06 (Issue #29): استمرارية أحداث المكالمات فوق آلة الحالات (ADR-0006) —
+    // جذر التركيب هو المكان الوحيد الذي يعرف المستودع والآلة معاً (DIP). المكوّنات
+    // الإدخالية كانت غير مسجَّلة قبل T8-06 (خلل D.3-4): مسار زر الاتصال كان يكتب
+    // آخر تواصل بلا بوابة AC-8.
+    single<ArhamCallEventRepository> { ArhamCallEventRepositoryImpl(arhamDao = get()) }
+    single { CallEventStateMachine() }
+    factory { IngestCallEventUseCase(repository = get(), stateMachine = get()) }
+    factory { RecordDialAttemptUseCase(ingest = get(), stateMachine = get()) }
+    factory { ResolveConfirmationUseCase(repository = get(), stateMachine = get()) }
+    factory { RecordManualContactUseCase(repository = get(), stateMachine = get()) }
+    factory { ObservePendingConfirmationsUseCase(repository = get()) }
+    single<ArhamCelebrationPolicy> { ArhamCelebrationPolicyBridge(userPreferencesDataSource = get()) }
+    factory { CelebrateTransitionUseCase(policy = get(), clock = get()) }
+
     factory { GetArhamPriorityListUseCase(repository = get(), clock = get()) }
     factory { GetArhamDashboardStatsUseCase(getPriorityList = get()) }
-    factory { RecordArhamCallUseCase(repository = get(), clock = get()) }
     single {
         ArhamViewModel(
             getPriorityList = get(),
             getDashboardStats = get(),
-            recordArhamCall = get()
+            recordDialAttempt = get(),
+            celebrateTransition = get(),
+            clock = get()
         )
     }
 
@@ -270,7 +295,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single {
         MainViewModel(
             contactsRepository = get(),
-            arhamRepository = get(),
+            recordDialAttempt = get(),
             servicesRepository = get(),
             getArhamPriorityList = get(),
             getArhamStats = get(),

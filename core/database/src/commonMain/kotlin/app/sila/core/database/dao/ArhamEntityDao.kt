@@ -20,9 +20,6 @@ interface ArhamEntityDao {
     @Upsert
     suspend fun upsert(entity: ArhamEntity)
 
-    @Query("UPDATE arham SET lastContactedAt = :timestampMillis WHERE contactId = :contactId")
-    suspend fun recordContactCall(contactId: Long, timestampMillis: Long)
-
     /**
      * تحديث آخر تواصل بحدّه الأقصى (T8-03 · قاعدة ADR-0006 §6):
      * `lastContactedAt = max(COALESCE(lastContactedAt, :ts), :ts)` — القيمة الأحدث قائماً

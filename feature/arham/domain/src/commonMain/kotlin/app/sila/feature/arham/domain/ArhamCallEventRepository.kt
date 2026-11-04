@@ -1,6 +1,7 @@
 package app.sila.feature.arham.domain
 
 import app.sila.core.model.CallEvent
+import kotlinx.coroutines.flow.Flow
 
 /**
  * عقد مستودع أحداث المكالمات (ADR-0006) — طبقة Domain داخل `:feature:arham:domain` (DIP).
@@ -34,4 +35,11 @@ interface ArhamCallEventRepository {
      * ولا يستدعيه النطاق إلا بعد استيفاء قاعدة `updatesLastContacted`.
      */
     suspend fun updateLastContacted(contactId: Long, timestampMillis: Long)
+
+    /**
+     * يرصد الأحداث التي تأكيداها ما زال `PENDING` حصراً (AC-7 · T8-06): مرصودةٌ منصياً
+     * ولم تُحسم بعد — لا تُحدّث `lastContactedAt` قبل الحسم، وتُعرض للمستخدم ليقرر.
+     * مرتَّبة تنازلياً بالطابع الزمني (الأحدث أولاً).
+     */
+    fun observePendingConfirmations(): Flow<List<CallEvent>>
 }

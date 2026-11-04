@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
 
@@ -51,6 +53,13 @@ interface UserPreferencesDataSource {
      * الاختيار أثناء التهيئة تكتب القائمة المعلّقة حصراً (§F.6).
      */
     suspend fun setTopFiveMaterialized(materialized: Boolean)
+
+    /**
+     * يُسجِّل احتفالاً بانتقال أرحام لجهة اتصال (T8-06): يخزّن مفتاح فترة الاحتفال
+     * فوق العلامات القائمة. الفحص والقرار في النطاق (`CelebrateTransitionUseCase`) —
+     * هذا العقد تخزينٌ حصراً (خطة §D.3-5).
+     */
+    suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long)
     /** استبعاد بطاقة اقتراح نهائياً (Issue #24 — لا تعود لنفس العناصر). */
     suspend fun dismissSuggestion(id: String)
     /** ضبط أفعال السحب (بداية/نهاية منطقيتان — Issue #24). */
@@ -95,6 +104,12 @@ class SilaPreferencesDataSource(
                     }.getOrNull()
                 } ?: initialPreferences.onboardingTopFiveSelections,
             topFiveMaterialized = prefs[KEY_TOP_FIVE_MATERIALIZED] ?: initialPreferences.topFiveMaterialized,
+            celebratedArhamTransitions =
+                prefs[KEY_CELEBRATED_TRANSITIONS]?.let { raw ->
+                    runCatching {
+                        json.decodeFromString(MapSerializer(Long.serializer(), Long.serializer()), raw)
+                    }.getOrNull()
+                } ?: initialPreferences.celebratedArhamTransitions,
             dismissedSuggestionIds = prefs[KEY_DISMISSED_SUGGESTIONS] ?: initialPreferences.dismissedSuggestionIds,
             swipeStartAction = prefs[KEY_SWIPE_START]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
                 ?: initialPreferences.swipeStartAction,
@@ -199,6 +214,18 @@ class SilaPreferencesDataSource(
         _memoryState.update { it.copy(topFiveMaterialized = materialized) }
     }
 
+    override suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long) {
+        val updated = _memoryState.value.celebratedArhamTransitions + (contactId to periodKey)
+        // نمط KEY_ONBOARDING_TOP_FIVE نفسه: JSON نصّي، وفشل الترميز يُسقط المفتاح بلا انهيار.
+        val encoded =
+            runCatching { json.encodeToString(MapSerializer(Long.serializer(), Long.serializer()), updated) }
+        dataStore?.edit { prefs ->
+            encoded.onSuccess { prefs[KEY_CELEBRATED_TRANSITIONS] = it }
+                .onFailure { prefs.remove(KEY_CELEBRATED_TRANSITIONS) }
+        }
+        _memoryState.update { it.copy(celebratedArhamTransitions = updated) }
+    }
+
     override suspend fun dismissSuggestion(id: String) {
         dataStore?.edit { prefs ->
             prefs[KEY_DISMISSED_SUGGESTIONS] = (prefs[KEY_DISMISSED_SUGGESTIONS] ?: emptySet()) + id
@@ -244,6 +271,7 @@ class SilaPreferencesDataSource(
         private val KEY_ONBOARDING_CONTACTS_PERMISSION = stringPreferencesKey("onboarding_contacts_permission")
         private val KEY_ONBOARDING_TOP_FIVE = stringPreferencesKey("onboarding_top_five_selections")
         private val KEY_TOP_FIVE_MATERIALIZED = booleanPreferencesKey("top_five_materialized")
+        private val KEY_CELEBRATED_TRANSITIONS = stringPreferencesKey("arham_celebrated_transitions")
         private val KEY_DISMISSED_SUGGESTIONS = stringSetPreferencesKey("dismissed_suggestion_ids")
         private val KEY_SWIPE_START = stringPreferencesKey("swipe_start_action")
         private val KEY_SWIPE_END = stringPreferencesKey("swipe_end_action")

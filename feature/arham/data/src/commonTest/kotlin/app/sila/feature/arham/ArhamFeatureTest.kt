@@ -4,9 +4,13 @@ import app.sila.core.common.AppClock
 import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.model.ArhamStatus
+import app.sila.core.model.CallOutcome
+import app.sila.feature.arham.data.ArhamCallEventRepositoryImpl
 import app.sila.feature.arham.data.ArhamRepositoryImpl
 import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
+import app.sila.feature.arham.domain.IngestCallEventUseCase
+import app.sila.feature.arham.domain.RecordDialAttemptUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -29,8 +33,9 @@ class ArhamFeatureTest {
     }
 
     @Test
-    fun arhamRepositoryAndUseCases_rankRelativesAndUpdateOnCall() = runTest {
-        // F-01: الإنتاج لا يبذر — اختبار التركيبة التجريبية يُبذّر صراحةً.
+    fun arhamRepositoryAndUseCases_rankRelatives_dialAttemptNeverUpdatesLastContacted() = runTest {
+        // T8-06 · خطة §D.3-4: مسار الاتصال أعيد نمذجته عبر آلة الحالات — المحاولة
+        // (ATTEMPTED/PENDING) لا تحدّث آخر تواصل، فالترتيب والحالة يبقيان كما كانا (AC-3/AC-8).
         val db = LocalSilaDatabase(dispatchers = testDispatchers, seedDemoData = true)
         try {
             val repo = ArhamRepositoryImpl(db)
@@ -40,12 +45,26 @@ class ArhamFeatureTest {
             val before = getPriority().first()
             assertEquals(ArhamStatus.OVERDUE, before.first().status)
 
-            repo.recordContactCall(contactId = before.first().contactId, timestampMillis = fixedClock.nowEpochMillis())
+            val recordDial = RecordDialAttemptUseCase(
+                ingest = IngestCallEventUseCase(ArhamCallEventRepositoryImpl(db)),
+            )
+            recordDial(
+                contactId = before.first().contactId,
+                remoteNumber = "+201000000000",
+                timestampMillis = fixedClock.nowEpochMillis(),
+            )
 
             val after = getPriority().first()
-            assertEquals(0, after.count { it.status == ArhamStatus.OVERDUE })
+            assertEquals(before.first().status, after.first().status) // المحاولة لا تُغيّر الحالة
+
+            // الحدث مُخزَّن محاولةً PENDING حصراً — دليل الاتصال متاح للاستعراض (AC-7) بلا اختلاق.
+            val event = db.getCallEventById("inapp-${before.first().contactId}-${fixedClock.nowEpochMillis()}")
+            assertEquals(CallOutcome.ATTEMPTED, event?.outcome)
+
             val stats = getStats().first()
-            assertEquals(2, stats.contactedRelatives)
+            // التغيير المتعمد عن السلوك القديم (كان 2 عبر الكتابة غير المشروطة المحذوفة):
+            // البذر فيه متواصلٌ واحد، والمحاولة لا تُحتسب تواصلاً (قاعدة AC-8 — خطة §D.3-4).
+            assertEquals(1, stats.contactedRelatives)
         } finally {
             db.closeConnection()
         }

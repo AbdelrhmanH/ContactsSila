@@ -7,6 +7,8 @@ import app.sila.core.model.CallDirection
 import app.sila.core.model.CallEvent
 import app.sila.core.model.CallOutcome
 import app.sila.core.model.CallSource
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -27,6 +29,9 @@ class ArhamCallEventUseCasesTest {
         var upsertCount = 0
 
         override suspend fun getEvent(eventId: String): CallEvent? = events[eventId]
+
+        override fun observePendingConfirmations(): Flow<List<CallEvent>> =
+            MutableStateFlow(events.values.filter { it.confirmation == CallConfirmation.PENDING })
 
         override suspend fun findEventsBetween(fromMillis: Long, toMillis: Long): List<CallEvent> =
             events.values.filter { it.timestamp in fromMillis..toMillis }

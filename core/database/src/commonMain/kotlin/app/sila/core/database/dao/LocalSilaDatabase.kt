@@ -94,7 +94,7 @@ import kotlinx.coroutines.withContext
  *   COMMIT؛ والقراءات والكتابات أحادية العبارة عبر DAOs كيانات Room.
  * - **SSOT + الكاش:** الكتابات المركّبة تُحدِّث كاش الذاكرة الذي تعرضه الواجهات **بعد نجاح
  *   COMMIT** حصراً؛ أما التحديثات أحادية الهدف (`updateCategory`/`setFavorite`/
- *   `upsertArhamInfo`/`recordContactCall`) فتبقي الترتيب التاريخي للكتابة أولاً-كاش كما في
+ *   `upsertArhamInfo`) فتبقي الترتيب التاريخي للكتابة أولاً-كاش كما في
  *   الأساس `dd04f1f` حرفياً (بقي `dbMutex` لاتساق الكاش).
  * - **زرع العرض (F-01):** لا تُزرع أي بيانات تجريبية أبداً — البذر متاح للاختبارات عبر
  *   تصريح صريح بـ [seedDemoData]، ولا تُكتب إلا في جداول فارغة.
@@ -681,23 +681,6 @@ class LocalSilaDatabase internal constructor(
         }
     }
 
-    override suspend fun recordContactCall(contactId: Long, timestampMillis: Long): Unit = withContext(dispatchers.io) {
-        dbMutex.withLock {
-            var updatedContact: Contact? = null
-            contactsState.update { current ->
-                current.map { contact ->
-                    if (contact.id == contactId && contact.arham != null) {
-                        contact.copy(arham = contact.arham?.copy(lastContactedAt = timestampMillis))
-                            .also { u -> updatedContact = u }
-                    } else {
-                        contact
-                    }
-                }
-            }
-            updatedContact?.let { arhamEntityDao.recordContactCall(contactId, timestampMillis) }
-        }
-    }
-
     // ===== ArhamDao — استمرارية إدخال أحداث المكالمات (T8-03 · ADR-0006 · Issue #29) =====
     // القراءات عبر DAOs كيانات Room المولَّدة؛ والكتابة المركّبة (حدث + آخر تواصل مؤهَّل)
     // SQL خام داخل معاملة IMMEDIATE واحدة حصراً — قيد F-2 من مراجعة T8-01: لا انفصام
@@ -711,6 +694,11 @@ class LocalSilaDatabase internal constructor(
         withContext(dispatchers.io) {
             callEventEntityDao.findBetween(fromMillis, toMillis).map { it.toCallEvent() }
         }
+
+    /** أحداث `PENDING` حصراً (T8-06 · AC-7) — استعلام Room مباشر، قراءة بلا كتابة. */
+    override fun observePendingCallEvents(): Flow<List<CallEvent>> =
+        callEventEntityDao.observePending().map { entities -> entities.map { it.toCallEvent() } }
+            .flowOn(dispatchers.io)
 
     override suspend fun upsertCallEvent(event: CallEvent, lastContactedUpdate: LastContactedUpdate?): Unit =
         withContext(dispatchers.io) {

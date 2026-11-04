@@ -65,7 +65,8 @@ class ArhamCallEventRepositoryImplTest {
 
         override suspend fun upsertArhamInfo(contactId: Long, info: ArhamInfo) = Unit
 
-        override suspend fun recordContactCall(contactId: Long, timestampMillis: Long) = Unit
+        override fun observePendingCallEvents(): Flow<List<CallEvent>> =
+            kotlinx.coroutines.flow.flowOf(emptyList())
 
         override suspend fun getCallEventById(eventId: String): CallEvent? {
             failure?.let { throw it }
