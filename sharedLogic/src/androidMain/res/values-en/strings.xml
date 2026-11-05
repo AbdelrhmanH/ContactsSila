@@ -3,8 +3,11 @@
 <resources>
     <string name="arham_notification_channel_name">Arham reminders</string>
     <string name="arham_digest_title">Time for family connection</string>
-    <string name="arham_digest_body_one">%1$s misses you</string>
-    <string name="arham_digest_body_many">%1$s misses you, plus %2$d more</string>
+    <!-- T808-R4: CLDR plural rules for the digest body (English: one/other). -->
+    <plurals name="arham_digest_body">
+        <item quantity="one">%1$s misses you</item>
+        <item quantity="other">%1$s misses you, plus %2$d more</item>
+    </plurals>
     <string name="arham_occasion_birthday_today">It\'s %1$s\'s birthday today! Call them</string>
     <string name="arham_occasion_birthday_tomorrow">Tomorrow is %1$s\'s birthday</string>
     <string name="arham_occasion_anniversary_today">%1$s\'s anniversary is today! Reach out</string>

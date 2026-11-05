@@ -49,18 +49,18 @@ internal object ArhamNotificationPoster {
     ): Pair<String, String> = when (content) {
         is ArhamNotificationContent.Digest ->
             context.getString(app.sila.sharedLogic.R.string.arham_digest_title) to
-                if (content.additionalOverdueCount > 0) {
-                    context.getString(
-                        app.sila.sharedLogic.R.string.arham_digest_body_many,
-                        content.headlineDisplayName,
-                        content.additionalOverdueCount,
-                    )
-                } else {
-                    context.getString(
-                        app.sila.sharedLogic.R.string.arham_digest_body_one,
-                        content.headlineDisplayName,
-                    )
-                }
+                // T808-R4: صيغ العدد من `<plurals>` (صفر يُعامَل كفرد كما كان —
+                // «يشتاق إليك» بلا إضافة)، والجمع العربي الأصيل من قاعدة CLDR
+                // (اثنان/٣–١٠/عشرات) بدل مفاتيح one/many يدوية.
+                // **التعيين 0←فئة quantity=1 مقصود وحمّال للسلوك**: الإنجليزية بلا
+                // فئة `zero` في CLDR — تمرير 0 مباشرةً يختار `other` («plus 0 more»)
+                // تراجعاً عن سلوك T8-08؛ والعربية `zero`==`one` نصاً فلا فرج هناك.
+                context.resources.getQuantityString(
+                    app.sila.sharedLogic.R.plurals.arham_digest_body,
+                    content.additionalOverdueCount.takeIf { it > 0 } ?: 1,
+                    content.headlineDisplayName,
+                    content.additionalOverdueCount,
+                )
 
         is ArhamNotificationContent.Occasion ->
             context.getString(app.sila.sharedLogic.R.string.arham_digest_title) to
@@ -91,12 +91,12 @@ internal object ArhamNotificationPoster {
             .setAutoCancel(true)
             .setContentIntent(openAppIntent(context))
             .addAction(
-                /* icon = */ 0,
+                /* icon = */ app.sila.sharedLogic.R.drawable.ic_action_call,
                 /* title = */ context.getString(app.sila.sharedLogic.R.string.arham_action_call_now),
                 /* intent = */ actionIntent(context = context, action = ACTION_CALL_NOW, requestCode = 2002),
             )
             .addAction(
-                /* icon = */ 0,
+                /* icon = */ app.sila.sharedLogic.R.drawable.ic_action_snooze,
                 /* title = */ context.getString(app.sila.sharedLogic.R.string.arham_action_remind_tomorrow),
                 /* intent = */ actionIntent(context = context, action = ACTION_REMIND_TOMORROW, requestCode = 2003),
             )

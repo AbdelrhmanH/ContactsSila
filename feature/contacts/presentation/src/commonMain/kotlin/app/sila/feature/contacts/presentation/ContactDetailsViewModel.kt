@@ -76,6 +76,13 @@ sealed interface ContactDetailsIntent {
 
     /** زر الرجوع — يُرسل [ContactDetailsEffect.NavigateBack] للغلاف. */
     data object Back : ContactDetailsIntent
+
+    /**
+     * بدء رنين الطوارئ (T8-11 · docs/features/06 §102-103) — جهة [Category.EMERGENCY]
+     * حصراً بعد حوار تحذيري. **مرورٌ رقيق فقط:** تنفيذ الاستخدام ملكُ غلاف المضيف
+     * (الميزات لا تعتمد بعضها — AGENTS.md/ADR-0007)؛ النتيجة هادئة عبر Room SSOT.
+     */
+    data class EmergencyRing(val contactId: Long) : ContactDetailsIntent
 }
 
 /** آثار جانبية منصات لغلاف التفاصيل (تُجمَع في androidApp/T4) — بلا منطق أعمال. */
@@ -96,6 +103,12 @@ sealed interface ContactDetailsEffect {
 
     /** فشل الحذف النهائي بعد انصراف النافذة — عرض خطأ مُترجم. */
     data object ShowDeleteError : ContactDetailsEffect
+
+    /**
+     * طلب بدء رنين الطوارئ (T8-11) — [contactId] يُسلَّم للمضيف الذي يملك بوابة
+     * `CALL_PHONE` وتنفيذ `StartEmergencyRingingUseCase` (فصل الميزات).
+     */
+    data class EmergencyRing(val contactId: Long) : ContactDetailsEffect
 }
 
 /**
@@ -188,6 +201,7 @@ class ContactDetailsViewModel(
             ContactDetailsIntent.RequestDelete -> startUndoWindow()
             ContactDetailsIntent.UndoDelete -> cancelUndoWindow()
             ContactDetailsIntent.Back -> sendEffect(ContactDetailsEffect.NavigateBack)
+            is ContactDetailsIntent.EmergencyRing -> sendEffect(ContactDetailsEffect.EmergencyRing(intent.contactId))
         }
     }
 

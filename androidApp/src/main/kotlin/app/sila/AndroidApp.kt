@@ -4,9 +4,11 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.PackageManager.PERMISSION_DENIED
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,7 +37,11 @@ import androidx.compose.ui.unit.dp
 import app.sila.core.designsystem.SilaTheme
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.ContactSwipeAction
+import app.sila.arham.screening.ScreeningRoleController
 import app.sila.di.ensureKoinStarted
+import app.sila.feature.arham.domain.StartEmergencyRingingUseCase
+import app.sila.feature.arham.presentation.ArhamIntent
+import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.domain.onboarding.OnboardingPermissionState
 import app.sila.feature.contacts.presentation.ContactsEffect
 import app.sila.feature.contacts.presentation.ContactsIntent
@@ -59,6 +65,10 @@ import kotlinx.coroutines.withContext
  * - [ContactsNavEffect] (T6 — Issue #27): تفاصيل/إضافة جهة الاتصال — اتصال/رسالة/
  *   بريد/رابط/تطبيق متصل، مشاركة vCard، إشعارات أخطاء الحذف/الحفظ، ومنتقيات
  *   الصورة (الكاميرا/المعرض)؛ إضافة لطلب `WRITE_CONTACTS` لمرة واحدة بعد التهيئة.
+ * - T8-11 (Issue #29): رنين الطوارئ — بوابة `CALL_PHONE` ثم تنفيذ
+ *   [StartEmergencyRingingUseCase] (فصل الميزات: المضيف هو جذر التركيب)؛ طلب
+ *   `POST_NOTIFICATIONS` بعد التهيئة (API 33+)؛ وحوار دور فرز المكالمات (AC-4)
+ *   بنتيجة تُعاد تقييمها من المصدر.
  *
  * **جامع واحد لكل قناة آثار** (Channel = مستهلك واحد): كل آثار ViewModel تُجمَع
  * هنا حصرياً (أو في [ContactsNavFlow] لقناتي التفاصيل/التعديل — التنقل ملكها
@@ -141,6 +151,43 @@ fun SilaAndroidApp() {
         }
     }
 
+    // T8-08/T8-11 — POST_NOTIFICATIONS بعد التهيئة (API 33+ حصراً): تذكيرات أرحام
+    // ورنين الطوارئ إشعارات؛ الرفض لا يسد أي مسار (كل الميزات تعمل بلا إشعارات).
+    var postNotificationsRequested by rememberSaveable { mutableStateOf(false) }
+    val postNotificationsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { /* الرفض هادئ — لا مساراً يسد */ }
+
+    LaunchedEffect(mainState.preferences.onboardingCompleted) {
+        if (mainState.preferences.onboardingCompleted && !postNotificationsRequested) {
+            postNotificationsRequested = true
+            if (Build.VERSION.SDK_INT >= 33) {
+                postNotificationsLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    // T8-11 — بوابة CALL_PHONE لرنين الطوارئ: المنح يكمل البداية للجهة المعلقة،
+    // والرفض هادئ (شريط الجلسة في واجهة أرحام هو SSOT — لا نسخ حالة هنا).
+    var pendingEmergencyContactId by remember { mutableStateOf<Long?>(null) }
+    val callPhoneLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val contactId = pendingEmergencyContactId
+        pendingEmergencyContactId = null
+        if (granted && contactId != null) {
+            scope.launch { koin.get<StartEmergencyRingingUseCase>()(contactId) }
+        }
+    }
+
+    // T8-11 (AC-4) — نتيجة حوار دور فرز المكالمات تُعاد تقييمها من المصدر نفسه
+    // (نفس نسخة الـ VM من Koin) — لا نسخ نتيجة يدوياً.
+    val screeningRoleLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        koin.get<ArhamViewModel>().onIntent(ArhamIntent.RefreshScreeningConsent)
+    }
+
     LaunchedEffect(onboardingViewModel) {
         onboardingViewModel.effects.collect { effect ->
             when (effect) {
@@ -194,6 +241,28 @@ fun SilaAndroidApp() {
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             }
+            is ContactsNavEffect.EmergencyRing -> {
+                // T8-11: بوابة CALL_PHONE — ممنوح: بداية فورية؛ وإلا الطلب ثم البداية
+                // عند المنح. نتيجة الاستخدام هادئة (banner أرحام يقرأ Room SSOT).
+                val contactId = effect.contactId
+                if (context.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+                    scope.launch { koin.get<StartEmergencyRingingUseCase>()(contactId) }
+                } else {
+                    pendingEmergencyContactId = contactId
+                    callPhoneLauncher.launch(Manifest.permission.CALL_PHONE)
+                }
+            }
+        }
+    }
+
+    // T8-11 (AC-4) — طلب الدور منصوي حصراً: نية المتحكم إن توفرت، وإلا تحديث هادئ
+    // (قبل API 29 الدور غير موجود — المصدر يعيد null والواجهة تعتمد التسجيل اليدوي).
+    val onArhamRequestScreeningRole: () -> Unit = {
+        val requestIntent = ScreeningRoleController(context).createRequestRoleIntent()
+        if (requestIntent != null) {
+            screeningRoleLauncher.launch(requestIntent)
+        } else {
+            koin.get<ArhamViewModel>().onIntent(ArhamIntent.RefreshScreeningConsent)
         }
     }
 
@@ -238,7 +307,10 @@ fun SilaAndroidApp() {
         }
     }
 
-    App(onContactsNavEffect = onContactsNavEffect)
+    App(
+        onContactsNavEffect = onContactsNavEffect,
+        onArhamRequestScreeningRole = onArhamRequestScreeningRole,
+    )
 }
 
 /** رسالة قصيرة للغلاف — نصها من موارد الترجمة (مُحلولة في التركيب). */

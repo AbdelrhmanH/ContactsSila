@@ -4,8 +4,16 @@
 <resources>
     <string name="arham_notification_channel_name">تذكيرات أرحام</string>
     <string name="arham_digest_title">حان وقت صلة الرحم</string>
-    <string name="arham_digest_body_one">%1$s يشتاق إليك</string>
-    <string name="arham_digest_body_many">%1$s يشتاق إليك، و%2$d آخرون</string>
+    <!-- T808-R4: صيغ العدد الأصيلة عبر `<plurals>` (قاعدة CLDR العربية) — الصفر/الواحد
+         بلا إضافة، واثنان «وآخران»، و٣–١٠ جمع منقوص، وأكثر جمع عدّي. -->
+    <plurals name="arham_digest_body">
+        <item quantity="zero">%1$s يشتاق إليك</item>
+        <item quantity="one">%1$s يشتاق إليك</item>
+        <item quantity="two">%1$s يشتاق إليك، وآخران</item>
+        <item quantity="few">%1$s يشتاق إليك، و%2$d آخرون</item>
+        <item quantity="many">%1$s يشتاق إليك، و%2$d آخرون</item>
+        <item quantity="other">%1$s يشتاق إليك، و%2$d آخرون</item>
+    </plurals>
     <string name="arham_occasion_birthday_today">عيد ميلاد %1$s اليوم! اتصل به</string>
     <string name="arham_occasion_birthday_tomorrow">غداً عيد ميلاد %1$s</string>
     <string name="arham_occasion_anniversary_today">ذكرى %1$s اليوم! تواصل معه</string>

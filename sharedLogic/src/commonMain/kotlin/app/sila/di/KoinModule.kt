@@ -29,6 +29,7 @@ import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
 import app.sila.feature.arham.domain.GetArhamWidgetSnapshotUseCase
 import app.sila.feature.arham.domain.IngestCallEventUseCase
+import app.sila.feature.arham.domain.ObserveArhamContactsUseCase
 import app.sila.feature.arham.domain.ObservePendingConfirmationsUseCase
 import app.sila.feature.arham.domain.ObserveUpcomingOccasionsUseCase
 import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
@@ -40,6 +41,8 @@ import app.sila.feature.arham.domain.ResolveConfirmationUseCase
 import app.sila.feature.arham.domain.ScreeningSignalIngestionUseCase
 import app.sila.feature.arham.domain.StartEmergencyRingingUseCase
 import app.sila.feature.arham.domain.StopEmergencyRingingUseCase
+import app.sila.feature.arham.domain.UpdateKinshipUseCase
+import app.sila.feature.arham.presentation.ArhamScreeningConsentSource
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.data.ContactsListPreferencesRepositoryImpl
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
@@ -352,13 +355,26 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // T8-10 (AC-15): لقطة الودجت — تركيبة واحدة من مصدَري T8-07 (قائمة + إحصاءات).
     factory { GetArhamWidgetSnapshotUseCase(getPriorityList = get(), getDashboardStats = get()) }
 
+    // T8-11 (AC-1/AC-13): تحرير القرابة ومرصد أقارب أرحام — رقيقة فوق المستودع.
+    factory { UpdateKinshipUseCase(repository = get()) }
+    factory { ObserveArhamContactsUseCase(repository = get()) }
+
     single {
         ArhamViewModel(
             getPriorityList = get(),
             getDashboardStats = get(),
             recordDialAttempt = get(),
             celebrateTransition = get(),
-            clock = get()
+            buildTree = get(),
+            observePendingConfirmations = get(),
+            resolveConfirmation = get(),
+            observeOccasions = get(),
+            observeContacts = get(),
+            updateKinship = get(),
+            stopEmergency = get(),
+            emergencySessionRepository = get(),
+            screeningConsentSource = get(),
+            clock = get(),
         )
     }
 
