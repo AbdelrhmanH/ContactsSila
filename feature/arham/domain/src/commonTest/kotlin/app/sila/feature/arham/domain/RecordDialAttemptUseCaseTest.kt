@@ -9,6 +9,7 @@ import app.sila.core.model.CallSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,6 +63,20 @@ class RecordDialAttemptUseCaseTest {
         assertEquals(CallDirection.OUT, event.direction)
         assertEquals(CallAssociation.AUTO, event.association)
         assertTrue(repo.lastContactedWrites.isEmpty()) // قاعدة AC-8: المحاولة لا تُحدّث
+    }
+
+    @Test
+    fun dialIntent_carriesSimSlotWhenProvided_andStaysNullOtherwise() = runTest {
+        val repo = FakeArhamCallEventRepository()
+        val useCase = useCase(repo)
+
+        val withSlot = useCase(contactId = 5L, remoteNumber = "+201000000000", timestampMillis = 1_000L, simSlot = 0)
+        val withoutSlot = useCase(contactId = 6L, remoteNumber = "+201000000001", timestampMillis = 1_000L)
+
+        assertEquals(0, assertIs<CallEventIngestion.Persisted>(withSlot).event.simSlot)
+        // الافتراضي: null — `preferredSimSlot` غير مُخزَّن في Room v2 (EntityMappers) فلا
+        // مصدر حياً للقيمة بعد؛ التوقيع جاهز لعند تخزين التفضيل (قرار D-2).
+        assertNull(assertIs<CallEventIngestion.Persisted>(withoutSlot).event.simSlot)
     }
 
     @Test

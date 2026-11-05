@@ -230,4 +230,41 @@ class CallEventStateMachine {
             evidenceSources = event.evidenceSources + CallSource.MANUAL,
         )
     }
+
+    /**
+     * تصنيف إشارة فرز المكالمات الواردة (`CallScreeningService.onScreenCall` — T8-09 · ADR-0006 §1)
+     * من **بدائيات حصراً** — المنصة تعطي رقماً وحالة تحقق، ولا شيء آخر يُستنتج:
+     * - المصدر `ANDROID_CALL_SCREENING` والاتجاه `IN` (الفرز للوارد حصراً — الصادر يُصمَت قبل التصنيف).
+     * - النتيجة `UNKNOWN` دائماً: الفرز لا يثبت اتصالاً ولا نهاية ولا مدة — **ولا يُحدّث
+     *   `lastContactedAt` أبداً** إلا بتأكيد المستخدم لاحقاً (بوابة AC-8).
+     * - الربط `UNASSOCIATED` والتأكيد `PENDING`: **لا حلّ رقم→جهة** هنا — الوصول إلى جهات
+     *   الاتصال من ميزة أرحام ممنوع (ADR-0007)؛ الربط مسؤولية مسار التأكيد في T8-06.
+     * - الثقة `HIGH` فقط عند تحقق المنصة من الرقم (`VERIFIED`)، وإلا `LOW`.
+     * - `dedupeKey = null` و`simSlot = null`: لا اختراع مفاتيح — المطابقة بالرقم والاتجاه
+     *   والنافذة (قرار D-2)، والمنصة لا تعطي الشريحة في تفاصيل الفرز.
+     *
+     * @param remoteNumber الرقم من `handle` بعد تجريد المخطط؛ `null` = محجوب/غائب —
+     *   بلا أساس منع تكرار (تُخزَّن حداً مستقلاً).
+     * @param verificationPassed هل تحقق المنصة من الرقم (`VERIFICATION_STATUS_VERIFIED`).
+     */
+    fun classifyScreeningSignal(
+        eventId: String,
+        remoteNumber: String?,
+        timestampMillis: Long,
+        verificationPassed: Boolean,
+    ): CallEvent = CallEvent(
+        id = eventId,
+        primarySource = CallSource.ANDROID_CALL_SCREENING,
+        evidenceSources = setOf(CallSource.ANDROID_CALL_SCREENING),
+        timestamp = timestampMillis,
+        remoteNumber = remoteNumber,
+        direction = CallDirection.IN,
+        startedAt = timestampMillis,
+        outcome = CallOutcome.UNKNOWN,
+        association = CallAssociation.UNASSOCIATED,
+        confirmation = CallConfirmation.PENDING,
+        confidence = if (verificationPassed) CallConfidence.HIGH else CallConfidence.LOW,
+        dedupeKey = null,
+        simSlot = null,
+    )
 }

@@ -15,6 +15,11 @@
     <!-- إعادة جدولة التذكير اليومي بعد الإقلاع (T8-08 · D2 §8 — بلا إنذارات دقيقة) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- مراقبة حالة الهاتف (T8-09 · AC-17): حالة الاتصال فقط بلا هوية — لا رقم ولا
+         سجل مكالمات (READ_CALL_LOG ممنوع إطلاقاً). البوابة صلاحية وقت التشغيل فقط؛
+         رفضها يُبقي التسجيل داخل التطبيق والتأكيد اليدوي (بديل AC-4) -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
     <!-- استعلام الحزم المسمّى لكاشف التطبيقات المتصلة (T6) — بلا QUERY_ALL_PACKAGES -->
     <queries>
         <package android:name="com.whatsapp" />
@@ -62,6 +67,19 @@
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!-- خدمة فرز المكالمات الاختيارية (T8-09 · AC-4/AC-5): مُصدَّرة حصراً لارتباط
+             النظام بها بإذن BIND_SCREENING_SERVICE المحمي، والدور يُمنح بموافقة المستخدم
+             (طلبُه من الواجهة مسؤولية T8-11). لا تحكم على المكالمات — استجابة محايدة
+             دائماً، ورصدٌ فقط يُدخل أحداثاً UNASSOCIATED/PENDING -->
+        <service
+            android:name="app.sila.arham.screening.SilaCallScreeningService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

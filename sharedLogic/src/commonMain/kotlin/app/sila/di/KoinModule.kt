@@ -21,6 +21,7 @@ import app.sila.feature.arham.domain.ArhamRepository
 import app.sila.feature.arham.domain.BuildArhamFamilyTreeUseCase
 import app.sila.feature.arham.domain.CallEventStateMachine
 import app.sila.feature.arham.domain.CelebrateTransitionUseCase
+import app.sila.feature.arham.domain.CorrelateObservedCallEndUseCase
 import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
 import app.sila.feature.arham.domain.IngestCallEventUseCase
@@ -30,6 +31,7 @@ import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
 import app.sila.feature.arham.domain.RecordDialAttemptUseCase
 import app.sila.feature.arham.domain.RecordManualContactUseCase
 import app.sila.feature.arham.domain.ResolveConfirmationUseCase
+import app.sila.feature.arham.domain.ScreeningSignalIngestionUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.data.ContactsListPreferencesRepositoryImpl
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
@@ -115,6 +117,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // جدولة إشعارات أرحام على المنصة (T8-08 · D2) — actuals per-platform:
     // أندرويد فوق AlarmManager (بلا دقة — D2)، وiOS فارغة حتى T8-12.
     includes(platformArhamNotificationModule)
+
+    // فرز المكالمات ومراقبة الحالة على المنصة (T8-09) — actuals per-platform:
+    // أندرويد فوق TelephonyManager/RoleManager (حالة فقط — AC-17)، وiOS فارغة حتى T8-12.
+    includes(platformArhamScreeningModule)
 
     // قاعدة Room KMP الوحيدة (PR B · ADR-0011): [LocalSilaDatabase] هي واجهة الوصول
     // الموحّدة — تنفّذ واجهات DAO الخمس مباشرة (كتابات مركّبة بـ SQL خام داخل معاملات
@@ -260,6 +266,12 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { ResolveConfirmationUseCase(repository = get(), stateMachine = get()) }
     factory { RecordManualContactUseCase(repository = get(), stateMachine = get()) }
     factory { ObservePendingConfirmationsUseCase(repository = get()) }
+
+    // T8-09 (Issue #29): فرز المكالمات الاختياري (AC-4/AC-5) وربط نهاية المرصود
+    // بمحاولة مفتوحة (D-2 — ربطٌ لا اختراع مفاتيح): الفرز يُدخل إشارات واردة
+    // UNASSOCIATED/PENDING (بلا حل رقم→جهة — ADR-0007)، والمراقب لا يكتب صفاً قط.
+    factory { ScreeningSignalIngestionUseCase(ingest = get(), stateMachine = get()) }
+    factory { CorrelateObservedCallEndUseCase(repository = get(), stateMachine = get()) }
     single<ArhamCelebrationPolicy> { ArhamCelebrationPolicyBridge(userPreferencesDataSource = get()) }
     factory { CelebrateTransitionUseCase(policy = get(), clock = get()) }
 

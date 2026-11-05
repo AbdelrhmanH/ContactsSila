@@ -18,16 +18,25 @@ class RecordDialAttemptUseCase(
     private val ingest: IngestCallEventUseCase,
     private val stateMachine: CallEventStateMachine = CallEventStateMachine(),
 ) {
+    /**
+     * @param simSlot شريحة الاتصال المعلومة عند بدء المكالمة — تمريرها اختياري، ولا
+     *   يُخترع `dedupeKey` في كل الأحوال (قرار D-2). ملاحظة مصدر البيانات:
+     *   `Phone.preferredSimSlot` غير مُخزَّن في Room v2 (`EntityMappers` يقرأه `null`
+     *   دائماً) لذا يمرّر المستدعون الحاليون `null` — التوقيع جاهز لعند تخزين
+     *   التفضيل، دون سبكٍ دائم الفراغ عبر `ArhamItem`/`ArhamIntent`.
+     */
     suspend operator fun invoke(
         contactId: Long,
         remoteNumber: String,
         timestampMillis: Long,
+        simSlot: Int? = null,
     ): CallEventIngestion {
         val candidate = stateMachine.classifyInAppDialIntent(
             eventId = "inapp-${contactId}-${timestampMillis}",
             remoteNumber = remoteNumber,
             timestampMillis = timestampMillis,
             contactId = contactId,
+            simSlot = simSlot,
         )
         return ingest(candidate)
     }

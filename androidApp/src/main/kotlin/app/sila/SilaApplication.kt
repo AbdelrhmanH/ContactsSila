@@ -3,6 +3,7 @@ package app.sila
 import android.app.Application
 import app.sila.arham.notification.ArhamNotificationChannel
 import app.sila.arham.notification.ArhamReminderDispatch
+import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.di.ensureKoinStarted
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.maintenance.RetentionCleanupCoordinator
@@ -31,6 +32,8 @@ class SilaApplication : Application() {
 
     private var reminderRescheduled = false
 
+    private var callObserverStarted = false
+
     override fun onCreate() {
         super.onCreate()
         val koin = ensureKoinStarted(storageDirPath = filesDir.absolutePath) {
@@ -40,6 +43,7 @@ class SilaApplication : Application() {
         startContactsSync(koin)
         startRetentionCleanup(koin)
         rescheduleDailyReminder(koin)
+        startCallStateObserver(koin)
     }
 
     /** تشغيل محرك المزامنة مرة واحدة (idempotent — onCreate قد يُستدعى على عملية جديدة فقط). */
@@ -76,5 +80,17 @@ class SilaApplication : Application() {
                 scheduler = koin.get(),
             )
         }
+    }
+
+    /**
+     * T8-09 (AC-4/AC-17): مراقب حالة الهاتف — **حالة فقط بلا هوية**؛ بدايته idempotent
+     * وبوابتُه صلاحية `READ_PHONE_STATE` حصراً (بلا مفتاح DataStore — قرار مثبت):
+     * مرفوضة ⇒ لا تسجيل ولا عملية (سجلٌّ بنوعٍ حصراً داخل المراقب)، ومسار التسجيل
+     * داخل التطبيق + التأكيد اليدوي (بديل AC-4) يعمل دوماً.
+     */
+    private fun startCallStateObserver(koin: Koin) {
+        if (callObserverStarted) return
+        callObserverStarted = true
+        koin.get<ArhamCallStateObserver>().start(applicationScope)
     }
 }
