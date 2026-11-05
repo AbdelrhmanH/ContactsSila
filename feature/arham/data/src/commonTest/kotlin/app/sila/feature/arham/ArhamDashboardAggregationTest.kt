@@ -36,6 +36,10 @@ import kotlin.test.assertTrue
  * بذر جهات أرحام وأحداث مكالمات مؤهَّلة/غير مؤهَّلة عبر مسارات الكتابة الحقيقية، ثم
  * مطابقة كل إحصاء حرفياً — لا `size*2` ولا `540` مُختلَقَين، والموقوفون بعدد، والنافذة
  * بالساعة الثابتة.
+ *
+ * **هدف الفترة (FA-001):** الصيغة المعيارية من مواصفة §06 سطر 56 — نسبة المؤهَّلين
+ * (غير المناسبات وغير الموقوفين) في حالة `OK`، مشتقة من `calculateUrgency`/`toArhamStatus`؛
+ * قاعدة MAX في `updateLastContactedAt` تحكم توقّعات نداءات الطوابع الأقدم.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ArhamDashboardAggregationTest {
@@ -100,8 +104,9 @@ class ArhamDashboardAggregationTest {
     fun aggregation_overLiveRoom_matchesSeededFixtures_exactly() = runTest {
         val db = LocalSilaDatabase(dispatchers = testDispatchers)
         try {
-            // جهة 10: أسبوعية، تواصلت قبل 8 أيام (مستحقة) · جهة 11: أسبوعية، قبل يوم (غير مستحقة)
-            // جهة 12: شهرية بلا تواصل مطلقاً (مستحقة دوماً) — مقام الهدف {10, 12} = 2.
+            // جهة 10: أسبوعية، تواصلت قبل 8 أيام (مستحقة/OVERDUE) · جهة 11: أسبوعية، قبل يوم
+            // (OK) · جهة 12: شهرية بلا تواصل مطلقاً (OVERDUE دوماً) — مؤهلو الهدف (FA-001،
+            // مواصفة §06 سطر 56: غير المناسبات وغير الموقوفين) = {10, 11, 12}.
             db.upsertContact(arhamContact(10L, "العم خالد", "+201000000010", ArhamFrequency.WEEKLY, lastContactedDaysAgo = 8))
             db.upsertContact(arhamContact(11L, "العمة سعاد", "+201000000011", ArhamFrequency.WEEKLY, lastContactedDaysAgo = 1))
             db.upsertContact(arhamContact(12L, "ابن العم ياسر", "+201000000012", ArhamFrequency.MONTHLY))
@@ -118,22 +123,25 @@ class ArhamDashboardAggregationTest {
                 dispatchers = testDispatchers,
             )
 
-            // قبل أي أحداث: كل الإحصاءات صفرية والمقام 2 (10 و12) — بسط 0.
+            // قبل أي أحداث: العدّادات صفرية. الهدف (مواصفة §06 سطر 56) = نسبة المؤهَّلين في
+            // حالة OK: {11} من {10, 11, 12} ⇒ 1/3 — المستحقان 10 و12 في المقام دون البسط.
             val empty = getStats().first()
             assertEquals(0, empty.totalFamilyCalls)
             assertEquals(0, empty.contactedRelatives)
             assertEquals(0, empty.longestCallSec)
-            assertEquals(0f, empty.goalCompletion)
+            assertEquals(1f / 3f, empty.goalCompletion)
             assertEquals(0, empty.pausedCount)
             assertTrue(empty.topThree.isEmpty())
 
-            // نداء ناجح موثَّق لجهة 11 (غير المستحقة) قبل 5 أيام — يُحتسب ولا يرفع الهدف إلا ½.
+            // نداء ناجح موثَّق لجهة 11 بطابع زمني أقدم (قبل 5 أيام) من lastContactedAt المحفوظ
+            // (قبل يوم): قاعدة MAX (ArhamEntityDao «updateLastContactedMax») تمنع التراجع —
+            // تبقى 11 في OK و10/12 في OVERDUE ⇒ الهدف ثابت 1/3، والعدّادات تحتسب النداء.
             callEventRepo.upsertEvent(evidencedCall("ev-a", contactId = 11L, timestamp = baseMillis - 5 * day, durationSec = 540))
             val one = getStats().first()
             assertEquals(1, one.totalFamilyCalls)
             assertEquals(1, one.contactedRelatives)
             assertEquals(540, one.longestCallSec)
-            assertEquals(1f / 2f, one.goalCompletion)
+            assertEquals(1f / 3f, one.goalCompletion)
             assertEquals(listOf(11L), one.topThree.map { it.contactId })
             assertEquals(1, one.topThree.first().rank)
 
@@ -145,6 +153,9 @@ class ArhamDashboardAggregationTest {
             assertEquals(2, two.contactedRelatives)
             assertEquals(540, two.longestCallSec) // MAX فوق المؤهَّل — الأحدث لا تُختلق
             assertEquals(listOf(10L, 11L), two.topThree.map { it.contactId })
+            // نداءا 10 حدّثا lastContactedAt بالتتالي (MAX: ‑8ي ← ‑2ي ← ‑1ي) فصارت OK —
+            // {10, 11} في OK من مقام {10, 11, 12} ⇒ 2/3.
+            assertEquals(2f / 3f, two.goalCompletion)
 
             // المحاولة غير المؤهَّلة لا تُحتسب (زر الاتصال — قاعدة AC-8).
             callEventRepo.upsertEvent(
@@ -164,13 +175,14 @@ class ArhamDashboardAggregationTest {
             assertEquals(3, afterAttempt.totalFamilyCalls)
             assertEquals(2, afterAttempt.contactedRelatives)
 
-            // توقيف جهة 12: خارج المقام، وتُعدّ في pausedCount (AC-2 «موقوف بعدد»).
-            // ملاحظة حتمية: نداءا جهة 10 حدّثا lastContactedAt (قاعدة AC-8) فصارت غير
-            // مستحقة، وتوقيف 12 يُخرجه — المقام الفارغ ← هدف 0f (ولا تُختلق نسبة).
+            // توقيف جهة 12: يُخرجها من مقام الهدف (مواصفة §06 سطر 56 «غير المتوقفين»)،
+            // وتُعدّ في pausedCount (AC-2 «موقوف بعدد»). نداءا جهة 10 صارتاها OK —
+            // يبقى المقام {10, 11} وكلاهما OK ⇒ 2/2 = 1 (الموقوف يُستبعد من النسبة
+            // بِنائِه؛ كون آخر مستحقٍ موقوفاً يرفع الهدف لـ 100% بدلالة السطر 56).
             db.upsertArhamInfo(12L, arhamContact(12L, "", "", ArhamFrequency.MONTHLY, pausedInDays = 5).arham!!)
             val afterPause = getStats().first()
             assertEquals(1, afterPause.pausedCount)
-            assertEquals(0f, afterPause.goalCompletion) // المقام فارغ الآن {10 غير مستحقة، 12 موقوفة}
+            assertEquals(1f, afterPause.goalCompletion) // المقام {10, 11} — كلاهما OK ⇒ 2/2
 
             // المسجيل اليدوي «تواصلت معه» مؤهَّل (CONFIRMED/COMPLETED) — يُحتسب.
             val manual = RecordManualContactUseCase(repository = callEventRepo)
@@ -184,6 +196,9 @@ class ArhamDashboardAggregationTest {
             val afterManual = getStats().first()
             assertEquals(4, afterManual.totalFamilyCalls)
             assertEquals(3, afterManual.contactedRelatives)
+            // التواصل اليدوي حدّث حالة 12 إلى OK (آخر تواصل قبل ساعتين) لكنه ما يزال
+            // موقوفاً — خارج النسبة ⇒ الهدف ثابت 1 (2/2) حتى ينتهي التوقيف.
+            assertEquals(1f, afterManual.goalCompletion)
         } finally {
             db.closeConnection()
         }

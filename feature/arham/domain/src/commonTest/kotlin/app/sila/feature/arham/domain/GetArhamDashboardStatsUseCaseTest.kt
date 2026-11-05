@@ -31,6 +31,10 @@ import kotlinx.datetime.Instant
  * لا `size*2` ولا `540` مُختلَقَين — العدّ فوق الأحداث المؤهَّلة بقاعدة AC-8 حصراً
  * (آلة الحالات المصدر الوحيد)، المنصة الثلاثية بالنداءات الناجحة ثم المدة (O-9)،
  * والموقوفون مخفيون بعدد (AC-2). قيمُ النافذة مثبتة بساعة ثابتة.
+ *
+ * **هدف الفترة (FA-001):** الصيغة المعيارية من مواصفة §06 سطر 56 — نسبة الأقارب
+ * (غير المناسبات وغير الموقوفين) في حالة `OK`، مشتقة من `calculateUrgency`/
+ * `toArhamStatus` الموحّدتين؛ القيمة ضمن [0,1] دوماً والمقام الفارغ ⇒ 0.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class GetArhamDashboardStatsUseCaseTest {
@@ -237,12 +241,10 @@ class GetArhamDashboardStatsUseCaseTest {
     }
 
     @Test
-    fun goalCompletion_contactedOverDueInPeriod_zeroOnEmptyDenominator() = runTest {
-        val eventRepo = FakeArhamCallEventRepository().apply {
-            events["ev-1"] = completedEvent("ev-1", contactId = 1L)
-        }
-        // جهة 1 متواصلة قبل يوم (أسبوعية — موعدها بعد 6 أيام: غير مستحقة الآن)؛
-        // جهة 2 مستحقة (تواصلت قبل 8 أيام بأسبوعية)؛ جهة 5 مستحقة (قبل 10 أيام)؛
+    fun goalCompletion_specFormula_fractionOfEligibleInOkState() = runTest {
+        val eventRepo = FakeArhamCallEventRepository()
+        // جهة 1: تواصلت قبل يوم (أسبوعية ⇒ urgency 1/7 ‹ 0.7) — OK.
+        // جهة 2: قبل 8 أيام ⇒ OVERDUE. جهة 5: قبل 6 أيام ⇒ 6/7 ≈ 0.857 ⇒ SOON.
         // جهة 3 موقوفة (خارج المقام)؛ جهة 4 «ب المناسبات» (لا إيقاع — خارج المقام).
         val repo = FakeArhamRepository(
             listOf(
@@ -250,25 +252,104 @@ class GetArhamDashboardStatsUseCaseTest {
                 contact(2L, lastContactedDaysAgo = 8),
                 contact(3L, pausedInDays = 5),
                 contact(4L, frequency = ArhamFrequency.OCCASIONS, lastContactedDaysAgo = 100),
-                contact(5L, lastContactedDaysAgo = 10),
+                contact(5L, lastContactedDaysAgo = 6),
             ),
         )
         val stats = useCase(repo, eventRepo)().first()
-        // المقام: 2 و5 (المستحقان) = 2 — البسط: 1 (جهة 1 تواصلت لكنها غير مستحقة)
-        assertEquals(1f / 2f, stats.goalCompletion)
+        // المقام: 1 و2 و5 = 3 — البسط: 1 (جهة 1 فقط في OK) ⇒ 1/3 (مواصفة §06 سطر 56)
+        assertEquals(1f / 3f, stats.goalCompletion)
         assertEquals(1, stats.pausedCount)
     }
 
     @Test
-    fun goalCompletion_neverContacted_countsAsDue() = runTest {
-        // جهة بلا تواصل مطلقاً: مستحقة دوماً (dueAt = أول إيقاع بعد الإبوك — سبق الآن).
-        val eventRepo = FakeArhamCallEventRepository()
+    fun goalCompletion_zeroDenominator_whenNoEligibleRelatives() = runTest {
+        // كل الجهات إما موقوفة أو «ب المناسبات» — مقام فارغ ⇒ 0 بأمانة (لا 100 وهمية).
+        val repo = FakeArhamRepository(
+            listOf(
+                contact(1L, pausedInDays = 5),
+                contact(2L, frequency = ArhamFrequency.OCCASIONS, lastContactedDaysAgo = 100),
+            ),
+        )
+        assertEquals(0f, useCase(repo, FakeArhamCallEventRepository())().first().goalCompletion)
+    }
+
+    @Test
+    fun goalCompletion_allEligibleInOkState_one() = runTest {
+        // ثلاث جهات مؤهَّلة كلها في OK (تواصلت قبل يوم/يومين أسبوعياً) ⇒ 3/3.
+        val repo = FakeArhamRepository(
+            listOf(
+                contact(1L, lastContactedDaysAgo = 1),
+                contact(2L, lastContactedDaysAgo = 2),
+                contact(3L, lastContactedDaysAgo = 1),
+            ),
+        )
+        assertEquals(1f, useCase(repo, FakeArhamCallEventRepository())().first().goalCompletion)
+    }
+
+    @Test
+    fun goalCompletion_cannotExceedOne_whenGreensOutnumberFormerDueDenominator() = runTest {
+        // انحدار FA-001: بالصيغة القديمة (متواصل/مستحق) كانت 3 خضراء غير «مستحقة» +
+        // حمراء واحدة مستحقة تُنتج 300%. الصيغة المعيارية: البسط جزء من المقام ⇒ 3/4.
+        val repo = FakeArhamRepository(
+            listOf(
+                contact(1L, lastContactedDaysAgo = 1),
+                contact(2L, lastContactedDaysAgo = 1),
+                contact(3L, lastContactedDaysAgo = 2),
+                contact(4L, lastContactedDaysAgo = 8),
+            ),
+        )
+        val stats = useCase(repo, FakeArhamCallEventRepository())().first()
+        assertEquals(3f / 4f, stats.goalCompletion)
+        assertTrue(stats.goalCompletion <= 1f)
+    }
+
+    @Test
+    fun goalCompletion_noneInOkState_zero() = runTest {
+        // لا أحد في OK: غير متواصل مطلقاً (OVERDUE دوماً) + متواصل قبل 8 أيام (OVERDUE).
+        val repo = FakeArhamRepository(
+            listOf(
+                contact(1L, lastContactedDaysAgo = null),
+                contact(2L, lastContactedDaysAgo = 8),
+            ),
+        )
+        assertEquals(0f, useCase(repo, FakeArhamCallEventRepository())().first().goalCompletion)
+    }
+
+    @Test
+    fun goalCompletion_neverContacted_isOverdue_inDenominatorNotNumerator() = runTest {
+        // غير المتواصل مطلقاً: urgency = MAX_VALUE ⇒ OVERDUE — يدخل المقام ولا يدخل البسط.
         val repo = FakeArhamRepository(listOf(contact(1L, lastContactedDaysAgo = null)))
-        // قبل أي تواصل: بسط 0 فوق مقام 1 → 0f (وليس «مقام فارغ»)
-        assertEquals(0f, useCase(repo, eventRepo)().first().goalCompletion)
-        // بعد نداء ناجح واحد: بسط 1 / مقام 1 → 1f — يثبت أن غير المتواصل عُدَّ مستحقاً
-        eventRepo.events["ev-1"] = completedEvent("ev-1", contactId = 1L)
-        assertEquals(1f, useCase(repo, eventRepo)().first().goalCompletion)
+        assertEquals(0f, useCase(repo, FakeArhamCallEventRepository())().first().goalCompletion)
+        // جهة متواصلة قبل يوم (أسبوعية): OK ⇒ 1/1 — الحالة مشتقة من آخر تواصل محفوظ.
+        val contacted = FakeArhamRepository(listOf(contact(1L, lastContactedDaysAgo = 1)))
+        assertEquals(1f, useCase(contacted, FakeArhamCallEventRepository())().first().goalCompletion)
+    }
+
+    @Test
+    fun goalCompletion_pausedUntilExactlyNow_countsAsNotPaused() = runTest {
+        // حدّ التوقيف: pausedUntil == الآن (pausedInDays = 0) — شرط الاستبعاد صراحةً
+        // «paused > now» فلا يُستبعد (دلالة `calculateUrgency` و`pausedCount نفسها) —
+        // يدخل المقام، وحالته OK (قبل يوم أسبوعياً) ⇒ 1/1.
+        val repo = FakeArhamRepository(listOf(contact(1L, lastContactedDaysAgo = 1, pausedInDays = 0)))
+        val stats = useCase(repo, FakeArhamCallEventRepository())().first()
+        assertEquals(0, stats.pausedCount)
+        assertEquals(1f, stats.goalCompletion)
+    }
+
+    @Test
+    fun goalCompletion_dailyFrequency_dueExactlyNow_isOverdue() = runTest {
+        // حدّ التكرار اليومي: تواصل قبل يوم بالضبط ⇒ urgency = 1/1 = 1.0 ⇒ OVERDUE
+        // (الحد ≥ 1.0) ⇒ 0 من مقام 1 — «مستحق الآن» ليس في OK.
+        val due = FakeArhamRepository(listOf(contact(1L, frequency = ArhamFrequency.DAILY, lastContactedDaysAgo = 1)))
+        assertEquals(0f, useCase(due, FakeArhamCallEventRepository())().first().goalCompletion)
+        // التواصل اليوم (قبل 0 أيام) ⇒ urgency = 0 ⇒ OK: {OK, OVERDUE} ⇒ 1/2.
+        val mixed = FakeArhamRepository(
+            listOf(
+                contact(1L, frequency = ArhamFrequency.DAILY, lastContactedDaysAgo = 0),
+                contact(2L, frequency = ArhamFrequency.DAILY, lastContactedDaysAgo = 1),
+            ),
+        )
+        assertEquals(1f / 2f, useCase(mixed, FakeArhamCallEventRepository())().first().goalCompletion)
     }
 
     @Test

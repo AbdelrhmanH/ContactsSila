@@ -9,6 +9,8 @@ import app.sila.core.model.ArhamPeriod
 import app.sila.core.model.ArhamStatus
 import app.sila.core.model.CallEvent
 import app.sila.core.model.rankable
+import app.sila.core.model.calculateUrgency
+import app.sila.core.model.toArhamStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
@@ -37,10 +39,11 @@ private const val MILLIS_PER_DAY = 86_400_000L
  * - **نافذة الفترة:** متدحرجة تنتهي عند `now` (ساعة محقونة — دلالة زمن النهاية للخطة):
  *   WEEK = `[now − 7 أيام, now]` وMONTH = `[now − 30 يوماً, now]`، الطرفان شاملان
  *   (`BETWEEN`). تُحسب عند التركيب (لكل اشتراك)؛ تغيير الفترة يعيد الاشتراك.
- * - **هدف الفترة (المقام):** أقارب أرحام (عائلة && arham != null) بتكرار مُرتَّب
- *   (`rankable`) غير موقوفين حالياً، موعدهم `lastContactedAt + frequency.days` يقع
- *   في الفترة أو سبقَها (المتأخر ما يزال مستحقاً)؛ غير المتواصل مطلقاً مستحق دوماً.
- *   الصفر على مقام فارغ.
+ * - **هدف الفترة (FA-001 — مواصفة §06 سطر 56):** نسبة الأقارب (غير المناسبات
+ *   `OCCASIONS` وغير الموقوفين حالياً) الذين حالتهم `OK`. الحالة من اشتقاق النموذج
+ *   الموحَّد نفسه (`calculateUrgency` ← `toArhamStatus`) فلا تنحرف عن القائمة المرتبة
+ *   (درس O-7)؛ البسط جزءٌ من المقام بِنائِه فالقيمة ضمن `[0,1]` دوماً؛ المقام الفارغ
+ *   (لا أقارب مؤهلين) ⇒ 0 بأمانة (لا 100 وهمية).
  * - `pausedCount` (AC-2 «موقوف بعدد» — مؤجل من T8-05): عدد الأقارب الموقوفين حالياً
  *   من غير المناسبات — الخفيون من القائمة المرتبة.
  * - المنصة تشمل الموقوفَين (المنصة عدُّ نشاطٍ لا ترتيب إلحاح).
@@ -90,19 +93,21 @@ class GetArhamDashboardStatsUseCase(
                 paused != null && paused > toMillis
             }
 
-            // المقام: المستحقون في الفترة — موعدهم في الفترة أو سبقها، غير موقوفين الآن.
-            val dueContacts = contacts.filter { c ->
-                val info = c.arham ?: return@filter false
+            // هدف الفترة (مواصفة ميزة أرحام — معايير القبول سطر 56): نسبة الأقارب
+            // (غير المناسبات `OCCASIONS` وغير الموقوفين) في حالة `OK`. الاشتقاق عبر
+            // دالتي النموذج الموحّدتين — مصدر قاعدة الحالة الوحيد (درس O-7)، لا إعادة
+            // كتابتها هنا. البسط جزء من المقام بِنائِه ⇒ القيمة ضمن [0,1] دوماً،
+            // والمقام الفارغ (لا أقارب مؤهلين) ⇒ 0 بأمانة.
+            val goalPopulation = contacts.mapNotNull { it.arham }.filter { info ->
                 if (!info.frequency.rankable || info.frequency.days <= 0) return@filter false
                 val paused = info.pausedUntil
-                if (paused != null && paused > toMillis) return@filter false
-                val dueAt = (info.lastContactedAt ?: 0L) + info.frequency.days * MILLIS_PER_DAY
-                dueAt <= toMillis
+                !(paused != null && paused > toMillis)
             }
-            val goalCompletion = if (dueContacts.isEmpty()) {
+            val goalCompletion = if (goalPopulation.isEmpty()) {
                 0f
             } else {
-                contactedRelatives.toFloat() / dueContacts.size.toFloat()
+                goalPopulation.count { it.calculateUrgency(now).toArhamStatus() == ArhamStatus.OK }
+                    .toFloat() / goalPopulation.size.toFloat()
             }
 
             // المنصة الثلاثية (O-9): الأكثر نداءاتٍ ناجحة، فالمدة الكلية، فالمعرف — حتمية.
