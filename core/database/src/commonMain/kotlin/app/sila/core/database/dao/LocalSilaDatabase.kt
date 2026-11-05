@@ -125,7 +125,7 @@ class LocalSilaDatabase internal constructor(
     private val seedDemoData: Boolean,
     private val adoptionStageHook: ((AdoptionVerificationStage) -> Unit)?,
     private val backupDeleteOverride: (() -> Boolean)?,
-) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao, TopFiveMaterializationDao {
+) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao, TopFiveMaterializationDao, EmergencySessionDao {
 
     constructor(
         dbFilePath: String = ":memory:",
@@ -140,6 +140,36 @@ class LocalSilaDatabase internal constructor(
     )
 
     private val dbMutex = Mutex()
+
+    // ===== خطاف «تغيّرت بيانات أرحام» (T8-10 · D3: تحديثات مُحرَّكة بالتغيير) =====
+
+    /** مستمعو تغيّر بيانات أرحام — يُستدعون بعد COMMIT نجاح كتابة مؤثرة (قراءة/كتابة آمنة). */
+    private val arhamDataChangeListeners = mutableListOf<ArhamDataChangeListener>()
+
+    /** قفل السجل (مراجعة T8-10 · P3-1): تسجيل/إلغاء من خيوط مختلفة (مثل المستخدمين) بأمان. */
+    private val arhamListenersLock = Any()
+
+    /** تسجيل مستمع تغيّر (idempotent: التسجيل المكرر بلا أثر). */
+    fun addArhamDataChangeListener(listener: ArhamDataChangeListener) {
+        synchronized(arhamListenersLock) {
+            if (listener !in arhamDataChangeListeners) arhamDataChangeListeners += listener
+        }
+    }
+
+    /** إلغاء تسجيل مستمع تغيّر. */
+    fun removeArhamDataChangeListener(listener: ArhamDataChangeListener) {
+        synchronized(arhamListenersLock) { arhamDataChangeListeners.remove(listener) }
+    }
+
+    /** إطلاق المستمعين بعد COMMIT — فشل مستمعٍ لا يُفسد الكتابة ولا يسقط بقية المستمعين. */
+    private fun notifyArhamDataChanged() {
+        // نسخة لحظية ثم الإطلاق خارج القفل (P3-1): تسجيل/إلغاء أثناء الإشعار لا يرمي
+        // ConcurrentModificationException ولا يحتجز الكاتب.
+        val snapshot = synchronized(arhamListenersLock) { arhamDataChangeListeners.toList() }
+        snapshot.forEach { listener ->
+            runCatching { listener.onArhamDataChanged() }
+        }
+    }
 
     /**
      * خطاف حقن فشل داخل معاملة [applySyncBatch] لاختبار التراجع الذرّي — يُستدعى بعد
@@ -185,6 +215,7 @@ class LocalSilaDatabase internal constructor(
     private val arhamEntityDao = room.arhamEntityDao()
     private val serviceEntityDao = room.serviceEntityDao()
     private val callEventEntityDao = room.callEventEntityDao()
+private val emergencySessionEntityDao = room.emergencySessionEntityDao()
     private val arhamInboxEntityDao = room.arhamInboxEntityDao()
     private val disputeLogEntityDao = room.disputeLogEntityDao()
     private val contactsSyncCheckpointEntityDao = room.contactsSyncCheckpointEntityDao()
@@ -678,6 +709,7 @@ class LocalSilaDatabase internal constructor(
                 }
             }
             updatedContact?.let { inWriteTransaction { conn -> writeContactToSqlite(conn, it) } }
+            notifyArhamDataChanged() // T8-10 · D3: آخر تواصل/علاقة أرحام تغيّرت — بعد COMMIT حصراً
         }
     }
 
@@ -724,6 +756,7 @@ class LocalSilaDatabase internal constructor(
                 if (lastContactedUpdate != null) {
                     refreshLastContactedInCache(lastContactedUpdate)
                 }
+                notifyArhamDataChanged() // T8-10 · D3: حدث مكالمة/آخر تواصل تغيّرا — بعد COMMIT
             }
         }
 
@@ -734,6 +767,7 @@ class LocalSilaDatabase internal constructor(
                 // (idempotent: استدعاء النطاق التالي للمسار المؤهَّل بلا أثر دلالي).
                 arhamEntityDao.updateLastContactedMax(contactId, timestampMillis)
                 refreshLastContactedInCache(LastContactedUpdate(contactId = contactId, timestampMillis = timestampMillis))
+                notifyArhamDataChanged() // T8-10 · D3 — بعد نجاح الكتابة
             }
         }
 
@@ -1035,6 +1069,140 @@ class LocalSilaDatabase internal constructor(
                             )
                         )
                     }
+                }
+            }
+        }
+
+    // ===== EmergencySessionDao — جلسات رنين الطوارئ (T8-10 · D4 · §N · Issue #29) =====
+    // فوق الجدول الأدنى v3 حرفياً (بلا تعديل مخطط)؛ كل الحسم مقيَّد بـ IN_PROGRESS
+    // (idempotent حسب §N.8) والمحاولات ذرّية داخل معاملات IMMEDIATE.
+
+    override suspend fun countSessionsStartedSince(cutoffMillis: Long): Int = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            room.useReaderConnection { conn ->
+                conn.usePrepared(
+                    "SELECT COUNT(*) FROM emergency_ringing_sessions WHERE startedAt > ?"
+                ) { stmt ->
+                    stmt.bindLong(1, cutoffMillis)
+                    if (stmt.step()) stmt.getLong(0).toInt() else 0
+                }
+            }
+        }
+    }
+
+    override suspend fun findInProgressSession(): EmergencyRingingSessionEntity? = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            room.useReaderConnection { conn ->
+                conn.usePrepared(
+                    "SELECT id, contactId, startedAt, lastAttemptAt, attempts, status FROM emergency_ringing_sessions " +
+                        "WHERE status = 'IN_PROGRESS' ORDER BY id DESC LIMIT 1"
+                ) { stmt ->
+                    if (stmt.step()) {
+                        EmergencyRingingSessionEntity(
+                            id = stmt.getLong(0),
+                            contactId = stmt.getLong(1),
+                            startedAt = stmt.getLong(2),
+                            lastAttemptAt = stmt.getLong(3),
+                            attempts = stmt.getLong(4).toInt(),
+                            status = RingingStatus.valueOf(stmt.getText(5)),
+                        )
+                    } else {
+                        null
+                    }
+                }
+            }
+        }
+    }
+
+    override fun observeInProgressSession(): Flow<EmergencyRingingSessionEntity?> =
+        emergencySessionEntityDao.observeInProgress().flowOn(dispatchers.io)
+
+    override suspend fun insertInProgressSession(contactId: Long, startedAtMillis: Long): Long =
+        withContext(dispatchers.io) {
+            dbMutex.withLock {
+                inWriteTransaction { conn ->
+                    // get-or-create ذرّي (مراجعة T8-10 · P1-2): فحص الجارية القائمة داخل معاملة
+                    // الكاتب نفسها — سباق «انطلقين متوازيين» يلتحق بالصف القائم بدل إنشاء صفين
+                    // IN_PROGRESS يُفسدان محاسبة 3/24 ساعة (§N.8: جارية واحدة حصراً).
+                    var existingId: Long? = null
+                    conn.usePrepared(
+                        "SELECT id FROM emergency_ringing_sessions WHERE status = 'IN_PROGRESS' " +
+                            "ORDER BY id DESC LIMIT 1"
+                    ) { stmt ->
+                        if (stmt.step()) existingId = stmt.getLong(0)
+                    }
+                    existingId?.let { return@inWriteTransaction it }
+
+                    conn.usePrepared(
+                        "INSERT INTO emergency_ringing_sessions (contactId, startedAt, lastAttemptAt, attempts, status) " +
+                            "VALUES (?, ?, ?, 0, 'IN_PROGRESS')"
+                    ) { stmt ->
+                        stmt.bindLong(1, contactId)
+                        stmt.bindLong(2, startedAtMillis)
+                        stmt.bindLong(3, startedAtMillis)
+                        stmt.step()
+                    }
+                    // المعرف التوليدي داخل المعاملة نفسها (اتصال الكاتب الوحيد — last_insert_rowid صحيح هنا حصراً).
+                    conn.usePrepared("SELECT last_insert_rowid()") { stmt ->
+                        if (stmt.step()) stmt.getLong(0) else 0L
+                    }
+                }
+            }
+        }
+
+    override suspend fun recordAttempt(sessionId: Long, atMillis: Long): Int? = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            inWriteTransaction { conn ->
+                // القراءة والحسم داخل معاملة IMMEDIATE واحدة — بلا سباق مع الحسم المتوازي (§N.8).
+                var status = ""
+                conn.usePrepared(
+                    "SELECT status FROM emergency_ringing_sessions WHERE id = ?"
+                ) { stmt ->
+                    stmt.bindLong(1, sessionId)
+                    if (stmt.step()) status = stmt.getText(0)
+                }
+                if (status != "IN_PROGRESS") return@inWriteTransaction null
+
+                conn.usePrepared(
+                    "UPDATE emergency_ringing_sessions SET attempts = attempts + 1, lastAttemptAt = ? WHERE id = ?"
+                ) { stmt ->
+                    stmt.bindLong(1, atMillis)
+                    stmt.bindLong(2, sessionId)
+                    stmt.step()
+                }
+                conn.usePrepared(
+                    "SELECT attempts FROM emergency_ringing_sessions WHERE id = ?"
+                ) { stmt ->
+                    stmt.bindLong(1, sessionId)
+                    if (stmt.step()) stmt.getLong(0).toInt() else null
+                }
+            }
+        }
+    }
+
+    override suspend fun finishSession(sessionId: Long, status: RingingStatus, atMillis: Long): Boolean =
+        withContext(dispatchers.io) {
+            dbMutex.withLock {
+                inWriteTransaction { conn ->
+                    // حسم idempotent (§N.8): الجلسة المحسومة سلفاً بحالةٍ أخرى عمليةٌ ساكنة.
+                    var current = ""
+                    conn.usePrepared(
+                        "SELECT status FROM emergency_ringing_sessions WHERE id = ?"
+                    ) { stmt ->
+                        stmt.bindLong(1, sessionId)
+                        if (stmt.step()) current = stmt.getText(0)
+                    }
+                    if (current != "IN_PROGRESS") return@inWriteTransaction false
+
+                    conn.usePrepared(
+                        "UPDATE emergency_ringing_sessions SET status = ?, lastAttemptAt = ? WHERE id = ?"
+                    ) { stmt ->
+                        stmt.bindText(1, status.name)
+                        stmt.bindLong(2, atMillis)
+                        stmt.bindLong(3, sessionId)
+                        stmt.step()
+                    }
+                    true
                 }
             }
         }

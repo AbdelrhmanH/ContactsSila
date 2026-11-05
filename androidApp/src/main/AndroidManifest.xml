@@ -20,6 +20,14 @@
          رفضها يُبقي التسجيل داخل التطبيق والتأكيد اليدوي (بديل AC-4) -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
+    <!-- حلقة رنين الطوارئ (T8-10 · §K.6 · AC-14): CALL_PHONE لطلب مكالمات الاتصال
+         المباشرة عبر الطلبار — صلاحية وقت التشغيل، طلبُها من الواجهة مسؤولية T8-11؛
+         بلا منحٍ لا تُطلق الحلقة إطلاقاً (فشل هادئ في المنفذ). FOREGROUND_SERVICE(+PHONE_CALL)
+         لنوع الخدمة الأمامية `phoneCall` — بلا RECORD_AUDIO ولا ميكروفون قط -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
     <!-- استعلام الحزم المسمّى لكاشف التطبيقات المتصلة (T6) — بلا QUERY_ALL_PACKAGES -->
     <queries>
         <package android:name="com.whatsapp" />
@@ -80,6 +88,33 @@
                 <action android:name="android.telecom.CallScreeningService" />
             </intent-filter>
         </service>
+
+        <!-- خدمة رنين الطوارئ الأمامية (T8-10 · AC-14): غير مُصدَّرة حصراً (ids-only —
+             الإطلاق داخلي من التطبيق)، ونوع `phoneCall` يشترط إذن CALL_PHONE ممنوحاً —
+             بلا منحٍ لا تبدأ الحلقة. كل القرارات في النطاق؛ الخدمة منفّذ حصراً -->
+        <service
+            android:name="app.sila.arham.emergency.ArhamEmergencyRingingService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <!-- زر الإيقاف في إشعار الطوارئ الجاري (T8-10 · §N.8) — غير مُصدَّر، بلا extras
+             (idempotent عبر StopEmergencyRingingUseCase — نفس الانتقال النهائي) -->
+        <receiver
+            android:name="app.sila.arham.emergency.EmergencyStopActionReceiver"
+            android:exported="false" />
+
+        <!-- ودجت أرحام (T8-10 · AC-15): غير مُصدَّر — APPWIDGET_UPDATE بثٌّ محميّ من
+             النظام (النظام يسلّمه للمستقبِلات غير المُصدَّرة)، والانعاش عبر worker D3 -->
+        <receiver
+            android:name="app.sila.arham.widget.ArhamWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/arham_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

@@ -9,12 +9,14 @@ import app.sila.core.database.dao.ArhamDao
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.ContactsSyncDao
 import app.sila.core.database.dao.DataRetentionCleanupDao
+import app.sila.core.database.dao.EmergencySessionDao
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.dao.ServiceDao
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.feature.arham.data.ArhamCallEventRepositoryImpl
 import app.sila.feature.arham.data.ArhamRepositoryImpl
+import app.sila.feature.arham.data.EmergencySessionRepositoryImpl
 import app.sila.feature.arham.domain.ArhamCallEventRepository
 import app.sila.feature.arham.domain.ArhamCelebrationPolicy
 import app.sila.feature.arham.domain.ArhamRepository
@@ -22,16 +24,22 @@ import app.sila.feature.arham.domain.BuildArhamFamilyTreeUseCase
 import app.sila.feature.arham.domain.CallEventStateMachine
 import app.sila.feature.arham.domain.CelebrateTransitionUseCase
 import app.sila.feature.arham.domain.CorrelateObservedCallEndUseCase
+import app.sila.feature.arham.domain.EmergencySessionRepository
 import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
+import app.sila.feature.arham.domain.GetArhamWidgetSnapshotUseCase
 import app.sila.feature.arham.domain.IngestCallEventUseCase
 import app.sila.feature.arham.domain.ObservePendingConfirmationsUseCase
 import app.sila.feature.arham.domain.ObserveUpcomingOccasionsUseCase
 import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
+import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.arham.domain.RecordDialAttemptUseCase
+import app.sila.feature.arham.domain.RecordEmergencyAttemptUseCase
 import app.sila.feature.arham.domain.RecordManualContactUseCase
 import app.sila.feature.arham.domain.ResolveConfirmationUseCase
 import app.sila.feature.arham.domain.ScreeningSignalIngestionUseCase
+import app.sila.feature.arham.domain.StartEmergencyRingingUseCase
+import app.sila.feature.arham.domain.StopEmergencyRingingUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.data.ContactsListPreferencesRepositoryImpl
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
@@ -122,6 +130,14 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // أندرويد فوق TelephonyManager/RoleManager (حالة فقط — AC-17)، وiOS فارغة حتى T8-12.
     includes(platformArhamScreeningModule)
 
+    // منفذ حلقة رنين الطوارئ (T8-10 · §K.6) — actuals per-platform: أندرويد فوق FGS
+    // `phoneCall`، وiOS فارغة حتى T8-13.
+    includes(platformArhamEmergencyModule)
+
+    // انعاش ودجت أرحام (T8-10 · D3) — actuals per-platform: أندرويد فوق Glance+WorkManager،
+    // وiOS فارغة (WidgetKit مسؤولية T8-13).
+    includes(platformArhamWidgetModule)
+
     // قاعدة Room KMP الوحيدة (PR B · ADR-0011): [LocalSilaDatabase] هي واجهة الوصول
     // الموحّدة — تنفّذ واجهات DAO الخمس مباشرة (كتابات مركّبة بـ SQL خام داخل معاملات
     // Room، وقراءات عبر DAOs الكيانات المولَّدة)، و[SilaRoomDatabase] صاحبة المخطط.
@@ -140,6 +156,8 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single<ServiceDao> { get<LocalSilaDatabase>() }
     single<DataRetentionCleanupDao> { get<LocalSilaDatabase>() }
     single<ContactsSyncDao> { get<LocalSilaDatabase>() }
+    // T8-10 (D4 v3): واجهة جلسات الطوارئ — تنفّذها [LocalSilaDatabase] مباشرة (نمط PR B).
+    single<EmergencySessionDao> { get<LocalSilaDatabase>() }
 
     // محرك المزامنة التزايدية لجهات الاتصال (Issue #23 · ADR-0010) — يُشغَّل من مهيئات المنصات
     // (SilaApplication / IosKoinBootstrap) عبر start(scope) بمعرّف idempotent.
@@ -299,6 +317,41 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
         )
     }
     factory { BuildArhamFamilyTreeUseCase(repository = get(), clock = get()) }
+
+    // T8-10 (Issue #29): حلقة رنين الطوارئ (§K.6/§N) — كل القرارات (بوابة الفئة، حد
+    // المعدل 3/24h، سقف 10 محاولات، الحسم idempotent) في النطاق؛ المنفذ [EmergencyRingingController]
+    // مربوط في platformArhamEmergencyModule (FGS أندرويد / مضيف غائب). المستودع يفوّض
+    // [EmergencySessionDao] حصراً والهوية تُقرأ لحظياً عبر [ContactDao] (بلا PII مخزَّن).
+    single<EmergencySessionRepository> {
+        EmergencySessionRepositoryImpl(emergencySessionDao = get(), contactDao = get())
+    }
+    factory {
+        StartEmergencyRingingUseCase(
+            repository = get(),
+            controller = get(),
+            clock = get(),
+        )
+    }
+    factory {
+        RecordEmergencyAttemptUseCase(
+            repository = get(),
+            controller = get(),
+            clock = get(),
+        )
+    }
+    factory {
+        StopEmergencyRingingUseCase(repository = get(), controller = get(), clock = get())
+    }
+    factory {
+        ReconcileInterruptedSessionUseCase(
+            repository = get(),
+            controller = get(),
+            clock = get(),
+        )
+    }
+    // T8-10 (AC-15): لقطة الودجت — تركيبة واحدة من مصدَري T8-07 (قائمة + إحصاءات).
+    factory { GetArhamWidgetSnapshotUseCase(getPriorityList = get(), getDashboardStats = get()) }
+
     single {
         ArhamViewModel(
             getPriorityList = get(),

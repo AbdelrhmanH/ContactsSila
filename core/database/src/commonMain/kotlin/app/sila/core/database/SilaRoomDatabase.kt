@@ -11,6 +11,7 @@ import app.sila.core.database.dao.CallEventEntityDao
 import app.sila.core.database.dao.ContactEntityDao
 import app.sila.core.database.dao.ContactsSyncCheckpointEntityDao
 import app.sila.core.database.dao.DisputeLogEntityDao
+import app.sila.core.database.dao.EmergencyRingingSessionEntityDao
 import app.sila.core.database.dao.ServiceEntityDao
 import app.sila.core.database.entity.ArhamEntity
 import app.sila.core.database.entity.ArhamInboxEntity
@@ -96,6 +97,8 @@ abstract class SilaRoomDatabase : RoomDatabase() {
     abstract fun serviceEntityDao(): ServiceEntityDao
 
     abstract fun callEventEntityDao(): CallEventEntityDao
+
+    abstract fun emergencySessionEntityDao(): EmergencyRingingSessionEntityDao
 
     abstract fun arhamInboxEntityDao(): ArhamInboxEntityDao
 

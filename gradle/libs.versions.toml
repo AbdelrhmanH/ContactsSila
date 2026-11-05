@@ -27,6 +27,8 @@ zxing = "3.5.3"
 material3 = "1.12.0-alpha03"
 robolectric = "4.17"
 skie = "0.10.15"
+androidx-glance = "1.2.0"
+androidx-work = "2.12.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -71,6 +73,11 @@ konsist = { module = "com.lemonappdev:konsist", version.ref = "konsist" }
 
 # Robolectric (T8-08 — اختبارات مضيف أندرويد فوق إطار محاكى: AlarmManager/قنوات الإشعارات)
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "androidx-glance" }
+androidx-glance-appwidget-testing = { module = "androidx.glance:glance-appwidget-testing", version.ref = "androidx-glance" }
+androidx-lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "androidx-lifecycle" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "androidx-work" }
+androidx-work-testing = { module = "androidx.work:work-testing", version.ref = "androidx-work" }
 
 # Compose Multiplatform
 compose-uiTooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "composeMultiplatform" }

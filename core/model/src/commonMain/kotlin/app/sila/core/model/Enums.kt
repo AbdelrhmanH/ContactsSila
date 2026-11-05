@@ -114,7 +114,15 @@ enum class RingingStatus {
     ANSWERED,
     STOPPED_BY_USER,
     MAX_REACHED,
-    BLOCKED
+    BLOCKED,
+
+    /**
+     * جلسة أُغلقت تسويةً بعد موت العملية (T8-10 · §N.5/§O.7): «أُغلقت كـ interrupted
+     * والحد اليومي سليم» — قيمة إضافية مُصاحَحة (انحراف مُفصَح عن D4-14 الذي زعم أن
+     * القيم الخمس تكفي؛ النص السلوكي §N.5 هو المرجع). محوّل TEXT `.name` round-trip
+     * متوافق رجوعياً — بلا تغيير مخطط.
+     */
+    INTERRUPTED
 }
 
 @Serializable

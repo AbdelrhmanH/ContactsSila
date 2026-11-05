@@ -12,4 +12,19 @@
     <string name="arham_occasion_anniversary_tomorrow">غداً ذكرى %1$s</string>
     <string name="arham_action_call_now">اتصل الآن</string>
     <string name="arham_action_remind_tomorrow">ذكّرني غداً</string>
+
+    <!-- T8-10 (§K.6/§N): حلقة رنين الطوارئ — الإشعار الجاري وزر الإيقاف. -->
+    <string name="arham_emergency_channel_name">رنين الطوارئ</string>
+    <string name="arham_emergency_notification_title">جارٍ الاتصال بجهة الطوارئ</string>
+    <string name="arham_emergency_notification_body">جارٍ الاتصال بـ %1$s</string>
+    <string name="arham_emergency_notification_target_unknown">جهة الطوارئ</string>
+    <string name="arham_emergency_stop">إيقاف</string>
+
+    <!-- T8-10 (AC-15): ودجت أرحام — الجمعُ العربي الكامل مسؤولية T8-11 (T808-R4). -->
+    <string name="arham_widget_overdue_label">%1$d من أقاربك يحتاجون تواصلك</string>
+    <string name="arham_widget_empty">لا أقارب بحاجة لتواصل الآن</string>
+    <string name="arham_widget_call">اتصال</string>
+    <string name="arham_widget_days_since">قبل %1$d يوماً</string>
+    <string name="arham_widget_no_contact_recorded">لم يُسجَّل تواصل</string>
+    <string name="arham_widget_stats_line">%1$d مكالمة · أطولها %2$d ث</string>
 </resources>

@@ -79,7 +79,9 @@ data class EmergencyRingingSession(
     val attempts: Int,
     val maxAttempts: Int = 10,
     val status: RingingStatus,
-    val startedAt: Long
+    val startedAt: Long,
+    /** وقت آخر محاولة (§N.5: حد الحيوية للتسوية) — افتراضي 0 للتوافق الإضافي. */
+    val lastAttemptAt: Long = 0L,
 )
 
 /**

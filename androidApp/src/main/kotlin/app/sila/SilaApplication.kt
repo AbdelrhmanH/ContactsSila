@@ -1,10 +1,15 @@
 package app.sila
 
 import android.app.Application
+import app.sila.arham.emergency.EmergencyNotificationChannel
 import app.sila.arham.notification.ArhamNotificationChannel
 import app.sila.arham.notification.ArhamReminderDispatch
 import app.sila.arham.observer.ArhamCallStateObserver
+import app.sila.arham.widget.GlanceWidgetRefresher
+import app.sila.core.database.dao.ArhamDataChangeListener
+import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.di.ensureKoinStarted
+import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.CoroutineScope
@@ -34,16 +39,23 @@ class SilaApplication : Application() {
 
     private var callObserverStarted = false
 
+    private var widgetBridgeRegistered = false
+
+    private var emergencyReconciled = false
+
     override fun onCreate() {
         super.onCreate()
         val koin = ensureKoinStarted(storageDirPath = filesDir.absolutePath) {
             androidContext(this@SilaApplication)
         }
         ArhamNotificationChannel.ensure(this)
+        EmergencyNotificationChannel.ensure(this)
         startContactsSync(koin)
         startRetentionCleanup(koin)
         rescheduleDailyReminder(koin)
         startCallStateObserver(koin)
+        registerWidgetRefreshBridge(koin)
+        reconcileInterruptedEmergencySessions(koin)
     }
 
     /** تشغيل محرك المزامنة مرة واحدة (idempotent — onCreate قد يُستدعى على عملية جديدة فقط). */
@@ -92,5 +104,33 @@ class SilaApplication : Application() {
         if (callObserverStarted) return
         callObserverStarted = true
         koin.get<ArhamCallStateObserver>().start(applicationScope)
+    }
+
+    /**
+     * T8-10 (D3): جسر انعاش الودجت — تسجيل [GlanceWidgetRefresher] على خطاف
+     * [app.sila.core.database.dao.ArhamDataChangeListener] في [LocalSilaDatabase]
+     * (كل كتابة أرحام/آخر تواصل تُطلق عملاً أحادياً بـ REPLACE — دمج الاندفاعات)،
+     * والعمل الدوري 30 دقيقة idempotent (سياسة UPDATE) — نمط D2: انقطاع العملية
+     * لا يترك الودجت بلا انعاش دوري احتياطي.
+     */
+    private fun registerWidgetRefreshBridge(koin: Koin) {
+        if (widgetBridgeRegistered) return
+        widgetBridgeRegistered = true
+        val refresher = koin.get<ArhamDataChangeListener>()
+        koin.get<LocalSilaDatabase>().addArhamDataChangeListener(refresher)
+        GlanceWidgetRefresher.enqueuePeriodic(this)
+    }
+
+    /**
+     * T8-10 (§N.5): تسوية جلسات الطوارئ العالقة عند بدء العملية — أي جلسة IN_PROGRESS
+     * تجاوزت حيويّتها (أو لا منفّذ لها يعمل) تُحسم `INTERRUPTED` idempotent (§O.7:
+     * صف Room مصدر الحقيقة للمحاسبة). مرة واحدة لكل عملية بمرآة الأعلام أعلاه.
+     */
+    private fun reconcileInterruptedEmergencySessions(koin: Koin) {
+        if (emergencyReconciled) return
+        emergencyReconciled = true
+        applicationScope.launch {
+            runCatching { koin.get<ReconcileInterruptedSessionUseCase>()() }
+        }
     }
 }
