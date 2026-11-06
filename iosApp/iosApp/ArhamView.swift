@@ -9,11 +9,11 @@ import UIKit
  * بدقة، كألوان ديناميكية تنعكس تلقائياً في الوضع الداكن (التضمين نشاطٌ واللون
  * حالة — T807-R2 كما في المواصفة).
  */
-let arhamStatusOverdueColor = Color(red: 0.898, green: 0.282, blue: 0.302, alpha: 1)   // #E5484D
+let arhamStatusOverdueColor = Color(red: 0.898, green: 0.282, blue: 0.302)   // #E5484D
 
-let arhamStatusSoonColor = Color(red: 0.961, green: 0.647, blue: 0.141, alpha: 1)      // #F5A524
+let arhamStatusSoonColor = Color(red: 0.961, green: 0.647, blue: 0.141)      // #F5A524
 
-let arhamStatusOkColor = Color(red: 0.188, green: 0.643, blue: 0.424, alpha: 1)        // #30A46C
+let arhamStatusOkColor = Color(red: 0.188, green: 0.643, blue: 0.424)        // #30A46C
 
 /// المرآة الدلالية لـ `MaterialTheme.colorScheme.secondary` (برتقالي الغروب — أرحام):
 /// #FF6A3D فاتح / #FF8A63 داكن (SilaColors.SecondaryLight/SecondaryDark).
