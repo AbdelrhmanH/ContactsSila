@@ -62,7 +62,7 @@ internal class FakeUserPreferencesDataSource(
     override suspend fun setOnboardingResumeStep(step: String?) = Unit
     override suspend fun setOnboardingContactsPermission(permission: String?) = Unit
     override suspend fun setOnboardingTopFiveSelections(selections: List<TopFiveSelection>) = Unit
-    override suspend fun setTopFiveMaterialized(materialized: Boolean) = Unit
+    override suspend fun markTopFiveMaterialized() = Unit
     override suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long) = Unit
     override suspend fun dismissSuggestion(id: String) = Unit
     override suspend fun setSwipeActions(start: ContactSwipeAction, end: ContactSwipeAction) = Unit

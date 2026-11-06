@@ -55,14 +55,14 @@ class UserPreferencesDataSourceTest {
 
         assertFalse(dataSource.preferences.first().topFiveMaterialized, "T8-04 §F.10: الافتراضي غير مُجسَّدة")
 
-        dataSource.setTopFiveMaterialized(materialized = true)
+        dataSource.markTopFiveMaterialized()
         assertTrue(dataSource.preferences.first().topFiveMaterialized, "الرفع يُبثّ في التدفق")
     }
 
     @Test
     fun topFiveMarker_neverResetByReSelection() = runTest {
         val dataSource = SilaPreferencesDataSource()
-        dataSource.setTopFiveMaterialized(materialized = true)
+        dataSource.markTopFiveMaterialized()
 
         // §F.6/§F.10: إعادة الاختيار أثناء التهيئة تكتب القائمة المعلّقة حصراً — والعلامة لا تُصفَّر.
         dataSource.setOnboardingTopFiveSelections(

@@ -16,6 +16,7 @@ import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.main.MainViewModel
+import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
@@ -64,6 +65,9 @@ object IosKoinBootstrap {
     /** T8-13 (§N.5): علم مُوافَة جلسات الطوارئ المقطوعة عند بدء العملية (مرآة أندرويد، idempotent). */
     private var emergencyReconciled = false
 
+    /** T8-15 (F-1): علم تجسيد واحد لـ«أهم 5» لكل عملية (مرآة أندرويد، idempotent). */
+    private var materializationLaunched = false
+
     /**
      * للاختبارات حصراً (نفس مبدئ خطافات `LocalSilaDatabase` الداخلية): يعيد علم
      * الإطلاق الواحد [cleanupLaunched] إلى حالة ما قبل الإطلاق، ليستطيع اختبار مسار
@@ -86,6 +90,16 @@ object IosKoinBootstrap {
         notificationDelegateRegistered = false
         widgetBridgeRegistered = false
         emergencyReconciled = false
+        materializationLaunched = false
+    }
+
+    /**
+     * للاختبارات حصراً (مرآة [resetCleanupLaunchForTest]): يعيد علم تجسيد «أهم 5»
+     * (T8-15 · F-1) إلى ما قبل الإطلاق ليستقل اختبار مسار الإنتاج عن ترتيب التنفيذ.
+     * لا يُستدعى من كود الإنتاج إطلاقاً.
+     */
+    internal fun resetMaterializationForTest() {
+        materializationLaunched = false
     }
 
     /**
@@ -97,6 +111,18 @@ object IosKoinBootstrap {
         if (cleanupLaunched) return
         cleanupLaunched = true
         koin.get<RetentionCleanupCoordinator>().launchIn(engineScope)
+    }
+
+    /**
+     * T8-15 (F-1 — مرآة SilaApplication): تجسيد «أهم 5 أشخاص» عند إقلاع العملية —
+     * مرة واحدة لكل عملية على نطاق عمر التطبيق، والإخفاق يُبتلع داخل المشغِّل
+     * (تسجيلٌ بنوعٍ حصراً — بلا PII) فيبقى الخاد غير مرفوع (§F.10) وتُستكمل
+     * العملية عند الإقلاع التالي.
+     */
+    private fun startTopFiveMaterialization(koin: Koin) {
+        if (materializationLaunched) return
+        materializationLaunched = true
+        koin.get<ArhamMaterializationCoordinator>().launchIn(engineScope)
     }
 
     /**
@@ -225,6 +251,7 @@ object IosKoinBootstrap {
                 // start() idempotent — إعادة التشغيل على حاوية قائمة لا تكرر المراقبة.
                 existingKoin.get<ContactsSyncEngine>().start(engineScope)
                 startRetentionCleanup(existingKoin)
+                startTopFiveMaterialization(existingKoin)
                 rescheduleDailyReminder(existingKoin)
                 startCallStateObserver(existingKoin)
                 registerNotificationCenterDelegate(existingKoin)
@@ -248,6 +275,7 @@ object IosKoinBootstrap {
 
         koin.get<ContactsSyncEngine>().start(engineScope)
         startRetentionCleanup(koin)
+        startTopFiveMaterialization(koin)
         rescheduleDailyReminder(koin)
         startCallStateObserver(koin)
         registerNotificationCenterDelegate(koin)

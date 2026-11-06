@@ -664,7 +664,7 @@ struct ArhamView: View {
 
     @ViewBuilder
     private func arhamCelebrationOverlay(strings: ArhamLocalizedStrings) -> some View {
-        Text("🎉 \(strings.celebrationTitle)")
+        Text(strings.celebrationTitle)
             .font(.subheadline.weight(.semibold))
             .padding(20)
             .background(Color.emeraldSila.opacity(0.18), in: RoundedRectangle(cornerRadius: 20))

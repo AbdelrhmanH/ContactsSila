@@ -12,11 +12,13 @@ import app.sila.core.database.dao.DataRetentionCleanupDao
 import app.sila.core.database.dao.EmergencySessionDao
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.dao.ServiceDao
+import app.sila.core.database.dao.TopFiveMaterializationDao
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.feature.arham.data.ArhamCallEventRepositoryImpl
 import app.sila.feature.arham.data.ArhamRepositoryImpl
 import app.sila.feature.arham.data.EmergencySessionRepositoryImpl
+import app.sila.feature.arham.data.TopFiveMaterializationRepositoryImpl
 import app.sila.feature.arham.domain.ArhamCallEventRepository
 import app.sila.feature.arham.domain.ArhamCelebrationPolicy
 import app.sila.feature.arham.domain.ArhamRepository
@@ -29,6 +31,7 @@ import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
 import app.sila.feature.arham.domain.GetArhamWidgetSnapshotUseCase
 import app.sila.feature.arham.domain.IngestCallEventUseCase
+import app.sila.feature.arham.domain.MaterializeTopFiveUseCase
 import app.sila.feature.arham.domain.ObserveArhamContactsUseCase
 import app.sila.feature.arham.domain.ObservePendingConfirmationsUseCase
 import app.sila.feature.arham.domain.ObserveUpcomingOccasionsUseCase
@@ -41,6 +44,7 @@ import app.sila.feature.arham.domain.ResolveConfirmationUseCase
 import app.sila.feature.arham.domain.ScreeningSignalIngestionUseCase
 import app.sila.feature.arham.domain.StartEmergencyRingingUseCase
 import app.sila.feature.arham.domain.StopEmergencyRingingUseCase
+import app.sila.feature.arham.domain.TopFiveMaterializationRepository
 import app.sila.feature.arham.domain.UpdateKinshipUseCase
 import app.sila.feature.arham.presentation.ArhamScreeningConsentSource
 import app.sila.feature.arham.presentation.ArhamViewModel
@@ -97,6 +101,7 @@ import app.sila.feature.settings.domain.SetSmartFilterUseCase
 import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
 import app.sila.feature.settings.presentation.SettingsViewModel
+import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
@@ -161,6 +166,8 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single<ContactsSyncDao> { get<LocalSilaDatabase>() }
     // T8-10 (D4 v3): واجهة جلسات الطوارئ — تنفّذها [LocalSilaDatabase] مباشرة (نمط PR B).
     single<EmergencySessionDao> { get<LocalSilaDatabase>() }
+    // T8-15 (F-1): واجهة تجسيد «أهم 5» — تنفّذها [LocalSilaDatabase] مباشرة (نمط PR B نفسه).
+    single<TopFiveMaterializationDao> { get<LocalSilaDatabase>() }
 
     // محرك المزامنة التزايدية لجهات الاتصال (Issue #23 · ADR-0010) — يُشغَّل من مهيئات المنصات
     // (SilaApplication / IosKoinBootstrap) عبر start(scope) بمعرّف idempotent.
@@ -365,6 +372,15 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // T8-11 (AC-1/AC-13): تحرير القرابة ومرصد أقارب أرحام — رقيقة فوق المستودع.
     factory { UpdateKinshipUseCase(repository = get()) }
     factory { ObserveArhamContactsUseCase(repository = get()) }
+
+    // T8-15 (F-1): تجسيد «أهم 5» — ربط المستودع فوق DAO+DataStore، والحالة الاستخدامية،
+    // ومشغِّل الإقلاع (مرآة RetentionCleanupCoordinator: single-flight + نتيجة منشورة
+    // تُطلقه مهيئا المنصتين مرة واحدة لكل عملية).
+    single<TopFiveMaterializationRepository> {
+        TopFiveMaterializationRepositoryImpl(dao = get(), userPreferences = get())
+    }
+    factory { MaterializeTopFiveUseCase(repository = get()) }
+    single { ArhamMaterializationCoordinator(materialize = get()) }
 
     single {
         ArhamViewModel(

@@ -329,7 +329,7 @@
     <string name="arham_close_tree">رجوع</string>
     <string name="arham_empty_title">لا أقارب مرتبطين بعد</string>
     <string name="arham_empty_body">اربط قرابة أفراد عائلتك من تفاصيل جهة الاتصال لتبدأ متابعة الوصال.</string>
-    <string name="arham_celebration_title">ما شاء الله! وصالٌ جديد</string>
+    <string name="arham_celebration_title">🎉 ما شاء الله! وصالٌ جديد</string>
     <string name="arham_row_overdue">يحتاج اتصال — مرّ %1$d يوماً</string>
     <string name="arham_row_overdue_today">يحتاج اتصال — اليوم</string>
     <string name="arham_row_soon">اقترب موعد الوصال (%1$d يوماً)</string>

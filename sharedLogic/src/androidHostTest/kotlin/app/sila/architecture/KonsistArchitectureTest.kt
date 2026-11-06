@@ -89,6 +89,16 @@ class KonsistArchitectureTest {
         private val ARHAM_RESOURCE_KEY_REGEX = Regex(
             """^(?:arham_|relation_|layer_|contacts_emergency_).+$"""
         )
+
+        /**
+         * نداء `Text(` بمعامله الأول سلسلةً حرفية — قاعدة 6c (T8-15 · D.3-3):
+         * `Text("…")` و`Text(text = "…")` بعد تجريد التعليقات وإفراغ محتوى السلاسل —
+         * الماسح يُبقي زوجي الاقتباس فارغاً (`""`) فشكلية النداء الحرفي تبقى ظاهرة،
+         * بينما `Text(strings.x)`/`Text(text = stringResource(…))` بلا اقتباس لا تطابق.
+         */
+        private val ARHAM_TEXT_LITERAL_REGEX = Regex(
+            """\bText\s*\(\s*(?:text\s*=\s*)?["]"""
+        )
     }
 
     /**
@@ -614,6 +624,32 @@ class KonsistArchitectureTest {
             additionalMessage = "Arham presentation must not branch on language/locale — strings and RTL come from resources and theme."
         ) { file ->
             LANGUAGE_CONDITIONAL_REGEX.containsMatchIn(stripCommentsAndStrings(file.text))
+        }
+    }
+
+    /**
+     * Rule 6c — لا نصوص حرفية في نداءات Text داخل واجهة أرحام (T8-15 · D.3-3 · AGENTS.md):
+     * كل ملفات `feature/arham/presentation` خاليةٌ من `Text("…")` و`Text(text = "…")`
+     * — النص يمر عبر [ArhamStrings] المشتقة من موارد الترجمة حصراً (مرآة قاعدة 6a
+     * التي تحرم الحروف العربية في السلاسل). يفحص الكود بعد تجريد التعليقات وإفراغ
+     * محتوى السلاسل (الماسح يُبقي زوجي الاقتباس فتظل شكلية النداء ظاهرة).
+     */
+    @Test
+    fun `rule 6c - arham presentation files declare no hardcoded Text string literals`() {
+        val arhamPresentationFiles = productionScope.files.filter { file ->
+            val normalizedPath = file.path.replace('\\', '/')
+            normalizedPath.contains("/feature/arham/presentation/src/") ||
+                file.packagee?.name.orEmpty().startsWith("app.sila.feature.arham.presentation")
+        }
+        kotlinAssertTrue(
+            arhamPresentationFiles.isNotEmpty(),
+            "Expected non-empty set of arham presentation files."
+        )
+
+        arhamPresentationFiles.assertFalse(
+            additionalMessage = "Arham presentation Text calls must never take string literals — all UI text comes from resources via ArhamStrings."
+        ) { file ->
+            ARHAM_TEXT_LITERAL_REGEX.containsMatchIn(stripCommentsAndStrings(file.text))
         }
     }
 

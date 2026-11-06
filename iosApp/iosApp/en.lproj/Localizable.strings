@@ -318,7 +318,7 @@
 "arham_close_tree" = "Back";
 "arham_empty_title" = "No relatives linked yet";
 "arham_empty_body" = "Link your family members from contact details to start keeping in touch.";
-"arham_celebration_title" = "Well done! A new connection";
+"arham_celebration_title" = "🎉 Well done! A new connection";
 "arham_row_overdue" = "Needs a call — %1$ld d ago";
 "arham_row_overdue_today" = "Needs a call — today";
 "arham_row_soon" = "Due soon (%1$ld d)";

@@ -123,13 +123,13 @@ final class ArhamStringsTests: XCTestCase {
         XCTAssertEqual(arabic.emergencyAttempts(attempt: 2, max: 10), "المحاولة 2 من 10")
         XCTAssertEqual(arabic.statusText(.ok, daysSinceLastContact: nil), "تمّ التواصل مؤخراً")
         XCTAssertEqual(arabic.statusText(.overdue, daysSinceLastContact: 0), "يحتاج اتصال — اليوم")
-        // اتجاه تركيب المناسبة محوَّل بالمعاملين — N2: يغطي الاختبار صيغتي اللغتين.
+        // اتجاه تركيب المناسبة محوَّل بالمعاملين — يغطي الاختبار صيغتي اللغتين.
         XCTAssertEqual(arabic.occasionPerson("عمّتك", "سعاد"), "عمّتك سعاد")
-        XCTAssertEqual(english.occasionPerson("your aunt (paternal)", "Suad"), "Suad (your aunt (paternal))")
         XCTAssertEqual(arabic.relationLabel(.auntPaternal), "عمّتك")
         XCTAssertEqual(arabic.layerLabel(.spouseSide), "جهة الزوج")
 
         let english = ArhamLocalizedStrings(language: AppLanguage.english)
+        XCTAssertEqual(english.occasionPerson("your aunt (paternal)", "Suad"), "Suad (your aunt (paternal))")
         XCTAssertEqual(english.screenTitle, "Arham")
         XCTAssertEqual(english.statConnected(contacted: 3, total: 8), "3 of 8")
         XCTAssertEqual(english.statGoal(percent: 75), "75%")

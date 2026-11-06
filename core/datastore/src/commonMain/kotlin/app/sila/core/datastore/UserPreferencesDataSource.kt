@@ -55,8 +55,11 @@ interface UserPreferencesDataSource {
      * رفع علامة إنجاز تجسيد «أهم 5» لمرة واحدة (T8-04 · §F.10) — بلا مسار تصفير:
      * العلامة لا تُعاد فتحها أبداً بعد أول نجاح (Issue #29 — one-shot)، وإعادة
      * الاختيار أثناء التهيئة تكتب القائمة المعلّقة حصراً (§F.6).
+     *
+     * T8-15 (F-1): العقد raise-only بالنمط نفسه (`mark` بلا معامل) — لا يستطيع
+     * أي مستدعٍ تصفير العلامة في المترجم، فصار الحارس النحوي لا اصطلاحياً.
      */
-    suspend fun setTopFiveMaterialized(materialized: Boolean)
+    suspend fun markTopFiveMaterialized()
 
     /**
      * يُسجِّل احتفالاً بانتقال أرحام لجهة اتصال (T8-06): يخزّن مفتاح فترة الاحتفال
@@ -237,10 +240,10 @@ class SilaPreferencesDataSource(
         _memoryState.update { it.copy(onboardingTopFiveSelections = selections) }
     }
 
-    override suspend fun setTopFiveMaterialized(materialized: Boolean) {
-        // مسار رفع حصراً بحكم العقد (one-shot — §F.10): لا يوجد مسار استدعاء لتصفير العلامة.
-        dataStore?.edit { prefs -> prefs[KEY_TOP_FIVE_MATERIALIZED] = materialized }
-        _memoryState.update { it.copy(topFiveMaterialized = materialized) }
+    override suspend fun markTopFiveMaterialized() {
+        // مسار رفع حصراً بحكم العقد (one-shot — §F.10): التوقيع بلا معامل فلا تصفير ممكن.
+        dataStore?.edit { prefs -> prefs[KEY_TOP_FIVE_MATERIALIZED] = true }
+        _memoryState.update { it.copy(topFiveMaterialized = true) }
     }
 
     override suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long) {

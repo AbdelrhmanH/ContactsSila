@@ -329,7 +329,7 @@
     <string name="arham_close_tree">Back</string>
     <string name="arham_empty_title">No relatives linked yet</string>
     <string name="arham_empty_body">Link your family members from contact details to start keeping in touch.</string>
-    <string name="arham_celebration_title">Well done! A new connection</string>
+    <string name="arham_celebration_title">🎉 Well done! A new connection</string>
     <string name="arham_row_overdue">Needs a call — %1$d d ago</string>
     <string name="arham_row_overdue_today">Needs a call — today</string>
     <string name="arham_row_soon">Due soon (%1$d d)</string>

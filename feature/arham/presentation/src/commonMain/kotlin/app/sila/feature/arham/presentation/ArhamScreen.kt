@@ -94,7 +94,7 @@ private fun CelebrationOverlay(title: String, modifier: Modifier = Modifier) {
         modifier = modifier.padding(SilaDimens.Space16),
     ) {
         Text(
-            text = "🎉 $title",
+            text = title,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.padding(SilaDimens.Space20),

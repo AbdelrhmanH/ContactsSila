@@ -5,6 +5,7 @@ import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.core.model.DefaultTab
 import app.sila.feature.main.MainIntent
+import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
@@ -136,6 +137,31 @@ class IosKoinBootstrapTest {
         assertNotNull(
             coordinator.lastReport.value,
             "Retention cleanup must execute from IosKoinBootstrap.ensureStarted() and publish its report."
+        )
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    @Test
+    fun ensureStarted_launchesTopFiveMaterialization_andPublishesOutcome() {
+        // T8-15 (F-1): مسار الإنتاج على iOS يشغّل تجسيد «أهم 5» من كلا مساري ensureStarted —
+        // الحاوية الطازجة بلا قائمة معلّقة فيكون NothingPending أول نتيجة منشورة (لا كتابة —
+        // حارس §F.11-هـ داخل الحالة الاستخدامية).
+        IosKoinBootstrap.resetMaterializationForTest()
+        val koin = IosKoinBootstrap.ensureStarted()
+        val coordinator = koin.get<ArhamMaterializationCoordinator>()
+
+        // الانتظار على الزمن الحقيقي حصراً (وليس الزمن الافتراضي لـ runTest): التجسيد
+        // ينفَّذ على خيوط إنتاجية حقيقية (engineScope) خارج نطاق الاختبار — لذا استطلاع
+        // دوري بسقف زمني 15 ثانية (مرآة اختبار الاستبقاء أعلاه).
+        var waitedMillis = 0L
+        while (coordinator.lastOutcome.value == null && waitedMillis < 15_000L) {
+            usleep(100_000u) // 100ms
+            waitedMillis += 100L
+        }
+
+        assertNotNull(
+            coordinator.lastOutcome.value,
+            "Top-five materialization must execute from IosKoinBootstrap.ensureStarted() and publish its outcome."
         )
     }
 }

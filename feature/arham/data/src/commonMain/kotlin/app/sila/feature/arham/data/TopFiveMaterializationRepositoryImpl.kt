@@ -30,7 +30,7 @@ class TopFiveMaterializationRepositoryImpl(
         userPreferences.preferences.first().topFiveMaterialized
 
     override suspend fun markMaterialized() {
-        userPreferences.setTopFiveMaterialized(materialized = true)
+        userPreferences.markTopFiveMaterialized()
     }
 
     override suspend fun pendingSelections(): List<TopFiveSelection> =

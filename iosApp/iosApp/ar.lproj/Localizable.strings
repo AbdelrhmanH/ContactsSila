@@ -318,7 +318,7 @@
 "arham_close_tree" = "رجوع";
 "arham_empty_title" = "لا أقارب مرتبطين بعد";
 "arham_empty_body" = "اربط قرابة أفراد عائلتك من تفاصيل جهة الاتصال لتبدأ متابعة الوصال.";
-"arham_celebration_title" = "ما شاء الله! وصالٌ جديد";
+"arham_celebration_title" = "🎉 ما شاء الله! وصالٌ جديد";
 "arham_row_overdue" = "يحتاج اتصال — مرّ %1$ld يوماً";
 "arham_row_overdue_today" = "يحتاج اتصال — اليوم";
 "arham_row_soon" = "اقترب موعد الوصال (%1$ld يوماً)";

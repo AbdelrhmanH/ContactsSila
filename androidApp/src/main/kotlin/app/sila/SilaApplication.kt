@@ -11,6 +11,7 @@ import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.di.ensureKoinStarted
 import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.contacts.data.ContactsSyncEngine
+import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,9 @@ class SilaApplication : Application() {
 
     private var emergencyReconciled = false
 
+    /** T8-15 (F-1): علم تجسيد واحد لـ«أهم 5» لكل عملية (idempotent — مرآة الأعلام أعلاه). */
+    private var materializationLaunched = false
+
     override fun onCreate() {
         super.onCreate()
         val koin = ensureKoinStarted(storageDirPath = filesDir.absolutePath) {
@@ -52,6 +56,7 @@ class SilaApplication : Application() {
         EmergencyNotificationChannel.ensure(this)
         startContactsSync(koin)
         startRetentionCleanup(koin)
+        startTopFiveMaterialization(koin)
         rescheduleDailyReminder(koin)
         startCallStateObserver(koin)
         registerWidgetRefreshBridge(koin)
@@ -74,6 +79,19 @@ class SilaApplication : Application() {
         if (cleanupStarted) return
         cleanupStarted = true
         koin.get<RetentionCleanupCoordinator>().launchIn(applicationScope)
+    }
+
+    /**
+     * T8-15 (F-1): تجسيد «أهم 5 أشخاص» عند إقلاع العملية (§F.2 — تشغيل واحد لكل تثبيت
+     * عبر حارس العلامة داخل الحالة الاستخدامية) — مرآة [startRetentionCleanup]: خارج
+     * الخيط الرئيسي على نطاق عمر التطبيق، مرة واحدة لكل عملية (single-flight)، والإخفاق
+     * يُبتلع داخل المشغِّل بتسجيلٍ بنوعٍ حصراً (بلا PII) فيبقى الخاد غير مرفوع وتُستكمل
+     * العملية عند الإقلاع التالي.
+     */
+    private fun startTopFiveMaterialization(koin: Koin) {
+        if (materializationLaunched) return
+        materializationLaunched = true
+        koin.get<ArhamMaterializationCoordinator>().launchIn(applicationScope)
     }
 
     /**
