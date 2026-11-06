@@ -385,6 +385,7 @@
 "arham_emergency_banner_title" = "🚨 Emergency ringing in progress";
 "arham_emergency_stop" = "Stop";
 "arham_emergency_attempts" = "Attempt %1$ld of %2$ld";
+"arham_emergency_disclosure" = "The loud critical alert depends on device support and system permission; when unavailable, the standard notification sound is used.";
 "arham_screening_consent_title" = "In-Sila call screening";
 "arham_screening_consent_body" = "To recognize incoming calls automatically, Sila needs the system's call-screening role — data stays on your device and is never uploaded. You can dismiss this and rely on manual recording.";
 "arham_screening_consent_action" = "Grant role";

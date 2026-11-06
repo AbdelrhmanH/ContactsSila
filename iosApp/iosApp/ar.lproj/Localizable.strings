@@ -385,6 +385,7 @@
 "arham_emergency_banner_title" = "🚨 رنين طوارئ جارٍ";
 "arham_emergency_stop" = "إيقاف";
 "arham_emergency_attempts" = "المحاولة %1$ld من %2$ld";
+"arham_emergency_disclosure" = "التنبيه الصوتي الحرج يتوقف على دعم الجهاز وتفعيله من النظام — عند غيابه تُستخدم النغمة القياسية.";
 "arham_screening_consent_title" = "تمييز المكالمات داخل صِلَة";
 "arham_screening_consent_body" = "لتمييز المكالمات الواردة تلقائياً يحتاج صِلَة دور «فرز المكالمات» من النظام — البيانات تبقى على جهازك ولا تُرفع أبداً. يمكنك تجاهل البطاقة والاعتماد على التسجيل اليدوي.";
 "arham_screening_consent_action" = "منح الدور";

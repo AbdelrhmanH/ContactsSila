@@ -479,6 +479,11 @@ struct ArhamView: View {
                     ))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    // AC-14: إفصاح حدود iOS داخل اللافتة حصراً — الاستحقاق الحرج غير مضمون
+                    // (D7 fallback-first). حاشية صغيرة تتكيف مع RTL والداكن وأحجام الخطوط.
+                    Text(strings.emergencyDisclosure)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
                 Button(action: { store.stopEmergency() }) {

@@ -196,6 +196,9 @@ struct ArhamLocalizedStrings {
         String(format: string("arham_emergency_attempts"), attempt, max)
     }
 
+    /// AC-14: إفصاح حدود iOS داخل التطبيق — الاستحقاق الحرج غير مضمون (D7 fallback-first).
+    var emergencyDisclosure: String { string("arham_emergency_disclosure") }
+
     // MARK: - موافقة الفحص (AC-4 — السطح مخفي على iOS: HIDDEN من المصدر المشترك)
 
     var screeningConsentTitle: String { string("arham_screening_consent_title") }

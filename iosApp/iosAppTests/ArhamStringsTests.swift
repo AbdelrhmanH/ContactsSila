@@ -55,6 +55,7 @@ final class ArhamStringsTests: XCTestCase {
         "arham_tree_add", "arham_tree_pick_candidate", "arham_tree_node_edit_kinship",
         // الطوارئ (اللافتة — البداية من مضيف المنصة)
         "arham_emergency_banner_title", "arham_emergency_stop", "arham_emergency_attempts",
+        "arham_emergency_disclosure",
         // موافقة الفحص (السطح مستتر على iOS لكن الفرع محفوظ في الواجهة المشتركة)
         "arham_screening_consent_title", "arham_screening_consent_body",
         "arham_screening_consent_action", "arham_screening_consent_dismiss",
