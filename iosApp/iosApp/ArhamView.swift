@@ -61,7 +61,9 @@ func arhamConfirmationEventLine(for event: CallEvent, strings: ArhamLocalizedStr
         direction = strings.directionUnknown
     }
     // المدة: قسمة الثواني على 60 — كما `it / 60` في Compose (قسمة صحيحة).
-    let minutes = event.durationSec?.intValue.map { $0 / 60 }
+    // الأقواس تُغلق سلسلة الاختيار حول القيمة المُعلَّبة — الـ `.map` على `Int` المفكوك
+    // يرفضه المدقق (سجل CI 42183733461).
+    let minutes = (event.durationSec?.intValue).map { $0 / 60 }
     return strings.confirmationEventLine(directionLabel: direction, durationMin: minutes)
 }
 
@@ -559,14 +561,15 @@ struct ArhamView: View {
             Text(strings.occasionsTitle)
                 .font(.subheadline.weight(.bold))
             ForEach(occasions, id: \.contactId) { occasion in
-                // محليات للتوفير على مدقق الأنماط (§L.2).
-                let relationLabel = occasion.relation.map { strings.relationLabel($0) }
-                let personLine: String
-                if let relationLabel {
-                    personLine = strings.occasionPerson(relationLabel, occasion.displayName)
-                } else {
-                    personLine = occasion.displayName
-                }
+                // محليات للتوفير على مدقق الأنماط (§L.2) — قراءةُ الخاصية مباشرةً وتسلسل
+                // Combinators على `Optional` بلا إغلاقٍ داخلي ولا تهيئةٍ حتمية عبر `if`:
+                // دمج `.map` بسلسلة اختيار داخل ViewBuilder أربك مدقق الأنماط حتى طبع
+                // المستقبِل كـ KotlinBase (سجل CI 42183733461). `??` والقراءة المباشرة
+                // هما النمط المثبت (onAppear — السطر 954).
+                let personLine = occasion.relation
+                    .map(strings.relationLabel)
+                    .map { strings.occasionPerson($0, occasion.displayName) }
+                    ?? occasion.displayName
                 let dayLine = occasion.isToday
                     ? strings.occasionToday(personLine)
                     : strings.occasionInDays(Int(occasion.daysUntil), personLine)
@@ -897,7 +900,11 @@ struct ArhamKinshipEditorSheet: View {
                             // اقتراح الوتيرة الموثق للقرابة الجديدة — لا إجبار (AC-1).
                             let current = selectedFrequency
                             if current == nil || current == editor.proposedFrequency {
-                                selectedFrequency = UpdateKinshipUseCaseCompanion.shared.defaultFrequencyFor(relation: relation)
+                                // الاقتراح عبر الرفيق المتداخل `UpdateKinshipUseCase.Companion.shared`
+                            // — تصدير K/N يعيد تسمية الرفيق بنوعٍ متداخل (نمط KotlinVersion.Companion.shared)
+                            // — الاسم المسطّح UpdateKinshipUseCaseCompanion غير موجود في نطاق Swift
+                            // (سجل CI 42183733461).
+                            selectedFrequency = UpdateKinshipUseCase.Companion.shared.defaultFrequencyFor(relation: relation)
                             }
                         }
                     }
