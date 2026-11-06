@@ -465,7 +465,7 @@ private class ContentResolverBackedGateway(
     }
 }
 
-/** وسم اللوح لفشل تسجيل مراقب الإشارات — سياق تقني حصراً، بلا أسماء ولا أرقام (الإرشادات §10). */
+/** وسم اللوح لفشل تسجيل مراقب الإشارات — سياق تقني حصراً، بلا أسماء ولا أرقام (الإرشادات §7 و§9). */
 private const val CHANGE_SIGNAL_OBSERVER_TAG = "ContactsChangeSignals"
 
 /**
