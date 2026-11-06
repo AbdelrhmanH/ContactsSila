@@ -50,9 +50,11 @@ class IosArhamNotificationScheduler(
     /**
      * نقطةُ خياطة مركز الإشعارات — `null` يعني «المركز غير متاح» فتُهمل العملية
      * بسجلٍّ بنوعٍ حصراً (بلا انهيار — §O.5)؛ الحقن يسمح باختبار مسار غياب المركز.
+     * الافتراضي عبر [iosNotificationCenterIfPresent] حصراً — اللمس الخام يُسقط مضيف
+     * اختبار K/N (تنفيذية عارية — سجل CI 42180300317).
      */
     private val centerProvider: () -> UNUserNotificationCenter? = {
-        UNUserNotificationCenter.currentNotificationCenter()
+        iosNotificationCenterIfPresent()
     },
 ) : ArhamAlarmScheduler, IosArhamReminderScheduling {
 

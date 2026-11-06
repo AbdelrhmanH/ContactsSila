@@ -62,10 +62,12 @@ internal fun mapCriticalAlertSetting(setting: UNNotificationSetting): Pair<Boole
 /**
  * بوابة استقصاء القدرة (T8-12 · D7): يقرأ إعدادات مركز الإشعارات الفعلية — يُستهلك من
  * مسار الطوارئ (T8-13) ليقرر المسار القياسي دون ادعاء تنبيهٍ حرج مُسلَّم قط.
+ * المركز مُمرَّر إلزامياً — يُحصَّل عبر [iosNotificationCenterIfPresent] حصراً؛ اللمس
+ * الخام لـ currentNotificationCenter يُسقط مضيف اختبار K/N (سجل CI 42180300317).
  */
 class IosNotificationCapabilityProbe {
 
-    suspend fun currentCapability(center: UNUserNotificationCenter = UNUserNotificationCenter.currentNotificationCenter()): ArhamNotificationCapability =
+    suspend fun currentCapability(center: UNUserNotificationCenter): ArhamNotificationCapability =
         suspendCancellableCoroutine { continuation ->
             center.getNotificationSettingsWithCompletionHandler { settings: UNNotificationSettings? ->
                 if (settings == null) {

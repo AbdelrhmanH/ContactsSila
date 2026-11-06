@@ -2,6 +2,7 @@ package app.sila.arham.emergency
 
 import app.sila.arham.notification.ArhamNotificationCapability
 import app.sila.arham.notification.IosNotificationCapabilityProbe
+import app.sila.arham.notification.iosNotificationCenterIfPresent
 import app.sila.core.model.Contact
 import app.sila.feature.arham.domain.EmergencyRingingController
 import app.sila.feature.arham.domain.EmergencySessionRepository
@@ -55,7 +56,9 @@ class IosEmergencyRingingController(
         )
     },
     private val centerProvider: () -> UNUserNotificationCenter? = {
-        UNUserNotificationCenter.currentNotificationCenter()
+        // عبر نقطة الوعي بالغياب حصراً — اللمس الخام لـ currentNotificationCenter يُسقط
+        // مضيف اختبار K/N (تنفيذية عارية بلا حزمة — سجل CI 42180300317).
+        iosNotificationCenterIfPresent()
     },
 ) : EmergencyRingingController, IosEmergencyCallPlacer {
 

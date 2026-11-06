@@ -65,8 +65,12 @@ class IosArhamNotificationCenterDelegate(
     private val strings: IosArhamNotificationStrings = IosBundleArhamNotificationStrings(),
 ) : NSObject(), UNUserNotificationCenterDelegateProtocol {
 
-    /** يقيّد المندوب مع تسجيل فئة الأفعال — يُستدعى مرةً من المهيئ (التعيين idempotent). */
-    fun register(center: UNUserNotificationCenter = UNUserNotificationCenter.currentNotificationCenter()) {
+    /**
+     * يقيّد المندوب مع تسجيل فئة الأفعال — يُستدعى مرةً من المهيئ (التعيين idempotent).
+     * المركز مُمرَّر إلزامياً — عبر [iosNotificationCenterIfPresent] حصراً؛ الافتراضي
+     * الخام يُسقط مضيف اختبار K/N (تنفيذية عارية — سجل CI 42180300317).
+     */
+    fun register(center: UNUserNotificationCenter) {
         center.delegate = this
         val actions = listOf(
             UNNotificationAction.actionWithIdentifier(

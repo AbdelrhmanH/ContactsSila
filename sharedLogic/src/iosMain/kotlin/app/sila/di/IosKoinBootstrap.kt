@@ -2,6 +2,7 @@ package app.sila.di
 
 import app.sila.arham.notification.IosArhamNotificationCenterRegistering
 import app.sila.arham.notification.IosArhamReminderDispatch
+import app.sila.arham.notification.iosNotificationCenterIfPresent
 import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.arham.widget.IosArhamWidgetSnapshotPublisher
 import app.sila.core.database.dao.ArhamDataChangeListener
@@ -31,7 +32,6 @@ import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
-import platform.UserNotifications.UNUserNotificationCenter
 
 /**
  * مهيئ حاوية Koin لمنصة iOS (Issue #5 & Issue #9).
@@ -163,10 +163,15 @@ object IosKoinBootstrap {
     private fun registerNotificationCenterDelegate(koin: Koin) {
         if (notificationDelegateRegistered) return
         notificationDelegateRegistered = true
-        // الواجهة الصرفة هي مفتاح Koin (لا KClass لأنواع ObjC الفرعية — سجل CI 42177151822)،
-        // والقيمة الافتراضية للمركز تُقيَّم هنا في موقع الاستدعاء الوحيد.
+        // الواجهة الصرفة هي مفتاح Koin (لا KClass لأنواع ObjC الفرعية — سجل CI 42177151822).
+        // المركز عبر نقطة الوعي بالغياب حصراً (سجل CI 42180300317): اللمس الخام لـ
+        // currentNotificationCenter داخل مضيف اختبار K/N العاري يرمي NSException قاتلاً
+        // (bundleProxyForCurrentProcess is nil) فتُسقط العملية SIGABRT. بلا مركز
+        // (تنفيذية بلا حزمة) تُهمل العملية صامتاً — والتطبيق الحقيقي (حزمة سليمة) لا أثر
+        // عليه الفحص أصلاً.
+        val center = iosNotificationCenterIfPresent() ?: return
         koin.get<IosArhamNotificationCenterRegistering>()
-            .register(center = UNUserNotificationCenter.currentNotificationCenter())
+            .register(center = center)
     }
 
     /**
