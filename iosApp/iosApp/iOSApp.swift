@@ -11,6 +11,9 @@ struct iOSApp: App {
     /// Koin حصراً، وبلا مالك ثانٍ للحالة (نمط MainViewModelStore نفسه).
     @State private var contactsStore: ContactsViewModelStore
 
+    /// مخزن شاشة أرحام المشترك (T8-14 — §L.1) — النمط نفسه: بعد `ensureStarted` حصراً.
+    @State private var arhamStore: ArhamViewModelStore
+
     init() {
         _ = IosKoinBootstrap.shared.ensureStarted()
         // T8-13 (D6): جسر إعادة تحميل الودجت — Kotlin يكتب اللقطة في حاوية App Group،
@@ -20,11 +23,12 @@ struct iOSApp: App {
         }
         _store = State(initialValue: MainViewModelStore())
         _contactsStore = State(initialValue: ContactsViewModelStore())
+        _arhamStore = State(initialValue: ArhamViewModelStore())
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(store: store, contactsStore: contactsStore)
+            ContentView(store: store, contactsStore: contactsStore, arhamStore: arhamStore)
         }
     }
 }

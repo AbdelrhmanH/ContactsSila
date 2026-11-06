@@ -14,6 +14,7 @@ import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
+import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.main.MainViewModel
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -272,6 +273,13 @@ object IosKoinBootstrap {
      * عبر نمط ContactsViewModelStore نفسه — الحالة ملكية Kotlin حصراً.
      */
     fun getContactsViewModel(): ContactsViewModel = ensureStarted().get()
+
+    /**
+     * T8-14 (§L.1): يسترجع [ArhamViewModel] المشترك بعد ضمان تهيئة Koin بمسار التخزين
+     * الدائم؛ تستعمله شاشة أرحام SwiftUI عبر نمط ContactsViewModelStore نفسه —
+     * الحالة ملكية Kotlin حصراً (لا منطق أعمال في SwiftUI).
+     */
+    fun getArhamViewModel(): ArhamViewModel = ensureStarted().get()
 
     /**
      * يسترجع [ContactDetailsViewModel] لجهة محددة (T6 — Issue #27) عبر `parametersOf`
