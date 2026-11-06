@@ -13,6 +13,7 @@ import com.lemonappdev.konsist.api.provider.KoParentProvider
 import com.lemonappdev.konsist.api.provider.KoResideInPackageProvider
 import com.lemonappdev.konsist.api.verify.assertFalse
 import com.lemonappdev.konsist.api.verify.assertTrue
+import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertFalse as kotlinAssertFalse
@@ -72,6 +73,31 @@ class KonsistArchitectureTest {
 
         private val FORBIDDEN_PRESENTATION_REF_REGEX = Regex(
             """\b[A-Za-z0-9_]*(?:RepositoryImpl|Dao)\b"""
+        )
+
+        /** النص العربي بمعجمه الموحّد (Unicode Arabic blocks) — قاعدة 6a. */
+        private val ARABIC_SCRIPT_REGEX = Regex(
+            """[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]"""
+        )
+
+        /** أي شرطية لغة/اتجاه في عرض أرحام — قاعدة 6b (الكود المجرد بلا نصوص/تعليقات). */
+        private val LANGUAGE_CONDITIONAL_REGEX = Regex(
+            """\b(?:isArabic|isAr|isRtl|AppLanguage|java\.util\.Locale|platform\.Locale)\b"""
+        )
+
+        /** مفاتيح الموارد التابعة لقاعدة اكتمال أرحام — شاشة + قرابات + طبقات + طوارئ. */
+        private val ARHAM_RESOURCE_KEY_REGEX = Regex(
+            """^(?:arham_|relation_|layer_|contacts_emergency_).+$"""
+        )
+
+        /**
+         * نداء `Text(` بمعامله الأول سلسلةً حرفية — قاعدة 6c (T8-15 · D.3-3):
+         * `Text("…")` و`Text(text = "…")` بعد تجريد التعليقات وإفراغ محتوى السلاسل —
+         * الماسح يُبقي زوجي الاقتباس فارغاً (`""`) فشكلية النداء الحرفي تبقى ظاهرة،
+         * بينما `Text(strings.x)`/`Text(text = stringResource(…))` بلا اقتباس لا تطابق.
+         */
+        private val ARHAM_TEXT_LITERAL_REGEX = Regex(
+            """\bText\s*\(\s*(?:text\s*=\s*)?["]"""
         )
     }
 
@@ -552,6 +578,151 @@ class KonsistArchitectureTest {
         }
     }
 
+    /**
+     * Rule 6a — قاعدة صفر نصوص ثابتة في واجهة أرحام (T8-11 · D.3-3 · AGENTS.md):
+     * كل ملفات `feature/arham/presentation` خاليةٌ من الحروف العربية داخل سلاسل
+     * الكود حصراً (التعليقات مستبعدة عمداً — KDoc عربي مشروع). الرموز غير اللسانية
+     * (إيموجي الأيقونات، `%1$d`) غير ممنوعة — القاعدة لسانية حصراً.
+     */
+    @Test
+    fun `rule 6a - arham presentation files declare no Arabic-script string literals`() {
+        val arhamPresentationFiles = productionScope.files.filter { file ->
+            val normalizedPath = file.path.replace('\\', '/')
+            normalizedPath.contains("/feature/arham/presentation/src/") ||
+                file.packagee?.name.orEmpty().startsWith("app.sila.feature.arham.presentation")
+        }
+        kotlinAssertTrue(
+            arhamPresentationFiles.isNotEmpty(),
+            "Expected non-empty set of arham presentation files."
+        )
+
+        arhamPresentationFiles.assertFalse(
+            additionalMessage = "Arham presentation code must never embed Arabic-script string literals — all UI text comes from resources via ArhamStrings."
+        ) { file ->
+            ARABIC_SCRIPT_REGEX.containsMatchIn(stripCommentsKeepStrings(file.text))
+        }
+    }
+
+    /**
+     * Rule 6b — لا شرطية لغة/اتجاه في واجهة أرحام (T8-11): النصوص والاتجاه تُشتقّان
+     * من السمة والموارد حصراً — أي إشارة إلى هوية اللغة (`isArabic`/`isAr`/
+     * `AppLanguage`/`Locale`) أو اتجاه الكتابة داخل حزمة العرض مخالفة معمارية.
+     */
+    @Test
+    fun `rule 6b - arham presentation files declare no language or locale conditionals`() {
+        val arhamPresentationFiles = productionScope.files.filter { file ->
+            val normalizedPath = file.path.replace('\\', '/')
+            normalizedPath.contains("/feature/arham/presentation/src/") ||
+                file.packagee?.name.orEmpty().startsWith("app.sila.feature.arham.presentation")
+        }
+        kotlinAssertTrue(
+            arhamPresentationFiles.isNotEmpty(),
+            "Expected non-empty set of arham presentation files."
+        )
+
+        arhamPresentationFiles.assertFalse(
+            additionalMessage = "Arham presentation must not branch on language/locale — strings and RTL come from resources and theme."
+        ) { file ->
+            LANGUAGE_CONDITIONAL_REGEX.containsMatchIn(stripCommentsAndStrings(file.text))
+        }
+    }
+
+    /**
+     * Rule 6c — لا نصوص حرفية في نداءات Text داخل واجهة أرحام (T8-15 · D.3-3 · AGENTS.md):
+     * كل ملفات `feature/arham/presentation` خاليةٌ من `Text("…")` و`Text(text = "…")`
+     * — النص يمر عبر [ArhamStrings] المشتقة من موارد الترجمة حصراً (مرآة قاعدة 6a
+     * التي تحرم الحروف العربية في السلاسل). يفحص الكود بعد تجريد التعليقات وإفراغ
+     * محتوى السلاسل (الماسح يُبقي زوجي الاقتباس فتظل شكلية النداء ظاهرة).
+     */
+    @Test
+    fun `rule 6c - arham presentation files declare no hardcoded Text string literals`() {
+        val arhamPresentationFiles = productionScope.files.filter { file ->
+            val normalizedPath = file.path.replace('\\', '/')
+            normalizedPath.contains("/feature/arham/presentation/src/") ||
+                file.packagee?.name.orEmpty().startsWith("app.sila.feature.arham.presentation")
+        }
+        kotlinAssertTrue(
+            arhamPresentationFiles.isNotEmpty(),
+            "Expected non-empty set of arham presentation files."
+        )
+
+        arhamPresentationFiles.assertFalse(
+            additionalMessage = "Arham presentation Text calls must never take string literals — all UI text comes from resources via ArhamStrings."
+        ) { file ->
+            ARHAM_TEXT_LITERAL_REGEX.containsMatchIn(stripCommentsAndStrings(file.text))
+        }
+    }
+
+    /**
+     * اكتمال موارد الترجمة لأرحام (T8-11 · D.3-3 · عربي أولاً — AGENTS.md): كل مفتاح
+     * من مفاتيح أرحام في `sharedUI` composeResources موجودٌ في اللغتين (العربية
+     * الافتراضية والإنجليزية) بقيمة غير فارغة، وتطابقُ مفاتيح المجموعتين شرطٌ صريح.
+     * فحص JVM مباشر على الملفات (androidHostTest يعمل على JVM — الوصول لموارد
+     * compose في الاختبار غير ممكن).
+     */
+    @Test
+    fun `strings completeness - every arham resource key exists and is non-blank in ar and en`() {
+        val composeResourcesRoot = locateSharedUiComposeResources()
+        val arabicFile = File(composeResourcesRoot, "values/strings.xml")
+        val englishFile = File(composeResourcesRoot, "values-en/strings.xml")
+        kotlinAssertTrue(arabicFile.isFile, "Missing Arabic strings.xml at ${arabicFile.path}")
+        kotlinAssertTrue(englishFile.isFile, "Missing English strings.xml at ${englishFile.path}")
+
+        val arabicKeys = parseResourceStringValues(arabicFile)
+        val englishKeys = parseResourceStringValues(englishFile)
+
+        // مفاتيح أرحام المعنية بالقاعدة: شاشة أرحام + القرابات + الطبقات + زر الطوارئ.
+        val arhamArabic = arabicKeys.filterKeys { it.matches(ARHAM_RESOURCE_KEY_REGEX) }
+        val arhamEnglish = englishKeys.filterKeys { it.matches(ARHAM_RESOURCE_KEY_REGEX) }
+        kotlinAssertTrue(
+            arhamArabic.keys == arhamEnglish.keys,
+            "Arham key sets must be identical in ar and en; ar-only=${arhamArabic.keys - arhamEnglish.keys}, en-only=${arhamEnglish.keys - arhamArabic.keys}"
+        )
+        kotlinAssertTrue(arhamArabic.isNotEmpty(), "Expected non-empty set of arham_* resource keys.")
+
+        val blankArabic = arhamArabic.filterValues { it.isBlank() }.keys
+        val blankEnglish = arhamEnglish.filterValues { it.isBlank() }.keys
+        kotlinAssertTrue(blankArabic.isEmpty(), "Blank Arabic values for keys: $blankArabic")
+        kotlinAssertTrue(blankEnglish.isEmpty(), "Blank English values for keys: $blankEnglish")
+
+        // منع الفراغ: مفاتيح T8-11 الجوهرية يجب أن توجد فعلاً — القاعدة لا تحمي غيابها.
+        val sentinelKeys = setOf(
+            "arham_screen_title",
+            "arham_row_overdue",
+            "arham_occasion_person",
+            "arham_kinship_title",
+            "arham_tree_add",
+            "arham_emergency_banner_title",
+            "arham_screening_consent_body",
+            "contacts_emergency_ring_button",
+            "relation_father",
+            "layer_ancestor"
+        )
+        val missing = sentinelKeys.filter { it !in arhamArabic.keys || it !in arhamEnglish.keys }
+        kotlinAssertTrue(missing.isEmpty(), "Missing sentinel arham keys: $missing")
+    }
+
+    /** مطابقة مسار `sharedUI` composeResources صعوداً من مجلد عمل الاختبار (موديول sharedLogic). */
+    private fun locateSharedUiComposeResources(): File {
+        var dir: File? = File(System.getProperty("user.dir")).absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, "sharedUI/src/commonMain/composeResources")
+            if (candidate.isDirectory) return candidate
+            dir = dir.parentFile
+        }
+        error("Could not locate sharedUI composeResources from ${System.getProperty("user.dir")}")
+    }
+
+    /** تحليل ملف موارد: قيم `<string name>` — الأولى لكل مفتاح. */
+    private fun parseResourceStringValues(file: File): Map<String, String> {
+        val content = file.readText()
+        val values = linkedMapOf<String, String>()
+        Regex("""<string\s+name="([^"]+)"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
+            .findAll(content)
+            .forEach { match -> values.putIfAbsent(match.groupValues[1], match.groupValues[2].trim()) }
+        return values
+    }
+
     private fun inheritsFromMviContract(
         declaration: KoParentProvider,
         scope: KoScope = productionScope,
@@ -763,6 +934,109 @@ class KonsistArchitectureTest {
                     }
                     if (cc == '\'' || cc == '\n' || cc == '\r') {
                         if (cc == '\n' || cc == '\r') out.append(cc)
+                        i++
+                        break
+                    }
+                    i++
+                }
+                continue
+            }
+
+            out.append(c)
+            i++
+        }
+
+        return out.toString()
+    }
+
+    /**
+     * ماسحٌ توأم لـ [stripCommentsAndStrings] يزيل التعليقات **حصراً** — محتوى النصوص
+     * يُنسخ حرفياً. قاعدة 6a تفتش النصوص الباقية (سلاسل حقيقية) عن الحروف العربية،
+     * والتعليقات العربية المشروعة مستبعدة سلفاً. نفس معالجات الأمان (URL/مهرب/ثلاثية).
+     */
+    internal fun stripCommentsKeepStrings(source: String): String {
+        val out = StringBuilder(source.length)
+        var i = 0
+        val n = source.length
+
+        while (i < n) {
+            val c = source[i]
+
+            // 1. Line comment — تُزال إلى نهاية السطر.
+            if (c == '/' && i + 1 < n && source[i + 1] == '/') {
+                while (i < n && source[i] != '\n' && source[i] != '\r') {
+                    i++
+                }
+                continue
+            }
+
+            // 2. Block comment (بتداخل Kotlin) — يُزال كاملاً مع الاحتفاظ بالأسطر الجديدة.
+            if (c == '/' && i + 1 < n && source[i + 1] == '*') {
+                i += 2
+                var depth = 1
+                while (i < n && depth > 0) {
+                    if (source[i] == '/' && i + 1 < n && source[i + 1] == '*') {
+                        depth++
+                        i += 2
+                    } else if (source[i] == '*' && i + 1 < n && source[i + 1] == '/') {
+                        depth--
+                        i += 2
+                    } else {
+                        if (source[i] == '\n' || source[i] == '\r') {
+                            out.append(source[i])
+                        }
+                        i++
+                    }
+                }
+                continue
+            }
+
+            // 3. Triple-quoted string — يُنسخ حرفياً حتى الإغلاق.
+            if (c == '"' && i + 2 < n && source[i + 1] == '"' && source[i + 2] == '"') {
+                out.append("\"\"\"")
+                i += 3
+                while (i < n) {
+                    if (source[i] == '"' && i + 2 < n && source[i + 1] == '"' && source[i + 2] == '"') {
+                        out.append("\"\"\"")
+                        i += 3
+                        break
+                    }
+                    out.append(source[i])
+                    i++
+                }
+                continue
+            }
+
+            // 4. Standard string — يُنسخ حرفياً مع معالجة المهرب.
+            if (c == '"') {
+                out.append('"')
+                i++
+                while (i < n) {
+                    out.append(source[i])
+                    if (source[i] == '\\') {
+                        i += 2
+                        continue
+                    }
+                    if (source[i] == '"') {
+                        i++
+                        break
+                    }
+                    i++
+                }
+                continue
+            }
+
+            // 5. Character literal — يُنسخ حرفياً.
+            if (c == '\'') {
+                out.append('\'')
+                i++
+                while (i < n) {
+                    out.append(source[i])
+                    if (source[i] == '\\') {
+                        i += 2
+                        continue
+                    }
+                    if (source[i] == '\'' || source[i] == '\n' || source[i] == '\r') {
                         i++
                         break
                     }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- مزوِّد ودجت أرحام (T8-10 · AC-15) — الكادنس خارج الودجت حصراً: updatePeriodMillis=0
+     والانعاش عبر worker D3 (الدوري 30 د + المُحرَّك بالتغيير). لا نصوص ثابتة هنا. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0" />

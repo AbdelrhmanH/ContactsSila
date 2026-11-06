@@ -1,5 +1,11 @@
 package app.sila.di
 
+import app.sila.arham.notification.IosArhamNotificationCenterRegistering
+import app.sila.arham.notification.IosArhamReminderDispatch
+import app.sila.arham.notification.iosNotificationCenterIfPresent
+import app.sila.arham.observer.ArhamCallStateObserver
+import app.sila.arham.widget.IosArhamWidgetSnapshotPublisher
+import app.sila.core.database.dao.ArhamDataChangeListener
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
@@ -8,12 +14,16 @@ import app.sila.feature.contacts.presentation.ContactDetailsViewModel
 import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
+import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
+import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.main.MainViewModel
+import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
 import org.koin.core.parameter.parametersOf
@@ -41,6 +51,24 @@ object IosKoinBootstrap {
     /** F-02: علم تشغيل واحد لصيانة الاستبقاء لكل عملية (idempotent — كما start أعلاه). */
     private var cleanupLaunched = false
 
+    /** T8-12 (D2 §8): علم إعادة جدولة واحدة للتذكير اليومي لكل عملية (idempotent). */
+    private var reminderRescheduled = false
+
+    /** T8-12 (AC-6): علم بدء مراقب المكالمات لكل عملية — ضمن حياة التطبيق فقط. */
+    private var callObserverStarted = false
+
+    /** T8-12: علم تقييد مندوب مركز الإشعارات لكل عملية (التعيين idempotent). */
+    private var notificationDelegateRegistered = false
+
+    /** T8-13 (D6): علم تسجيل جسر نشر لقطة الودجت على قاعدة البيانات (مرآة أندرويد، idempotent). */
+    private var widgetBridgeRegistered = false
+
+    /** T8-13 (§N.5): علم مُوافَة جلسات الطوارئ المقطوعة عند بدء العملية (مرآة أندرويد، idempotent). */
+    private var emergencyReconciled = false
+
+    /** T8-15 (F-1): علم تجسيد واحد لـ«أهم 5» لكل عملية (مرآة أندرويد، idempotent). */
+    private var materializationLaunched = false
+
     /**
      * للاختبارات حصراً (نفس مبدئ خطافات `LocalSilaDatabase` الداخلية): يعيد علم
      * الإطلاق الواحد [cleanupLaunched] إلى حالة ما قبل الإطلاق، ليستطيع اختبار مسار
@@ -53,6 +81,29 @@ object IosKoinBootstrap {
     }
 
     /**
+     * للاختبارات حصراً (مرآة [resetCleanupLaunchForTest]): يعيد أعلام دورة حياة أرحام
+     * الثلاثة (T8-12) إلى ما قبل الإطلاق ليبقى اختبار المهيئ مستقلاً عن ترتيب تنفيذه —
+     * لا يُستدعى من كود الإنتاج إطلاقاً.
+     */
+    internal fun resetArhamLifecycleFlagsForTest() {
+        reminderRescheduled = false
+        callObserverStarted = false
+        notificationDelegateRegistered = false
+        widgetBridgeRegistered = false
+        emergencyReconciled = false
+        materializationLaunched = false
+    }
+
+    /**
+     * للاختبارات حصراً (مرآة [resetCleanupLaunchForTest]): يعيد علم تجسيد «أهم 5»
+     * (T8-15 · F-1) إلى ما قبل الإطلاق ليستقل اختبار مسار الإنتاج عن ترتيب التنفيذ.
+     * لا يُستدعى من كود الإنتاج إطلاقاً.
+     */
+    internal fun resetMaterializationForTest() {
+        materializationLaunched = false
+    }
+
+    /**
      * F-02: تشغيل صيانة الاستبقاء (تنظيف القبور >30 يوماً والمكالمات >365 يوماً) مرة واحدة
      * لكل عملية على نطاق عمر التطبيق — من كلا مساري [ensureStarted]، والتنفيذ خارج الخيط
      * الرئيسي (Dispatchers.io في الـ DAO) والإخفاق يُسجَّل بلا PII ولا يسقط التطبيق.
@@ -61,6 +112,93 @@ object IosKoinBootstrap {
         if (cleanupLaunched) return
         cleanupLaunched = true
         koin.get<RetentionCleanupCoordinator>().launchIn(engineScope)
+    }
+
+    /**
+     * T8-15 (F-1 — مرآة SilaApplication): تجسيد «أهم 5 أشخاص» عند إقلاع العملية —
+     * مرة واحدة لكل عملية على نطاق عمر التطبيق، والإخفاق يُبتلع داخل المشغِّل
+     * (تسجيلٌ بنوعٍ حصراً — بلا PII) فيبقى الخاد غير مرفوع (§F.10) وتُستكمل
+     * العملية عند الإقلاع التالي.
+     */
+    private fun startTopFiveMaterialization(koin: Koin) {
+        if (materializationLaunched) return
+        materializationLaunched = true
+        koin.get<ArhamMaterializationCoordinator>().launchIn(engineScope)
+    }
+
+    /**
+     * T8-12 (D2 §8 — مرآة SilaApplication): إعادة جدولة التذكير اليومي عند كل تشغيل
+     * عملية — الميزة معطّلة؟ إلغاء الطلب المعلّق (فارق iOS الموثّق)؛ وإلا خطةٌ جديدة
+     * من `now` (الموعد المفقود أثناء الغياب يُحسب من جديد). idempotent بمرآة الأعلام.
+     */
+    private fun rescheduleDailyReminder(koin: Koin) {
+        if (reminderRescheduled) return
+        reminderRescheduled = true
+        engineScope.launch {
+            runCatching {
+                IosArhamReminderDispatch.rescheduleFromNow(
+                    preferences = koin.get(),
+                    planner = koin.get(),
+                    scheduler = koin.get(),
+                )
+            }.onFailure { println("IosArhamReminderDispatch failed: ${it::class.simpleName}") }
+        }
+    }
+
+    /**
+     * T8-12 (AC-6 — مرآة SilaApplication): مراقب حالة المكالمات ضمن حياة التطبيق فقط —
+     * حالته بلا هوية (`CXCall` لا يعرض رقماً) والربط عبر النطاق المشترك. بدايته
+     * idempotent، والإخفاق يُسجَّل بنوعٍ حصراً — بلا انهيار.
+     */
+    private fun startCallStateObserver(koin: Koin) {
+        if (callObserverStarted) return
+        callObserverStarted = true
+        koin.get<ArhamCallStateObserver>().start(engineScope)
+    }
+
+    /**
+     * T8-12: تقييد مندوب مركز الإشعارات + تسجيل فئة الأفعال — قبل أول تفاعل مع
+     * الإشعارات (استدعاء المهيئ يسبق جسم الواجهة — iOSApp.init).
+     */
+    private fun registerNotificationCenterDelegate(koin: Koin) {
+        if (notificationDelegateRegistered) return
+        notificationDelegateRegistered = true
+        // الواجهة الصرفة هي مفتاح Koin (لا KClass لأنواع ObjC الفرعية — سجل CI 42177151822).
+        // المركز عبر نقطة الوعي بالغياب حصراً (سجل CI 42180300317): اللمس الخام لـ
+        // currentNotificationCenter داخل مضيف اختبار K/N العاري يرمي NSException قاتلاً
+        // (bundleProxyForCurrentProcess is nil) فتُسقط العملية SIGABRT. بلا مركز
+        // (تنفيذية بلا حزمة) تُهمل العملية صامتاً — والتطبيق الحقيقي (حزمة سليمة) لا أثر
+        // عليه الفحص أصلاً.
+        val center = iosNotificationCenterIfPresent() ?: return
+        koin.get<IosArhamNotificationCenterRegistering>()
+            .register(center = center)
+    }
+
+    /**
+     * T8-13 (D6 — مرآة `SilaApplication.registerWidgetRefreshBridge`): يربط ناشر لقطة الودجت
+     * كمستمعٍ لأحداث تغيّر البيانات على [LocalSilaDatabase] — كل تغيير أرحام يُعيد نشر اللقطة
+     * في حاوية App Group (صامت عند غياب الحاوية). لا كادر دوري على iOS: الإيقاع قرار WidgetKit
+     * (§M). idempotent عبر [widgetBridgeRegistered].
+     */
+    private fun registerWidgetRefreshBridge(koin: Koin) {
+        if (widgetBridgeRegistered) return
+        widgetBridgeRegistered = true
+        val listener: ArhamDataChangeListener = koin.get()
+        koin.get<LocalSilaDatabase>().addArhamDataChangeListener(listener)
+    }
+
+    /**
+     * T8-13 (§N.5 — مرآة `SilaApplication.reconcileInterruptedEmergencySessions`): عند بدء
+     * العملية تُصفَّر أي جلسة طوارئ IN_PROGRESS تجاوزت حدها الزمني إلى INTERRUPTED idempotent
+     * (محاسبة الحد يصمد — لا وعد بأن الرنين يصمد عبر موت العملية). idempotent.
+     */
+    private fun reconcileInterruptedEmergencySessions(koin: Koin) {
+        if (emergencyReconciled) return
+        emergencyReconciled = true
+        engineScope.launch {
+            runCatching { koin.get<ReconcileInterruptedSessionUseCase>()() }
+                .onFailure { println("ReconcileInterruptedSessionUseCase failed: ${it::class.simpleName}") }
+        }
     }
 
     /**
@@ -122,6 +260,12 @@ object IosKoinBootstrap {
                 // start() idempotent — إعادة التشغيل على حاوية قائمة لا تكرر المراقبة.
                 existingKoin.get<ContactsSyncEngine>().start(engineScope)
                 startRetentionCleanup(existingKoin)
+                startTopFiveMaterialization(existingKoin)
+                rescheduleDailyReminder(existingKoin)
+                startCallStateObserver(existingKoin)
+                registerNotificationCenterDelegate(existingKoin)
+                registerWidgetRefreshBridge(existingKoin)
+                reconcileInterruptedEmergencySessions(existingKoin)
                 return existingKoin
             }
             stopKoin()
@@ -140,6 +284,12 @@ object IosKoinBootstrap {
 
         koin.get<ContactsSyncEngine>().start(engineScope)
         startRetentionCleanup(koin)
+        startTopFiveMaterialization(koin)
+        rescheduleDailyReminder(koin)
+        startCallStateObserver(koin)
+        registerNotificationCenterDelegate(koin)
+        registerWidgetRefreshBridge(koin)
+        reconcileInterruptedEmergencySessions(koin)
         return koin
     }
 
@@ -162,6 +312,13 @@ object IosKoinBootstrap {
     fun getContactsViewModel(): ContactsViewModel = ensureStarted().get()
 
     /**
+     * T8-14 (§L.1): يسترجع [ArhamViewModel] المشترك بعد ضمان تهيئة Koin بمسار التخزين
+     * الدائم؛ تستعمله شاشة أرحام SwiftUI عبر نمط ContactsViewModelStore نفسه —
+     * الحالة ملكية Kotlin حصراً (لا منطق أعمال في SwiftUI).
+     */
+    fun getArhamViewModel(): ArhamViewModel = ensureStarted().get()
+
+    /**
      * يسترجع [ContactDetailsViewModel] لجهة محددة (T6 — Issue #27) عبر `parametersOf`
      * — تعريف Koin المعياري يستقبل المعرّف من التنقل (كل زيارة شاشة = VM مستقل).
      */
@@ -174,4 +331,25 @@ object IosKoinBootstrap {
      */
     fun getContactEditViewModel(contactId: Long?): ContactEditViewModel =
         ensureStarted().get { parametersOf(contactId) }
+
+    /**
+     * T8-13 (D6): يُعيد ناشر لقطة الودجت لعملية التطبيق — تُستخدم من Swift لضبط مُشغِّل
+     * إعادة تحميل الودجت (انظر [attachArhamWidgetReloadTrigger]).
+     */
+    fun getArhamWidgetPublisher(): IosArhamWidgetSnapshotPublisher = ensureStarted().get()
+
+    /**
+     * T8-13 (D6): الواجهة الموجهة لـ Swift — يضبط SwiftUI مُشغِّل إعادة التحميل بعد
+     * `ensureStarted()`، ويستدعيه Kotlin بعد كل كتابة لقطةٍ ناجحة في حاوية App Group:
+     *
+     * ```swift
+     * IosKoinBootstrap.shared.attachArhamWidgetReloadTrigger {
+     *     WidgetCenter.shared.reloadTimelines(ofKind: ArhamWidgetConstants.kind)
+     * }
+     * ```
+     *
+     * سبب الجسر: لا klib لـ WidgetKit في K/N (تم التحقق) — `WidgetCenter` يُستدعى من Swift حصراً.
+     */
+    fun attachArhamWidgetReloadTrigger(trigger: () -> Unit): Unit =
+        getArhamWidgetPublisher().setReloadTrigger(trigger)
 }

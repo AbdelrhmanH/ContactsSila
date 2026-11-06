@@ -18,6 +18,9 @@ struct ContentView: View {
     /// مخزن شاشة جهات الاتصال المشترك (T4 — Issue #25) — نمط MainViewModelStore نفسه.
     var contactsStore: ContactsViewModelStore
 
+    /// مخزن شاشة أرحام المشترك (T8-14 — §L.1) — النمط نفسه؛ الحالة ملكية Kotlin حصراً.
+    var arhamStore: ArhamViewModelStore
+
     /// مكدس التبويب — حالة عرض أصلية (SwiftUI)؛ التنقل يبث من آثار الـ VM حصراً.
     @State private var contactsPath: [ContactsRoute] = []
 
@@ -104,16 +107,15 @@ struct ContentView: View {
             }
             .tag(DefaultTab.services)
 
-            tabItemView(
-                title: localized("nav_arham"),
-                subtitle: localized("arham_status_ok"),
-                icon: "heart.fill"
-            )
-            .tabItem {
-                Label(localized("nav_arham"), systemImage: "heart.fill")
-            }
-            .badge(store.state.overdueArhamCount > 0 ? Int(store.state.overdueArhamCount) : 0)
-            .tag(DefaultTab.arham)
+            // تبويب أرحام الحقيقي (T8-14 — §L.1): شاشة SwiftUI تراقب الحالة المشتركة
+            // عبر [ArhamViewModelStore] — بديل العنصر النائب المؤقت (نفس الجذر المشترك
+            // للحالة؛ RTL/LTR والسمة من البيئة كما في تبويب جهات الاتصال).
+            ArhamView(store: arhamStore, language: store.state.preferences.language)
+                .tabItem {
+                    Label(localized("nav_arham"), systemImage: "heart.fill")
+                }
+                .badge(store.state.overdueArhamCount > 0 ? Int(store.state.overdueArhamCount) : 0)
+                .tag(DefaultTab.arham)
         }
     }
 
@@ -237,6 +239,7 @@ struct ContentView: View {
 #Preview {
     ContentView(
         store: MainViewModelStore(),
-        contactsStore: ContactsViewModelStore()
+        contactsStore: ContactsViewModelStore(),
+        arhamStore: ArhamViewModelStore()
     )
 }

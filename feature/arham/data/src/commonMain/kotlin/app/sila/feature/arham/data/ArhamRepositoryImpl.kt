@@ -20,8 +20,4 @@ class ArhamRepositoryImpl(
     override suspend fun upsertArhamInfo(contactId: Long, info: ArhamInfo) {
         arhamDao.upsertArhamInfo(contactId, info)
     }
-
-    override suspend fun recordContactCall(contactId: Long, timestampMillis: Long) {
-        arhamDao.recordContactCall(contactId, timestampMillis)
-    }
 }

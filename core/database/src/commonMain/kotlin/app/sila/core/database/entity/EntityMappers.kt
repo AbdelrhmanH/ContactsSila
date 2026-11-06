@@ -3,6 +3,8 @@ package app.sila.core.database.entity
 import app.sila.core.common.ArabicTextNormalizer
 import app.sila.core.model.Address
 import app.sila.core.model.ArhamInfo
+import app.sila.core.model.CallDirection
+import app.sila.core.model.CallEvent
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactAccount
 import app.sila.core.model.ContactName
@@ -268,4 +270,75 @@ fun Service.toEntity(syncedAt: Long = 0L): ServiceEntity = ServiceEntity(
     city = city,
     ownerVerified = ownerVerified,
     isSavedByUser = isSavedByUser
+)
+
+// ===== T8-03: خرائط أحداث المكالمات (CallEvent ↔ CallEventEntity · ADR-0006 · Issue #29) =====
+
+/**
+ * يبني صف v3 من حدث النطاق (خريطة T8-03 — لا افتراضات صامتة):
+ * - `e164` مرآة بحث تُشتق من `remoteNumber` حصراً — الحدث **بلا رقم** لا يمكن استمرارته
+ *   في v3 (عمود NOT NULL بلا قيمة مشروعة)؛ قرار استمرارية المرصود بلا رقم UNRESOLVED
+ *   مؤجل إلى T8-06 (§G.3) — الإخفاق مغلق الصمام بلا اختلاق (§H.4). الرقم نفسه لا يدخل
+ *   رسالة الخطأ (لا PII في السجلات/الاستثناءات).
+ * - `direction = MISSED` لا يُكتب أبداً (حصرية لسجل الاتصال القديم — F-3 من مراجعة
+ *   T8-01: انضباط الخريطة المطلوب في T8-03)؛ إشارة «لم يُرد» تُصنَّف باتجاه فارغ.
+ *
+ * @throws IllegalArgumentException حدث بلا رقم أو باتجاه `MISSED` — بلا أي كتابة.
+ */
+fun CallEvent.toCallEventEntity(): CallEventEntity {
+    val e164Mirror = remoteNumber
+        ?: throw IllegalArgumentException(
+            "call event has no remoteNumber: v3 e164 mirror (NOT NULL) cannot be derived;" +
+                " persisting unnumbered events is deferred (T8-06, plan §G.3 UNRESOLVED)",
+        )
+    require(direction != CallDirection.MISSED) {
+        "call event direction=MISSED is legacy call-log only and must never be written (ADR-0006, T8-01 review F-3)"
+    }
+    return CallEventEntity(
+        callLogId = id,
+        e164 = e164Mirror,
+        timestamp = timestamp,
+        primarySource = primarySource,
+        evidenceSources = evidenceSources,
+        remoteNumber = remoteNumber,
+        contactId = contactId,
+        direction = direction,
+        startedAt = startedAt,
+        connectedAt = connectedAt,
+        endedAt = endedAt,
+        durationSec = durationSec,
+        outcome = outcome,
+        association = association,
+        confirmation = confirmation,
+        confidence = confidence,
+        dedupeKey = dedupeKey,
+        simSlot = simSlot,
+    )
+}
+
+/**
+ * يقرأ حدث النطاق من صف v3 (خريطة T8-03). مرآة `e164` عمود بحث حصراً ولا يملكه عقد
+ * النطاق (`CallEvent` ينطق `remoteNumber`) — القراءة تمرّ ببقية الحقول السبعة عشر حرفاً
+ * (صفوف الإرث المهاجرة: `remoteNumber` فارغ ومرآة `e164` لا تُنسى في النطاق — قراءة
+ * الأحداث التامة للعرض/التجميع لا تحتاجها، و«التفاعلات الأخيرة» T6 تقرأها من العقد
+ * المخصص `RecentInteraction`).
+ */
+fun CallEventEntity.toCallEvent(): CallEvent = CallEvent(
+    id = callLogId,
+    primarySource = primarySource,
+    evidenceSources = evidenceSources,
+    timestamp = timestamp,
+    remoteNumber = remoteNumber,
+    contactId = contactId,
+    direction = direction,
+    startedAt = startedAt,
+    connectedAt = connectedAt,
+    endedAt = endedAt,
+    durationSec = durationSec,
+    outcome = outcome,
+    association = association,
+    confirmation = confirmation,
+    confidence = confidence,
+    dedupeKey = dedupeKey,
+    simSlot = simSlot,
 )

@@ -8,6 +8,7 @@ import app.sila.core.model.Relation
 import app.sila.feature.contacts.presentation.ContactDetailsStrings
 import contactssila.sharedui.generated.resources.Res
 import contactssila.sharedui.generated.resources.action_cancel
+import contactssila.sharedui.generated.resources.action_confirm
 import contactssila.sharedui.generated.resources.action_undo
 import contactssila.sharedui.generated.resources.category_emergency
 import contactssila.sharedui.generated.resources.category_family
@@ -16,6 +17,9 @@ import contactssila.sharedui.generated.resources.category_services
 import contactssila.sharedui.generated.resources.category_uncategorized
 import contactssila.sharedui.generated.resources.category_work
 import contactssila.sharedui.generated.resources.contacts_loading
+import contactssila.sharedui.generated.resources.contacts_emergency_ring_button
+import contactssila.sharedui.generated.resources.contacts_emergency_warning_body
+import contactssila.sharedui.generated.resources.contacts_emergency_warning_title
 import contactssila.sharedui.generated.resources.details_account_device
 import contactssila.sharedui.generated.resources.details_account_section
 import contactssila.sharedui.generated.resources.details_action_change_category
@@ -344,7 +348,11 @@ fun rememberContactDetailsStrings(): ContactDetailsStrings {
         notFoundMessage = stringResource(Res.string.details_not_found),
         deleteError = stringResource(Res.string.details_delete_error),
         noPhoneNumber = stringResource(Res.string.details_no_phone),
-        cancel = stringResource(Res.string.action_cancel)
+        cancel = stringResource(Res.string.action_cancel),
+        emergencyRingButton = stringResource(Res.string.contacts_emergency_ring_button),
+        emergencyWarningTitle = stringResource(Res.string.contacts_emergency_warning_title),
+        emergencyWarningBody = stringResource(Res.string.contacts_emergency_warning_body),
+        emergencyWarningConfirm = stringResource(Res.string.action_confirm)
     )
 }
 
@@ -400,7 +408,11 @@ private data class ResourceContactDetailsStrings(
     override val notFoundMessage: String,
     override val deleteError: String,
     override val noPhoneNumber: String,
-    override val cancel: String
+    override val cancel: String,
+    override val emergencyRingButton: String,
+    override val emergencyWarningTitle: String,
+    override val emergencyWarningBody: String,
+    override val emergencyWarningConfirm: String
 ) : ContactDetailsStrings
 
 /** أزمنة نسبيّة لسلّم زمني واحد (دقائق أو ساعات) — صيغ العدد العربية. */

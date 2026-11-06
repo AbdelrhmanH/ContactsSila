@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- نصوص إشعارات أرحام (T8-08 · §M) — العربية الافتراضية (لا نصوص ثابتة في الكود).
+     القيم الموضعية %1$s (اسم الظهور) و%2$d (عدد المتأخرين الآخرين) حصراً. -->
+<resources>
+    <string name="arham_notification_channel_name">تذكيرات أرحام</string>
+    <string name="arham_digest_title">حان وقت صلة الرحم</string>
+    <!-- T808-R4: صيغ العدد الأصيلة عبر `<plurals>` (قاعدة CLDR العربية) — الصفر/الواحد
+         بلا إضافة، واثنان «وآخران»، و٣–١٠ جمع منقوص، وأكثر جمع عدّي. -->
+    <plurals name="arham_digest_body">
+        <item quantity="zero">%1$s يشتاق إليك</item>
+        <item quantity="one">%1$s يشتاق إليك</item>
+        <item quantity="two">%1$s يشتاق إليك، وآخران</item>
+        <item quantity="few">%1$s يشتاق إليك، و%2$d آخرون</item>
+        <item quantity="many">%1$s يشتاق إليك، و%2$d آخرون</item>
+        <item quantity="other">%1$s يشتاق إليك، و%2$d آخرون</item>
+    </plurals>
+    <string name="arham_occasion_birthday_today">عيد ميلاد %1$s اليوم! اتصل به</string>
+    <string name="arham_occasion_birthday_tomorrow">غداً عيد ميلاد %1$s</string>
+    <string name="arham_occasion_anniversary_today">ذكرى %1$s اليوم! تواصل معه</string>
+    <string name="arham_occasion_anniversary_tomorrow">غداً ذكرى %1$s</string>
+    <string name="arham_action_call_now">اتصل الآن</string>
+    <string name="arham_action_remind_tomorrow">ذكّرني غداً</string>
+
+    <!-- T8-10 (§K.6/§N): حلقة رنين الطوارئ — الإشعار الجاري وزر الإيقاف. -->
+    <string name="arham_emergency_channel_name">رنين الطوارئ</string>
+    <string name="arham_emergency_notification_title">جارٍ الاتصال بجهة الطوارئ</string>
+    <string name="arham_emergency_notification_body">جارٍ الاتصال بـ %1$s</string>
+    <string name="arham_emergency_notification_target_unknown">جهة الطوارئ</string>
+    <string name="arham_emergency_stop">إيقاف</string>
+
+    <!-- T8-10 (AC-15): ودجت أرحام — الجمعُ العربي الكامل مسؤولية T8-11 (T808-R4). -->
+    <string name="arham_widget_overdue_label">%1$d من أقاربك يحتاجون تواصلك</string>
+    <string name="arham_widget_empty">لا أقارب بحاجة لتواصل الآن</string>
+    <string name="arham_widget_call">اتصال</string>
+    <string name="arham_widget_days_since">قبل %1$d يوماً</string>
+    <string name="arham_widget_no_contact_recorded">لم يُسجَّل تواصل</string>
+    <string name="arham_widget_stats_line">%1$d مكالمة · أطولها %2$d ث</string>
+</resources>

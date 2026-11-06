@@ -27,7 +27,7 @@ interface ContactDao {
     /**
      * مرصد تفاصيل جهة واحدة تفاعلي (T6 — Issue #27): يبثّ الحالة الكاملة (الأطفال
      * والأرحام ضمنها) عند كل كتابة ناجحة. يُبنى فوق كاش الذاكرة — كل مسارات الكتابة
-     * (`upsertContact`/`applySyncBatch`/`upsertArhamInfo`/`recordContactCall`) تُحدّثه
+     * (`upsertContact`/`applySyncBatch`/`upsertArhamInfo`) تُحدّثه
      * بعد نجاح COMMIT حصراً، فلا انحراف بين العرض والقرص.
      * القبور تُبثّ `null` (حُذفت — الشاشة تُظهر الخروج/الرسالة المناسبة).
      */

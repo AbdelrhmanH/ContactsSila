@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import okio.Path.Companion.toPath
 
@@ -35,6 +37,10 @@ interface UserPreferencesDataSource {
     suspend fun setDefaultTab(tab: DefaultTab)
     suspend fun setArhamNotificationsEnabled(enabled: Boolean)
     suspend fun setQuietHours(startHour: Int, endHour: Int)
+    /** الوقت المفضل للتذكير اليومي بالتوقيت المحلي (§M — T8-08). */
+    suspend fun setArhamNotificationTime(hour: Int, minute: Int)
+    /** تنبيه اليوم السابق للمناسبة (§M «اختيارياً» — T8-08). */
+    suspend fun setArhamOccasionDayBeforeEnabled(enabled: Boolean)
     suspend fun setConfettiEnabled(enabled: Boolean)
     suspend fun setSearchRadiusKm(radiusKm: Int)
     suspend fun setAutoUpdatePhonebookServices(enabled: Boolean)
@@ -44,6 +50,23 @@ interface UserPreferencesDataSource {
     suspend fun setOnboardingResumeStep(step: String?)
     suspend fun setOnboardingContactsPermission(permission: String?)
     suspend fun setOnboardingTopFiveSelections(selections: List<TopFiveSelection>)
+
+    /**
+     * رفع علامة إنجاز تجسيد «أهم 5» لمرة واحدة (T8-04 · §F.10) — بلا مسار تصفير:
+     * العلامة لا تُعاد فتحها أبداً بعد أول نجاح (Issue #29 — one-shot)، وإعادة
+     * الاختيار أثناء التهيئة تكتب القائمة المعلّقة حصراً (§F.6).
+     *
+     * T8-15 (F-1): العقد raise-only بالنمط نفسه (`mark` بلا معامل) — لا يستطيع
+     * أي مستدعٍ تصفير العلامة في المترجم، فصار الحارس النحوي لا اصطلاحياً.
+     */
+    suspend fun markTopFiveMaterialized()
+
+    /**
+     * يُسجِّل احتفالاً بانتقال أرحام لجهة اتصال (T8-06): يخزّن مفتاح فترة الاحتفال
+     * فوق العلامات القائمة. الفحص والقرار في النطاق (`CelebrateTransitionUseCase`) —
+     * هذا العقد تخزينٌ حصراً (خطة §D.3-5).
+     */
+    suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long)
     /** استبعاد بطاقة اقتراح نهائياً (Issue #24 — لا تعود لنفس العناصر). */
     suspend fun dismissSuggestion(id: String)
     /** ضبط أفعال السحب (بداية/نهاية منطقيتان — Issue #24). */
@@ -72,6 +95,9 @@ class SilaPreferencesDataSource(
             arhamNotificationsEnabled = prefs[KEY_ARHAM_NOTIFICATIONS] ?: initialPreferences.arhamNotificationsEnabled,
             quietHoursStartHour = prefs[KEY_QUIET_START] ?: initialPreferences.quietHoursStartHour,
             quietHoursEndHour = prefs[KEY_QUIET_END] ?: initialPreferences.quietHoursEndHour,
+            arhamNotificationHour = prefs[KEY_ARHAM_NOTIFICATION_HOUR] ?: initialPreferences.arhamNotificationHour,
+            arhamNotificationMinute = prefs[KEY_ARHAM_NOTIFICATION_MINUTE] ?: initialPreferences.arhamNotificationMinute,
+            arhamOccasionDayBeforeEnabled = prefs[KEY_ARHAM_OCCASION_DAY_BEFORE] ?: initialPreferences.arhamOccasionDayBeforeEnabled,
             confettiEnabled = prefs[KEY_CONFETTI] ?: initialPreferences.confettiEnabled,
             searchRadiusKm = prefs[KEY_SEARCH_RADIUS] ?: initialPreferences.searchRadiusKm,
             autoUpdatePhonebookServices = prefs[KEY_AUTO_UPDATE_SERVICES] ?: initialPreferences.autoUpdatePhonebookServices,
@@ -87,6 +113,13 @@ class SilaPreferencesDataSource(
                         json.decodeFromString(ListSerializer(TopFiveSelection.serializer()), raw)
                     }.getOrNull()
                 } ?: initialPreferences.onboardingTopFiveSelections,
+            topFiveMaterialized = prefs[KEY_TOP_FIVE_MATERIALIZED] ?: initialPreferences.topFiveMaterialized,
+            celebratedArhamTransitions =
+                prefs[KEY_CELEBRATED_TRANSITIONS]?.let { raw ->
+                    runCatching {
+                        json.decodeFromString(MapSerializer(Long.serializer(), Long.serializer()), raw)
+                    }.getOrNull()
+                } ?: initialPreferences.celebratedArhamTransitions,
             dismissedSuggestionIds = prefs[KEY_DISMISSED_SUGGESTIONS] ?: initialPreferences.dismissedSuggestionIds,
             swipeStartAction = prefs[KEY_SWIPE_START]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
                 ?: initialPreferences.swipeStartAction,
@@ -128,6 +161,28 @@ class SilaPreferencesDataSource(
                 quietHoursEndHour = coercedEnd
             )
         }
+    }
+
+    /** الوقت المفضل للتذكير اليومي بالتوقيت المحلي (§M «الوقت المفضل» — T8-08). القيم تُضاقَط نطاقها. */
+    override suspend fun setArhamNotificationTime(hour: Int, minute: Int) {
+        val coercedHour = hour.coerceIn(0, 23)
+        val coercedMinute = minute.coerceIn(0, 59)
+        dataStore?.edit {
+            it[KEY_ARHAM_NOTIFICATION_HOUR] = coercedHour
+            it[KEY_ARHAM_NOTIFICATION_MINUTE] = coercedMinute
+        }
+        _memoryState.update {
+            it.copy(
+                arhamNotificationHour = coercedHour,
+                arhamNotificationMinute = coercedMinute
+            )
+        }
+    }
+
+    /** تنبيه اليوم السابق للمناسبة (§M «اختيارياً» — T8-08). */
+    override suspend fun setArhamOccasionDayBeforeEnabled(enabled: Boolean) {
+        dataStore?.edit { it[KEY_ARHAM_OCCASION_DAY_BEFORE] = enabled }
+        _memoryState.update { it.copy(arhamOccasionDayBeforeEnabled = enabled) }
     }
 
     override suspend fun setConfettiEnabled(enabled: Boolean) {
@@ -185,6 +240,24 @@ class SilaPreferencesDataSource(
         _memoryState.update { it.copy(onboardingTopFiveSelections = selections) }
     }
 
+    override suspend fun markTopFiveMaterialized() {
+        // مسار رفع حصراً بحكم العقد (one-shot — §F.10): التوقيع بلا معامل فلا تصفير ممكن.
+        dataStore?.edit { prefs -> prefs[KEY_TOP_FIVE_MATERIALIZED] = true }
+        _memoryState.update { it.copy(topFiveMaterialized = true) }
+    }
+
+    override suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long) {
+        val updated = _memoryState.value.celebratedArhamTransitions + (contactId to periodKey)
+        // نمط KEY_ONBOARDING_TOP_FIVE نفسه: JSON نصّي، وفشل الترميز يُسقط المفتاح بلا انهيار.
+        val encoded =
+            runCatching { json.encodeToString(MapSerializer(Long.serializer(), Long.serializer()), updated) }
+        dataStore?.edit { prefs ->
+            encoded.onSuccess { prefs[KEY_CELEBRATED_TRANSITIONS] = it }
+                .onFailure { prefs.remove(KEY_CELEBRATED_TRANSITIONS) }
+        }
+        _memoryState.update { it.copy(celebratedArhamTransitions = updated) }
+    }
+
     override suspend fun dismissSuggestion(id: String) {
         dataStore?.edit { prefs ->
             prefs[KEY_DISMISSED_SUGGESTIONS] = (prefs[KEY_DISMISSED_SUGGESTIONS] ?: emptySet()) + id
@@ -220,6 +293,9 @@ class SilaPreferencesDataSource(
         private val KEY_ARHAM_NOTIFICATIONS = booleanPreferencesKey("arham_notifications_enabled")
         private val KEY_QUIET_START = intPreferencesKey("quiet_hours_start")
         private val KEY_QUIET_END = intPreferencesKey("quiet_hours_end")
+        private val KEY_ARHAM_NOTIFICATION_HOUR = intPreferencesKey("arham_notification_hour")
+        private val KEY_ARHAM_NOTIFICATION_MINUTE = intPreferencesKey("arham_notification_minute")
+        private val KEY_ARHAM_OCCASION_DAY_BEFORE = booleanPreferencesKey("arham_occasion_day_before")
         private val KEY_CONFETTI = booleanPreferencesKey("confetti_enabled")
         private val KEY_SEARCH_RADIUS = intPreferencesKey("search_radius_km")
         private val KEY_AUTO_UPDATE_SERVICES = booleanPreferencesKey("auto_update_phonebook_services")
@@ -229,6 +305,8 @@ class SilaPreferencesDataSource(
         private val KEY_ONBOARDING_RESUME_STEP = stringPreferencesKey("onboarding_resume_step")
         private val KEY_ONBOARDING_CONTACTS_PERMISSION = stringPreferencesKey("onboarding_contacts_permission")
         private val KEY_ONBOARDING_TOP_FIVE = stringPreferencesKey("onboarding_top_five_selections")
+        private val KEY_TOP_FIVE_MATERIALIZED = booleanPreferencesKey("top_five_materialized")
+        private val KEY_CELEBRATED_TRANSITIONS = stringPreferencesKey("arham_celebrated_transitions")
         private val KEY_DISMISSED_SUGGESTIONS = stringSetPreferencesKey("dismissed_suggestion_ids")
         private val KEY_SWIPE_START = stringPreferencesKey("swipe_start_action")
         private val KEY_SWIPE_END = stringPreferencesKey("swipe_end_action")

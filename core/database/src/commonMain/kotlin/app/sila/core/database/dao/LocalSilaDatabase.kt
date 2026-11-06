@@ -32,7 +32,10 @@ import app.sila.core.database.entity.ContactPhoneEntity
 import app.sila.core.database.entity.ContactWebsiteEntity
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.database.entity.DisputeLogEntity
+import app.sila.core.database.entity.EmergencyRingingSessionEntity
 import app.sila.core.database.entity.toContactEntity
+import app.sila.core.database.entity.toCallEvent
+import app.sila.core.database.entity.toCallEventEntity
 import app.sila.core.database.entity.toDomain
 import app.sila.core.database.entity.toEntity
 import app.sila.core.database.entity.toWebsiteEntity
@@ -43,13 +46,19 @@ import app.sila.core.database.legacy.PlatformFileOps
 import app.sila.core.database.legacy.SilaDatabaseBackup
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamInfo
+import app.sila.core.model.CallAssociation
+import app.sila.core.model.CallConfirmation
+import app.sila.core.model.CallConfidence
 import app.sila.core.model.CallDirection
+import app.sila.core.model.CallEvent
+import app.sila.core.model.CallOutcome
 import app.sila.core.model.CallSource
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
 import app.sila.core.model.DisputeStatus
 import app.sila.core.model.KinshipLayer
+import app.sila.core.model.RingingStatus
 import app.sila.core.model.Phone
 import app.sila.core.model.RecentInteraction
 import app.sila.core.model.Relation
@@ -85,7 +94,7 @@ import kotlinx.coroutines.withContext
  *   COMMIT؛ والقراءات والكتابات أحادية العبارة عبر DAOs كيانات Room.
  * - **SSOT + الكاش:** الكتابات المركّبة تُحدِّث كاش الذاكرة الذي تعرضه الواجهات **بعد نجاح
  *   COMMIT** حصراً؛ أما التحديثات أحادية الهدف (`updateCategory`/`setFavorite`/
- *   `upsertArhamInfo`/`recordContactCall`) فتبقي الترتيب التاريخي للكتابة أولاً-كاش كما في
+ *   `upsertArhamInfo`) فتبقي الترتيب التاريخي للكتابة أولاً-كاش كما في
  *   الأساس `dd04f1f` حرفياً (بقي `dbMutex` لاتساق الكاش).
  * - **زرع العرض (F-01):** لا تُزرع أي بيانات تجريبية أبداً — البذر متاح للاختبارات عبر
  *   تصريح صريح بـ [seedDemoData]، ولا تُكتب إلا في جداول فارغة.
@@ -116,7 +125,7 @@ class LocalSilaDatabase internal constructor(
     private val seedDemoData: Boolean,
     private val adoptionStageHook: ((AdoptionVerificationStage) -> Unit)?,
     private val backupDeleteOverride: (() -> Boolean)?,
-) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao {
+) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao, TopFiveMaterializationDao, EmergencySessionDao {
 
     constructor(
         dbFilePath: String = ":memory:",
@@ -132,6 +141,33 @@ class LocalSilaDatabase internal constructor(
 
     private val dbMutex = Mutex()
 
+    // ===== خطاف «تغيّرت بيانات أرحام» (T8-10 · D3: تحديثات مُحرَّكة بالتغيير) =====
+
+    /** مستمعو تغيّر بيانات أرحام — يُستدعون بعد COMMIT نجاح كتابة مؤثرة (قراءة/كتابة آمنة). */
+    private val arhamDataChangeListeners = MutableStateFlow<List<ArhamDataChangeListener>>(emptyList())
+
+    /** تسجيل مستمع تغيّر (idempotent: التسجيل المكرر بلا أثر). */
+    fun addArhamDataChangeListener(listener: ArhamDataChangeListener) {
+        // حاملٌ ذرّي قائم على StateFlow (مراجعة T8-10 · P3-1، وإصلاح ترجمة iOS — T8-12):
+        // قفلُ JVM `synchronized` غير موجود في commonMain — الاستبدال تحديثُ CAS ذرّياً
+        // على قائمة ثابتة: تسجيل/إلغاء من خيوط مختلفة بأمان وبلا مسدسين.
+        arhamDataChangeListeners.update { current -> if (listener in current) current else current + listener }
+    }
+
+    /** إلغاء تسجيل مستمع تغيّر. */
+    fun removeArhamDataChangeListener(listener: ArhamDataChangeListener) {
+        arhamDataChangeListeners.update { current -> current - listener }
+    }
+
+    /** إطلاق المستمعين بعد COMMIT — فشل مستمعٍ لا يُفسد الكتابة ولا يسقط بقية المستمعين. */
+    private fun notifyArhamDataChanged() {
+        // لقطةٌ ذرّية لقائمةٍ ثابتة ثم الإطلاق خارجها (P3-1): تسجيل/إلغاء أثناء الإشعار
+        // لا يرمي ConcurrentModificationException ولا يحتجز الكاتب.
+        arhamDataChangeListeners.value.forEach { listener ->
+            runCatching { listener.onArhamDataChanged() }
+        }
+    }
+
     /**
      * خطاف حقن فشل داخل معاملة [applySyncBatch] لاختبار التراجع الذرّي — يُستدعى بعد
      * كتابة الدفعة وقبل `COMMIT`؛ الاستثناء الرمي يُرجِع المعاملة كاملة.
@@ -140,6 +176,21 @@ class LocalSilaDatabase internal constructor(
 
     /** خطاف حقن فشل داخل معاملة [cleanupExpiredData] — بنفس مبدأ [syncBatchFaultHook]. */
     internal var cleanupFaultHook: (() -> Throwable)? = null
+
+    /**
+     * خطاف حقن فشل حتمي داخل معاملة [upsertCallEvent] (T8-03) — يُرمى **بين العمليتين**
+     * (بعد كتابة صف الحدث وقبل تحديث آخر التواصل المؤهَّل) ليُثبت الاختبار أن انقطاع
+     * منتصف العملية المركّبة يُرجِع المعاملة كلها (قيود F-2 من مراجعة T8-01)؛ بنفس
+     * مبدأ [cleanupFaultHook].
+     */
+    internal var callEventWriteFaultHook: (() -> Throwable)? = null
+
+    /**
+     * خطاف حقن فشل حتمي داخل معاملة [applyTopFiveMaterialization] (T8-04) — يُرمى بعد
+     * كتابة الدفعة وقبل `COMMIT` (سبق [syncBatchFaultHook]) ليُثبت الاختبار أن انقطاع
+     * منتصف الدفعة يُرجِعها كلها ولا يُرفع الخاد (§F.8/§F.11-د).
+     */
+    internal var materializationFaultHook: (() -> Throwable)? = null
 
     /** نسخة واقية بانتظار الحذف بعد اعتماد موثق (أول عملية Room ناجحة) — `null` = لا شيء. */
     private var pendingBackupDeletion: String? = null
@@ -161,6 +212,7 @@ class LocalSilaDatabase internal constructor(
     private val arhamEntityDao = room.arhamEntityDao()
     private val serviceEntityDao = room.serviceEntityDao()
     private val callEventEntityDao = room.callEventEntityDao()
+private val emergencySessionEntityDao = room.emergencySessionEntityDao()
     private val arhamInboxEntityDao = room.arhamInboxEntityDao()
     private val disputeLogEntityDao = room.disputeLogEntityDao()
     private val contactsSyncCheckpointEntityDao = room.contactsSyncCheckpointEntityDao()
@@ -578,14 +630,30 @@ class LocalSilaDatabase internal constructor(
         timestampMillis: Long,
     ): Unit = withContext(dispatchers.io) {
         dbMutex.withLock {
+            // T8-02: الكاتب الإرثي (T6) يُصدر صف v3 بنفس محتوى معلوماته v2 حرفاً،
+            // معبَّراً بقواعد §H.2 نفسها (مصدر مفرد للدليل، الجديد كله NULL، الدURATION
+            // الصفر كما هي) — بلا اختراع دليل جديد (ATTEMPTED/startedAt قادمان مع
+            // مسار آلة الحالات في T8-03/T8-06 الذي يستبدل هذا المسار).
             callEventEntityDao.upsert(
                 CallEventEntity(
                     callLogId = callLogId,
                     e164 = e164,
-                    direction = CallDirection.OUT,
-                    durationSec = 0,
                     timestamp = timestampMillis,
-                    source = CallSource.IN_APP,
+                    primarySource = CallSource.IN_APP,
+                    evidenceSources = setOf(CallSource.IN_APP),
+                    remoteNumber = null,
+                    contactId = null,
+                    direction = CallDirection.OUT,
+                    startedAt = null,
+                    connectedAt = null,
+                    endedAt = null,
+                    durationSec = 0,
+                    outcome = CallOutcome.UNKNOWN,
+                    association = CallAssociation.UNASSOCIATED,
+                    confirmation = CallConfirmation.NOT_REQUIRED,
+                    confidence = CallConfidence.LOW,
+                    dedupeKey = null,
+                    simSlot = null,
                 )
             )
         }
@@ -594,15 +662,20 @@ class LocalSilaDatabase internal constructor(
     override suspend fun getRecentCallEvents(e164s: List<String>, limit: Int): List<RecentInteraction> =
         withContext(dispatchers.io) {
             if (e164s.isEmpty() || limit <= 0) return@withContext emptyList()
-            callEventEntityDao.getRecentForE164s(e164s, limit).map { event ->
-                RecentInteraction(
-                    callLogId = event.callLogId,
-                    e164 = event.e164,
-                    timestampMillis = event.timestamp,
-                    direction = event.direction,
-                    durationSec = event.durationSec,
-                    source = event.source,
-                )
+            // T8-02: صفوف اتجاهها NULL (إرث MISSED المهاجر) لا يمكن عرضها في عقد T6
+            // (اتجاه غير فارغ) — تُتخطى بلا اختلاق قيمة اتجاه (ADR-0006: لا يُستنتج).
+            // مسار أرحام الجديد (T8-03) يقرأ CallEvent الكاملة مباشرة.
+            callEventEntityDao.getRecentForE164s(e164s, limit).mapNotNull { event ->
+                event.direction?.let { direction ->
+                    RecentInteraction(
+                        callLogId = event.callLogId,
+                        e164 = event.e164,
+                        timestampMillis = event.timestamp,
+                        direction = direction,
+                        durationSec = event.durationSec ?: 0,
+                        source = event.primarySource,
+                    )
+                }
             }
         }
 
@@ -633,23 +706,211 @@ class LocalSilaDatabase internal constructor(
                 }
             }
             updatedContact?.let { inWriteTransaction { conn -> writeContactToSqlite(conn, it) } }
+            notifyArhamDataChanged() // T8-10 · D3: آخر تواصل/علاقة أرحام تغيّرت — بعد COMMIT حصراً
         }
     }
 
-    override suspend fun recordContactCall(contactId: Long, timestampMillis: Long): Unit = withContext(dispatchers.io) {
-        dbMutex.withLock {
-            var updatedContact: Contact? = null
-            contactsState.update { current ->
-                current.map { contact ->
-                    if (contact.id == contactId && contact.arham != null) {
-                        contact.copy(arham = contact.arham?.copy(lastContactedAt = timestampMillis))
-                            .also { u -> updatedContact = u }
-                    } else {
-                        contact
+    // ===== ArhamDao — استمرارية إدخال أحداث المكالمات (T8-03 · ADR-0006 · Issue #29) =====
+    // القراءات عبر DAOs كيانات Room المولَّدة؛ والكتابة المركّبة (حدث + آخر تواصل مؤهَّل)
+    // SQL خام داخل معاملة IMMEDIATE واحدة حصراً — قيد F-2 من مراجعة T8-01: لا انفصام
+    // بين الحدث وتحديث `lastContactedAt` المؤهَّل (فشل أي جزء يُرجِع العملية كلها).
+
+    override suspend fun getCallEventById(eventId: String): CallEvent? = withContext(dispatchers.io) {
+        callEventEntityDao.getById(eventId)?.toCallEvent()
+    }
+
+    override suspend fun findCallEventsBetween(fromMillis: Long, toMillis: Long): List<CallEvent> =
+        withContext(dispatchers.io) {
+            callEventEntityDao.findBetween(fromMillis, toMillis).map { it.toCallEvent() }
+        }
+
+    /** أحداث `PENDING` حصراً (T8-06 · AC-7) — استعلام Room مباشر، قراءة بلا كتابة. */
+    override fun observePendingCallEvents(): Flow<List<CallEvent>> =
+        callEventEntityDao.observePending().map { entities -> entities.map { it.toCallEvent() } }
+            .flowOn(dispatchers.io)
+
+    /** أحداث النافذة `[fromMillis, toMillis]` (T8-07 · AC-2) — استعلام Room مباشر، قراءة حصراً. */
+    override fun observeCallEventsBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEvent>> =
+        callEventEntityDao.observeBetween(fromMillis = fromMillis, toMillis = toMillis)
+            .map { entities -> entities.map { it.toCallEvent() } }
+            .flowOn(dispatchers.io)
+
+    override suspend fun upsertCallEvent(event: CallEvent, lastContactedUpdate: LastContactedUpdate?): Unit =
+        withContext(dispatchers.io) {
+            // مدقِّقا الخريطة (بلا رقم / اتجاه MISSED) يُخفقان مغلقَي الصمام قبل أي معاملة —
+            // لا صف جزئي ولا قيمة مُختلقة (§G.3 UNRESOLVED مؤجل لـ T8-06 · §H.4 · F-3).
+            val entity = event.toCallEventEntity()
+            dbMutex.withLock {
+                inWriteTransaction { conn ->
+                    writeCallEventToSqlite(conn, entity)
+                    // خطاف الفشل بين العمليتين حصراً: انقطاع هنا يُثبت أن الحدث وحده لا يبقى.
+                    callEventWriteFaultHook?.let { hook -> throw hook() }
+                    if (lastContactedUpdate != null) {
+                        writeLastContactedMaxToSqlite(conn, lastContactedUpdate)
                     }
                 }
+                // تحديث كاش الذاكرة بعد نجاح COMMIT حصراً (عقد الكتابات المركّبة — SSOT).
+                if (lastContactedUpdate != null) {
+                    refreshLastContactedInCache(lastContactedUpdate)
+                }
+                notifyArhamDataChanged() // T8-10 · D3: حدث مكالمة/آخر تواصل تغيّرا — بعد COMMIT
             }
-            updatedContact?.let { arhamEntityDao.recordContactCall(contactId, timestampMillis) }
+        }
+
+    override suspend fun updateLastContacted(contactId: Long, timestampMillis: Long): Unit =
+        withContext(dispatchers.io) {
+            dbMutex.withLock {
+                // كتابة أحادية العبارة عبر DAO كيان Room — max(...) لا تنقص قيمة أحدث قائماً
+                // (idempotent: استدعاء النطاق التالي للمسار المؤهَّل بلا أثر دلالي).
+                arhamEntityDao.updateLastContactedMax(contactId, timestampMillis)
+                refreshLastContactedInCache(LastContactedUpdate(contactId = contactId, timestampMillis = timestampMillis))
+                notifyArhamDataChanged() // T8-10 · D3 — بعد نجاح الكتابة
+            }
+        }
+
+    /** تحديث آخر تواصل في كاش الذاكرة بحدّه الأقصى — الصف الغائب من الأرحام لا يُنشأ. */
+    private fun refreshLastContactedInCache(update: LastContactedUpdate) {
+        contactsState.update { current ->
+            current.map { contact ->
+                if (contact.id == update.contactId && contact.arham != null) {
+                    val currentTs = contact.arham?.lastContactedAt
+                    val nextTs = if (currentTs == null || currentTs < update.timestampMillis) {
+                        update.timestampMillis
+                    } else {
+                        currentTs
+                    }
+                    contact.copy(arham = contact.arham?.copy(lastContactedAt = nextTs))
+                } else {
+                    contact
+                }
+            }
+        }
+    }
+
+    // ===== TopFiveMaterializationDao — تجسيد «أهم 5» ذرّي (T8-04 · §F · Issue #29) =====
+    // القراءات من كاش الذاكرة الكامل (المرآة الحيّة المتطابقة مع Room بعد كل COMMIT —
+    // القبور تُزال من الكاش عند التعليم)، والكتابة SQL خام مُوجَّه داخل معاملة IMMEDIATE
+    // واحدة حصراً (§F.8/§F.9): `category = FAMILY` مُوجَّهاً بلا أعمدة أخرى، وصف `arham`
+    // يُملأ فقط بغيابه على حقيقة القاعدة (حارس NOT EXISTS = قرار F.5 حتى بعد أي تسابق)،
+    // بلا `updatedAt` ولا FTS (سبق updateCategories)، وبلا صفوف وهمية (§F.7).
+
+    override suspend fun hasLiveContacts(): Boolean = withContext(dispatchers.io) {
+        contactsState.value.isNotEmpty()
+    }
+
+    override suspend fun findContactsBySystemContactIds(systemContactIds: Set<String>): List<Contact> =
+        withContext(dispatchers.io) {
+            if (systemContactIds.isEmpty()) return@withContext emptyList()
+            contactsState.value
+                .filter { contact -> contact.systemContactId in systemContactIds }
+                .sortedBy { it.id }
+        }
+
+    override suspend fun applyTopFiveMaterialization(
+        updates: List<TopFiveMaterializationUpdate>,
+    ): TopFiveMaterializationWriteResult = withContext(dispatchers.io) {
+        // هوية واحدة قد تتكرر في الدفعة (اختيار مكرر) — أول هدف يكسب (idempotent — §F.6).
+        val targets = updates
+            .distinctBy { it.contactId }
+            .sortedBy { it.contactId }
+        if (targets.isEmpty()) {
+            return@withContext TopFiveMaterializationWriteResult(materialized = 0, preservedUserOwned = 0, skippedMissing = 0)
+        }
+        dbMutex.withLock {
+            var materialized = 0
+            var preservedUserOwned = 0
+            var skippedMissing = 0
+            inWriteTransaction { conn ->
+                targets.forEach { target ->
+                    // حقيقة ما بعد التسابق: الجهة الحيّة وقت الكتابة (لا الكاش ولا اللقطة) —
+                    // كتابة متزامنة (مزامنة/مستخدم) تحت نفس القفل لا تُداس (§F.8).
+                    val liveCreatedAt = getLiveContactCreatedAt(conn, target.contactId)
+                    if (liveCreatedAt == null) {
+                        skippedMissing++
+                        return@forEach
+                    }
+                    // التصنيف: تحديث مُوجَّه بقيمة صِلَة حصراً — سبق updateCategories
+                    // (بلا updatedAt ولا FTS — §F.9).
+                    conn.usePrepared("UPDATE contacts SET category = 'FAMILY' WHERE id = ?") { stmt ->
+                        stmt.bindLong(1, target.contactId)
+                        stmt.step()
+                    }
+                    val arhamRowExists = arhamRowExistsInSqlite(conn, target.contactId)
+                    if (arhamRowExists) {
+                        preservedUserOwned++
+                    } else {
+                        // الحارس على حقيقة القاعدة وقت الكتابة: صف `arham` غائب فقط يُملأ
+                        // من الاختيار (§F.5 — معلومة المستخدم القائمة تكسب بعد أي تسابق).
+                        upsertArhamRowToSqlite(conn, target.contactId, target.arham, liveCreatedAt)
+                        materialized++
+                    }
+                }
+                // خطاف الفشل بعد كتابة الدفعة وقبل COMMIT — التراجع يثبت الذرّية (§F.11-د).
+                materializationFaultHook?.let { hook -> throw hook() }
+            }
+            // تحديث كاش الذاكرة بعد نجاح COMMIT حصراً — بنفس دلالة الغياب المكتوبة
+            // على القرص (المسار المعني فقط؛ SSOT بلا انحراف).
+            contactsState.update { current ->
+                current.map { contact ->
+                    val target = targets.firstOrNull { it.contactId == contact.id } ?: return@map contact
+                    contact.copy(category = Category.FAMILY, arham = contact.arham ?: target.arham)
+                }
+            }
+            TopFiveMaterializationWriteResult(
+                materialized = materialized,
+                preservedUserOwned = preservedUserOwned,
+                skippedMissing = skippedMissing,
+            )
+        }
+    }
+
+    /** `createdAt` للجهة الحيّة من القاعدة وقت الكتابة (حقيقة مُتسابَقة — لا كاش)، أو `null` إن غابت/قُبرت. */
+    private suspend fun getLiveContactCreatedAt(conn: Transactor, contactId: Long): Long? {
+        var createdAt: Long? = null
+        conn.usePrepared(
+            "SELECT createdAt FROM contacts WHERE id = ? AND systemDeletedAt IS NULL LIMIT 1"
+        ) { stmt ->
+            stmt.bindLong(1, contactId)
+            if (stmt.step()) createdAt = stmt.getLong(0)
+        }
+        return createdAt
+    }
+
+    /** هل يوجد صف أرحام للجهة على حقيقة القاعدة؟ (قراءة داخل المعاملة — نمط countRowsWhere). */
+    private suspend fun arhamRowExistsInSqlite(conn: Transactor, contactId: Long): Boolean {
+        var exists = false
+        conn.usePrepared("SELECT 1 FROM arham WHERE contactId = ?") { stmt ->
+            stmt.bindLong(1, contactId)
+            exists = stmt.step()
+        }
+        return exists
+    }
+
+    /**
+     * كتابة صف أرحام جديد لجهة قائمة (T8-04) — أعمدة العهد نفسها كما في
+     * [writeContactRelationsToSqlite] حرفاً، مع حارس `WHERE NOT EXISTS` على حقيقة
+     * القاعدة (الصف القائم لا يُستبدل أبداً — §F.5)، حصراً داخل معاملة Room قائمة.
+     */
+    private suspend fun upsertArhamRowToSqlite(conn: Transactor, contactId: Long, arham: ArhamInfo, contactCreatedAt: Long) {
+        val ae = arham.toEntity(contactId, contactCreatedAt)
+        conn.usePrepared(
+            """
+            INSERT INTO arham (
+                contactId, relation, layer, parentContactId, frequency, lastContactedAt, pausedUntil, createdAt
+            ) SELECT ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE NOT EXISTS (SELECT 1 FROM arham WHERE contactId = ?)
+            """.trimIndent()
+        ) { stmt ->
+            stmt.bindLong(1, ae.contactId)
+            stmt.bindText(2, ae.relation.name)
+            stmt.bindText(3, ae.layer.name)
+            ae.parentContactId?.let { stmt.bindLong(4, it) } ?: stmt.bindNull(4)
+            stmt.bindText(5, ae.frequency.name)
+            ae.lastContactedAt?.let { stmt.bindLong(6, it) } ?: stmt.bindNull(6)
+            ae.pausedUntil?.let { stmt.bindLong(7, it) } ?: stmt.bindNull(7)
+            stmt.bindLong(8, ae.createdAt)
+            stmt.bindLong(9, contactId)
+            stmt.step()
         }
     }
 
@@ -692,14 +953,33 @@ class LocalSilaDatabase internal constructor(
             conn.usePrepared("DELETE FROM call_events") { it.step() }
             events.forEach { e ->
                 conn.usePrepared(
-                    "INSERT INTO call_events (callLogId, e164, direction, durationSec, timestamp, source) VALUES (?, ?, ?, ?, ?, ?)"
+                    """
+                    INSERT INTO call_events (
+                        callLogId, e164, timestamp, primarySource, evidenceSources,
+                        remoteNumber, contactId, direction, startedAt, connectedAt,
+                        endedAt, durationSec, outcome, association, confirmation,
+                        confidence, dedupeKey, simSlot
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """.trimIndent()
                 ) { stmt ->
                     stmt.bindText(1, e.callLogId)
                     stmt.bindText(2, e.e164)
-                    stmt.bindText(3, e.direction.name)
-                    stmt.bindLong(4, e.durationSec.toLong())
-                    stmt.bindLong(5, e.timestamp)
-                    stmt.bindText(6, e.source.name)
+                    stmt.bindLong(3, e.timestamp)
+                    stmt.bindText(4, e.primarySource.name)
+                    stmt.bindText(5, e.evidenceSources.map { it.name }.sorted().joinToString(separator = ","))
+                    e.remoteNumber?.let { stmt.bindText(6, it) } ?: stmt.bindNull(6)
+                    e.contactId?.let { stmt.bindLong(7, it) } ?: stmt.bindNull(7)
+                    e.direction?.let { stmt.bindText(8, it.name) } ?: stmt.bindNull(8)
+                    e.startedAt?.let { stmt.bindLong(9, it) } ?: stmt.bindNull(9)
+                    e.connectedAt?.let { stmt.bindLong(10, it) } ?: stmt.bindNull(10)
+                    e.endedAt?.let { stmt.bindLong(11, it) } ?: stmt.bindNull(11)
+                    e.durationSec?.let { stmt.bindLong(12, it.toLong()) } ?: stmt.bindNull(12)
+                    stmt.bindText(13, e.outcome.name)
+                    stmt.bindText(14, e.association.name)
+                    stmt.bindText(15, e.confirmation.name)
+                    stmt.bindText(16, e.confidence.name)
+                    e.dedupeKey?.let { stmt.bindText(17, it) } ?: stmt.bindNull(17)
+                    e.simSlot?.let { stmt.bindLong(18, it.toLong()) } ?: stmt.bindNull(18)
                     stmt.step()
                 }
             }
@@ -746,6 +1026,183 @@ class LocalSilaDatabase internal constructor(
             }
         }
     }
+
+    /** بذر جلسات طوارئ للاختبارات (D4 — T8-02): يستبدل محتوى `emergency_ringing_sessions` بالصفوف المُعطاة كاملة. */
+    suspend fun seedEmergencySessionsForTest(sessions: List<EmergencyRingingSessionEntity>) {
+        inWriteTransaction { conn ->
+            conn.usePrepared("DELETE FROM emergency_ringing_sessions") { it.step() }
+            sessions.forEach { s ->
+                conn.usePrepared(
+                    "INSERT INTO emergency_ringing_sessions (id, contactId, startedAt, lastAttemptAt, attempts, status) VALUES (?, ?, ?, ?, ?, ?)"
+                ) { stmt ->
+                    stmt.bindLong(1, s.id)
+                    stmt.bindLong(2, s.contactId)
+                    stmt.bindLong(3, s.startedAt)
+                    stmt.bindLong(4, s.lastAttemptAt)
+                    stmt.bindLong(5, s.attempts.toLong())
+                    stmt.bindText(6, s.status.name)
+                    stmt.step()
+                }
+            }
+        }
+    }
+
+    /** قراءة اختبار مباشرة لصفوف جلسات الطوارئ — عبر SQL خام على قارئ Room (ترتيب id تصاعدياً). */
+    internal suspend fun readEmergencySessionsForTest(): List<EmergencyRingingSessionEntity> =
+        room.useReaderConnection { conn ->
+            conn.usePrepared(
+                "SELECT id, contactId, startedAt, lastAttemptAt, attempts, status FROM emergency_ringing_sessions ORDER BY id ASC"
+            ) { stmt ->
+                buildList {
+                    while (stmt.step()) {
+                        add(
+                            EmergencyRingingSessionEntity(
+                                id = stmt.getLong(0),
+                                contactId = stmt.getLong(1),
+                                startedAt = stmt.getLong(2),
+                                lastAttemptAt = stmt.getLong(3),
+                                attempts = stmt.getLong(4).toInt(),
+                                status = RingingStatus.valueOf(stmt.getText(5))
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+    // ===== EmergencySessionDao — جلسات رنين الطوارئ (T8-10 · D4 · §N · Issue #29) =====
+    // فوق الجدول الأدنى v3 حرفياً (بلا تعديل مخطط)؛ كل الحسم مقيَّد بـ IN_PROGRESS
+    // (idempotent حسب §N.8) والمحاولات ذرّية داخل معاملات IMMEDIATE.
+
+    override suspend fun countSessionsStartedSince(cutoffMillis: Long): Int = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            room.useReaderConnection { conn ->
+                conn.usePrepared(
+                    "SELECT COUNT(*) FROM emergency_ringing_sessions WHERE startedAt > ?"
+                ) { stmt ->
+                    stmt.bindLong(1, cutoffMillis)
+                    if (stmt.step()) stmt.getLong(0).toInt() else 0
+                }
+            }
+        }
+    }
+
+    override suspend fun findInProgressSession(): EmergencyRingingSessionEntity? = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            room.useReaderConnection { conn ->
+                conn.usePrepared(
+                    "SELECT id, contactId, startedAt, lastAttemptAt, attempts, status FROM emergency_ringing_sessions " +
+                        "WHERE status = 'IN_PROGRESS' ORDER BY id DESC LIMIT 1"
+                ) { stmt ->
+                    if (stmt.step()) {
+                        EmergencyRingingSessionEntity(
+                            id = stmt.getLong(0),
+                            contactId = stmt.getLong(1),
+                            startedAt = stmt.getLong(2),
+                            lastAttemptAt = stmt.getLong(3),
+                            attempts = stmt.getLong(4).toInt(),
+                            status = RingingStatus.valueOf(stmt.getText(5)),
+                        )
+                    } else {
+                        null
+                    }
+                }
+            }
+        }
+    }
+
+    override fun observeInProgressSession(): Flow<EmergencyRingingSessionEntity?> =
+        emergencySessionEntityDao.observeInProgress().flowOn(dispatchers.io)
+
+    override suspend fun insertInProgressSession(contactId: Long, startedAtMillis: Long): Long =
+        withContext(dispatchers.io) {
+            dbMutex.withLock {
+                inWriteTransaction { conn ->
+                    // get-or-create ذرّي (مراجعة T8-10 · P1-2): فحص الجارية القائمة داخل معاملة
+                    // الكاتب نفسها — سباق «انطلقين متوازيين» يلتحق بالصف القائم بدل إنشاء صفين
+                    // IN_PROGRESS يُفسدان محاسبة 3/24 ساعة (§N.8: جارية واحدة حصراً).
+                    var existingId: Long? = null
+                    conn.usePrepared(
+                        "SELECT id FROM emergency_ringing_sessions WHERE status = 'IN_PROGRESS' " +
+                            "ORDER BY id DESC LIMIT 1"
+                    ) { stmt ->
+                        if (stmt.step()) existingId = stmt.getLong(0)
+                    }
+                    existingId?.let { return@inWriteTransaction it }
+
+                    conn.usePrepared(
+                        "INSERT INTO emergency_ringing_sessions (contactId, startedAt, lastAttemptAt, attempts, status) " +
+                            "VALUES (?, ?, ?, 0, 'IN_PROGRESS')"
+                    ) { stmt ->
+                        stmt.bindLong(1, contactId)
+                        stmt.bindLong(2, startedAtMillis)
+                        stmt.bindLong(3, startedAtMillis)
+                        stmt.step()
+                    }
+                    // المعرف التوليدي داخل المعاملة نفسها (اتصال الكاتب الوحيد — last_insert_rowid صحيح هنا حصراً).
+                    conn.usePrepared("SELECT last_insert_rowid()") { stmt ->
+                        if (stmt.step()) stmt.getLong(0) else 0L
+                    }
+                }
+            }
+        }
+
+    override suspend fun recordAttempt(sessionId: Long, atMillis: Long): Int? = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            inWriteTransaction { conn ->
+                // القراءة والحسم داخل معاملة IMMEDIATE واحدة — بلا سباق مع الحسم المتوازي (§N.8).
+                var status = ""
+                conn.usePrepared(
+                    "SELECT status FROM emergency_ringing_sessions WHERE id = ?"
+                ) { stmt ->
+                    stmt.bindLong(1, sessionId)
+                    if (stmt.step()) status = stmt.getText(0)
+                }
+                if (status != "IN_PROGRESS") return@inWriteTransaction null
+
+                conn.usePrepared(
+                    "UPDATE emergency_ringing_sessions SET attempts = attempts + 1, lastAttemptAt = ? WHERE id = ?"
+                ) { stmt ->
+                    stmt.bindLong(1, atMillis)
+                    stmt.bindLong(2, sessionId)
+                    stmt.step()
+                }
+                conn.usePrepared(
+                    "SELECT attempts FROM emergency_ringing_sessions WHERE id = ?"
+                ) { stmt ->
+                    stmt.bindLong(1, sessionId)
+                    if (stmt.step()) stmt.getLong(0).toInt() else null
+                }
+            }
+        }
+    }
+
+    override suspend fun finishSession(sessionId: Long, status: RingingStatus, atMillis: Long): Boolean =
+        withContext(dispatchers.io) {
+            dbMutex.withLock {
+                inWriteTransaction { conn ->
+                    // حسم idempotent (§N.8): الجلسة المحسومة سلفاً بحالةٍ أخرى عمليةٌ ساكنة.
+                    var current = ""
+                    conn.usePrepared(
+                        "SELECT status FROM emergency_ringing_sessions WHERE id = ?"
+                    ) { stmt ->
+                        stmt.bindLong(1, sessionId)
+                        if (stmt.step()) current = stmt.getText(0)
+                    }
+                    if (current != "IN_PROGRESS") return@inWriteTransaction false
+
+                    conn.usePrepared(
+                        "UPDATE emergency_ringing_sessions SET status = ?, lastAttemptAt = ? WHERE id = ?"
+                    ) { stmt ->
+                        stmt.bindText(1, status.name)
+                        stmt.bindLong(2, atMillis)
+                        stmt.bindLong(3, sessionId)
+                        stmt.step()
+                    }
+                    true
+                }
+            }
+        }
 
     /** فحص اختبار مباشر لفهرس FTS (docid = contacts.id) — عبر SQL خام على قارئ Room. */
     internal suspend fun queryFtsContactIds(matchQuery: String): List<Long> =
@@ -922,10 +1379,15 @@ class LocalSilaDatabase internal constructor(
             val inboxCutoff = nowMillis - (30L * dayMillis)
             val disputeCutoff = nowMillis - (90L * dayMillis)
             val tombstoneCutoff = nowMillis - (30L * dayMillis)
+            // جلسات الطوارئ المنتهية (v3 — قرار D4): نافذة 24 ساعة + هامش = 48 ساعة
+            // من آخر محاولة (§H من تقرير بوابة T8-02) — الجلسة الجارية (IN_PROGRESS)
+            // لا تُمس — قرارها بيد منطق الاستئناف/الإجهاض حصراً.
+            val emergencySessionCutoff = nowMillis - (2L * dayMillis)
 
             var deletedCalls = 0
             var deletedInbox = 0
             var archivedDisputes = 0
+            var deletedEmergencySessions = 0
             val expiredTombstoneIds = mutableListOf<Long>()
 
             // F-02: كل عمليات التنظيف داخل معاملة واحدة — إما أن تُنجز كلها أو لا شيء
@@ -935,6 +1397,21 @@ class LocalSilaDatabase internal constructor(
                 deletedCalls = countRowsWhere(conn, "SELECT COUNT(*) FROM call_events WHERE timestamp < ?", callCutoff)
                 conn.usePrepared("DELETE FROM call_events WHERE timestamp < ?") { stmt ->
                     stmt.bindLong(1, callCutoff)
+                    stmt.step()
+                }
+
+                deletedEmergencySessions = conn.usePrepared(
+                    "SELECT COUNT(*) FROM emergency_ringing_sessions WHERE lastAttemptAt < ? AND status <> ?"
+                ) { stmt ->
+                    stmt.bindLong(1, emergencySessionCutoff)
+                    stmt.bindText(2, RingingStatus.IN_PROGRESS.name)
+                    if (stmt.step()) stmt.getLong(0).toInt() else 0
+                }
+                conn.usePrepared(
+                    "DELETE FROM emergency_ringing_sessions WHERE lastAttemptAt < ? AND status <> ?"
+                ) { stmt ->
+                    stmt.bindLong(1, emergencySessionCutoff)
+                    stmt.bindText(2, RingingStatus.IN_PROGRESS.name)
                     stmt.step()
                 }
 
@@ -982,7 +1459,8 @@ class LocalSilaDatabase internal constructor(
                 deletedCallEvents = deletedCalls,
                 deletedInboxMessages = deletedInbox,
                 archivedDisputes = archivedDisputes,
-                deletedTombstonedContacts = expiredTombstoneIds.size
+                deletedTombstonedContacts = expiredTombstoneIds.size,
+                deletedEmergencySessions = deletedEmergencySessions
             )
         }
     }
@@ -1213,6 +1691,61 @@ class LocalSilaDatabase internal constructor(
         }
 
         syncContactFts(conn, contactId, contact)
+    }
+
+    /**
+     * كتابة صف حدث مكالمة v3 (18 عموداً — نفس ترتيب أعمدة [CallEventsV3Ddl] حرفاً) —
+     * داخل معاملات Room حصراً (T8-03). التحويلات النصية للأعداد بصيغة `name` ومصادر
+     * الدليل مفصولة بفواصل مرتَّبة — نفس قواعد محولات `SilaTypeConverters` التي يطبقها
+     * مسار DAOs المولَّدة (عهد التطابق بين المسارين).
+     */
+    private suspend fun writeCallEventToSqlite(conn: Transactor, entity: CallEventEntity) {
+        conn.usePrepared(
+            """
+            INSERT OR REPLACE INTO call_events (
+                callLogId, e164, timestamp, primarySource, evidenceSources, remoteNumber,
+                contactId, direction, startedAt, connectedAt, endedAt, durationSec,
+                outcome, association, confirmation, confidence, dedupeKey, simSlot
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent()
+        ) { stmt ->
+            stmt.bindText(1, entity.callLogId)
+            stmt.bindText(2, entity.e164)
+            stmt.bindLong(3, entity.timestamp)
+            stmt.bindText(4, entity.primarySource.name)
+            stmt.bindText(5, entity.evidenceSources.map { it.name }.sorted().joinToString(separator = ","))
+            entity.remoteNumber?.let { stmt.bindText(6, it) } ?: stmt.bindNull(6)
+            entity.contactId?.let { stmt.bindLong(7, it) } ?: stmt.bindNull(7)
+            entity.direction?.let { stmt.bindText(8, it.name) } ?: stmt.bindNull(8)
+            entity.startedAt?.let { stmt.bindLong(9, it) } ?: stmt.bindNull(9)
+            entity.connectedAt?.let { stmt.bindLong(10, it) } ?: stmt.bindNull(10)
+            entity.endedAt?.let { stmt.bindLong(11, it) } ?: stmt.bindNull(11)
+            entity.durationSec?.let { stmt.bindLong(12, it.toLong()) } ?: stmt.bindNull(12)
+            stmt.bindText(13, entity.outcome.name)
+            stmt.bindText(14, entity.association.name)
+            stmt.bindText(15, entity.confirmation.name)
+            stmt.bindText(16, entity.confidence.name)
+            entity.dedupeKey?.let { stmt.bindText(17, it) } ?: stmt.bindNull(17)
+            entity.simSlot?.let { stmt.bindLong(18, it.toLong()) } ?: stmt.bindNull(18)
+            stmt.step()
+        }
+    }
+
+    /**
+     * تحديث آخر تواصل بحدّه الأقصى داخل المعاملة المركّبة — العبارة نفسها حرفياً في
+     * [ArhamEntityDao.updateLastContactedMax] (نمط T8-02: بيان COUNT/DELETE في
+     * `cleanupExpiredData` و DAO كيان `call_events`)؛ `COALESCE` يعامل «لم يُتواصل
+     * أبداً» (فارغة) كـ −∞ لأن `MAX` السكالارية في SQLite تُرجع فارغاً مع أي وسيط فارغ.
+     */
+    private suspend fun writeLastContactedMaxToSqlite(conn: Transactor, update: LastContactedUpdate) {
+        conn.usePrepared(
+            "UPDATE arham SET lastContactedAt = MAX(COALESCE(lastContactedAt, ?), ?) WHERE contactId = ?"
+        ) { stmt ->
+            stmt.bindLong(1, update.timestampMillis)
+            stmt.bindLong(2, update.timestampMillis)
+            stmt.bindLong(3, update.contactId)
+            stmt.step()
+        }
     }
 
     /**
