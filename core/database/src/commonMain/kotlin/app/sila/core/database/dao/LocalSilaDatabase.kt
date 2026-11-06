@@ -144,29 +144,26 @@ class LocalSilaDatabase internal constructor(
     // ===== خطاف «تغيّرت بيانات أرحام» (T8-10 · D3: تحديثات مُحرَّكة بالتغيير) =====
 
     /** مستمعو تغيّر بيانات أرحام — يُستدعون بعد COMMIT نجاح كتابة مؤثرة (قراءة/كتابة آمنة). */
-    private val arhamDataChangeListeners = mutableListOf<ArhamDataChangeListener>()
-
-    /** قفل السجل (مراجعة T8-10 · P3-1): تسجيل/إلغاء من خيوط مختلفة (مثل المستخدمين) بأمان. */
-    private val arhamListenersLock = Any()
+    private val arhamDataChangeListeners = MutableStateFlow<List<ArhamDataChangeListener>>(emptyList())
 
     /** تسجيل مستمع تغيّر (idempotent: التسجيل المكرر بلا أثر). */
     fun addArhamDataChangeListener(listener: ArhamDataChangeListener) {
-        synchronized(arhamListenersLock) {
-            if (listener !in arhamDataChangeListeners) arhamDataChangeListeners += listener
-        }
+        // حاملٌ ذرّي قائم على StateFlow (مراجعة T8-10 · P3-1، وإصلاح ترجمة iOS — T8-12):
+        // قفلُ JVM `synchronized` غير موجود في commonMain — الاستبدال تحديثُ CAS ذرّياً
+        // على قائمة ثابتة: تسجيل/إلغاء من خيوط مختلفة بأمان وبلا مسدسين.
+        arhamDataChangeListeners.update { current -> if (listener in current) current else current + listener }
     }
 
     /** إلغاء تسجيل مستمع تغيّر. */
     fun removeArhamDataChangeListener(listener: ArhamDataChangeListener) {
-        synchronized(arhamListenersLock) { arhamDataChangeListeners.remove(listener) }
+        arhamDataChangeListeners.update { current -> current - listener }
     }
 
     /** إطلاق المستمعين بعد COMMIT — فشل مستمعٍ لا يُفسد الكتابة ولا يسقط بقية المستمعين. */
     private fun notifyArhamDataChanged() {
-        // نسخة لحظية ثم الإطلاق خارج القفل (P3-1): تسجيل/إلغاء أثناء الإشعار لا يرمي
-        // ConcurrentModificationException ولا يحتجز الكاتب.
-        val snapshot = synchronized(arhamListenersLock) { arhamDataChangeListeners.toList() }
-        snapshot.forEach { listener ->
+        // لقطةٌ ذرّية لقائمةٍ ثابتة ثم الإطلاق خارجها (P3-1): تسجيل/إلغاء أثناء الإشعار
+        // لا يرمي ConcurrentModificationException ولا يحتجز الكاتب.
+        arhamDataChangeListeners.value.forEach { listener ->
             runCatching { listener.onArhamDataChanged() }
         }
     }
