@@ -56,6 +56,9 @@ class FakeContactsPlatformSource(
     private val _changeSignals = MutableSharedFlow<ContactsChangeSignal>(extraBufferCapacity = 16)
     val changeSignals: SharedFlow<ContactsChangeSignal> get() = _changeSignals.asSharedFlow()
 
+    /** عدد جامعي الإشارات النشطين (DEF-01: اختبارات دورة حياة الاشتراك حصراً). */
+    val changeSignalSubscriptionCount: StateFlow<Int> get() = _changeSignals.subscriptionCount
+
     /** اللقطة المُعاد تحديدها للدلة القادمة (مثلاً: iOS أو Android اختيارياً في الاختبارات). */
     var snapshotForDelta: ContactsSnapshot? = null
 
