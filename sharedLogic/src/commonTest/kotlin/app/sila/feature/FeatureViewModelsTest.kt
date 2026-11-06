@@ -37,6 +37,9 @@ class FeatureViewModelsTest {
 
     @BeforeTest
     fun setUp() {
+        // عزل Koin العام على K/N (عدّاء الاختبارات عملية واحدة): صنفٌ سابق قد يترك
+        // السياق العام مشدوداً — كل اختبار يبدأ من حاوية نظيفة (المرآة في tearDown).
+        stopKoin()
         Dispatchers.setMain(Dispatchers.Unconfined)
     }
 

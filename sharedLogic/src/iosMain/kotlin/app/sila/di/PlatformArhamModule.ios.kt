@@ -2,6 +2,8 @@ package app.sila.di
 
 import app.sila.arham.notification.ArhamAlarmScheduler
 import app.sila.arham.notification.IosArhamNotificationCenterDelegate
+import app.sila.arham.notification.IosArhamNotificationCenterRegistrar
+import app.sila.arham.notification.IosArhamNotificationCenterRegistering
 import app.sila.arham.notification.IosArhamNotificationScheduler
 import app.sila.arham.notification.IosArhamNotificationStrings
 import app.sila.arham.notification.IosArhamReminderScheduling
@@ -36,11 +38,16 @@ internal actual val platformArhamNotificationModule: Module = module {
     // عقد إزاحة iOS («ذكّرني غداً»/المهيئ) — نفس المفرد (التنفيذ ينفّذ العقدَين):
     single<IosArhamReminderScheduling> { get<IosArhamNotificationScheduler>() }
     single { IosNotificationCapabilityProbe() }
-    single {
-        IosArhamNotificationCenterDelegate(
-            preferences = get<UserPreferencesDataSource>(),
-            planner = get<PlanArhamDailyNotificationUseCase>(),
-            scheduler = get<IosArhamNotificationScheduler>(),
+    // المندوب تحت مفتاح الواجهة الصرفة حصراً (غلاف Kotlin صرف حول الخرسانة ObjC) —
+    // KClass لأنواع ObjC الفرعية غير مدعوم على K/N وخلط Supertypes ممنوع
+    // (single فوق النوع الخرساني يفشل وقت تهيئة الملف — سجل CI 42177151822).
+    single<IosArhamNotificationCenterRegistering> {
+        IosArhamNotificationCenterRegistrar(
+            delegate = IosArhamNotificationCenterDelegate(
+                preferences = get<UserPreferencesDataSource>(),
+                planner = get<PlanArhamDailyNotificationUseCase>(),
+                scheduler = get<IosArhamNotificationScheduler>(),
+            ),
         )
     }
 }

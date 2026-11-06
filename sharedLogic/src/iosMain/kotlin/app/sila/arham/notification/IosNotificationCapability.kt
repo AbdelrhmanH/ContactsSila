@@ -48,11 +48,13 @@ internal fun mapAuthorizationStatus(status: UNAuthorizationStatus): ArhamAuthori
         else -> ArhamAuthorizationStatus.NOT_DETERMINED
     }
 
-/** خريطة حالة الإعداد (`enabled/disabled/notSupported`) إلى ثنائية التمكين والسند. */
+/** خريطة حالة الإعداد (`enabled/disabled/notSupported`) إلى الثنائية (السند، التمكين). */
 internal fun mapCriticalAlertSetting(setting: UNNotificationSetting): Pair<Boolean, Boolean> =
     when (setting) {
         UNNotificationSettingEnabled -> true to true
-        UNNotificationSettingDisabled -> false to true
+        // المنصة تُبلغ عن الإعداد أصلاً ⇒ السند موجود، لكنه معطّل — المسار القياسي يحكم
+        // (fallback-first، D7): الاختبار `criticalAlertSetting_disabled_supportedButDisabled`.
+        UNNotificationSettingDisabled -> true to false
         UNNotificationSettingNotSupported -> false to false
         else -> false to false
     }

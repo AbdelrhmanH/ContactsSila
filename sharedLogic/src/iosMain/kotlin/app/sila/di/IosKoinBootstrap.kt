@@ -1,6 +1,6 @@
 package app.sila.di
 
-import app.sila.arham.notification.IosArhamNotificationCenterDelegate
+import app.sila.arham.notification.IosArhamNotificationCenterRegistering
 import app.sila.arham.notification.IosArhamReminderDispatch
 import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.arham.widget.IosArhamWidgetSnapshotPublisher
@@ -31,6 +31,7 @@ import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
+import platform.UserNotifications.UNUserNotificationCenter
 
 /**
  * مهيئ حاوية Koin لمنصة iOS (Issue #5 & Issue #9).
@@ -162,7 +163,10 @@ object IosKoinBootstrap {
     private fun registerNotificationCenterDelegate(koin: Koin) {
         if (notificationDelegateRegistered) return
         notificationDelegateRegistered = true
-        koin.get<IosArhamNotificationCenterDelegate>().register()
+        // الواجهة الصرفة هي مفتاح Koin (لا KClass لأنواع ObjC الفرعية — سجل CI 42177151822)،
+        // والقيمة الافتراضية للمركز تُقيَّم هنا في موقع الاستدعاء الوحيد.
+        koin.get<IosArhamNotificationCenterRegistering>()
+            .register(center = UNUserNotificationCenter.currentNotificationCenter())
     }
 
     /**

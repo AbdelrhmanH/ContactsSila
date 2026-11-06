@@ -1,7 +1,8 @@
 package app.sila.feature.contacts
 
 import app.sila.arham.notification.ArhamAlarmScheduler
-import app.sila.arham.notification.IosArhamNotificationCenterDelegate
+import app.sila.arham.notification.IosArhamNotificationCenterRegistrar
+import app.sila.arham.notification.IosArhamNotificationCenterRegistering
 import app.sila.arham.notification.IosArhamNotificationScheduler
 import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.arham.observer.IosCallStateObserver
@@ -15,8 +16,10 @@ import app.sila.feature.arham.presentation.ArhamScreeningConsentSource
 import app.sila.feature.contacts.data.IosContactsPlatformSource
 import app.sila.feature.contacts.domain.ContactsPlatformSource
 import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -27,6 +30,23 @@ import kotlin.test.assertTrue
  * سياق (الـ actual لنظام iOS بلا تبعيات، وتعريفات Koin كلها حثيفة التحميل).
  */
 class KoinWiringSmokeTest {
+
+    /**
+     * عزل Koin العام على K/N: عدّاء الاختبارات عمليةٌ واحدة تشغّل الأصناف كلها بالتتابع
+     * (بخلاف JVM الذي يجري كل صنف في عملية نظيفة). صنفٌ سابق قد يترك السياق العام
+     * مشدوداً (خاصة عند إخفاق initKoin بعد ضبط السياق) — فيرمي `startKoin`
+     * `KoinApplicationAlreadyStartedException`. إعادة الضبط قبلها وبعدها تجعل الصنف
+     * مستقلاً عن ترتيب التنفيذ.
+     */
+    @BeforeTest
+    fun setUp() {
+        stopKoin()
+    }
+
+    @AfterTest
+    fun tearDown() {
+        stopKoin()
+    }
 
     @Test
     fun sharedModule_resolvesContactsPlatformSource() {
@@ -57,8 +77,11 @@ class KoinWiringSmokeTest {
             val observer = app.koin.get<ArhamCallStateObserver>()
             assertTrue(observer is IosCallStateObserver, "ArhamCallStateObserver must resolve to the CXCallObserver bridge.")
 
-            val delegate = app.koin.get<IosArhamNotificationCenterDelegate>()
-            assertNotNull(delegate, "The notification-center delegate must be registered in the graph.")
+            val registering = app.koin.get<IosArhamNotificationCenterRegistering>()
+            assertTrue(
+                registering is IosArhamNotificationCenterRegistrar,
+                "The notification-center delegate must be registered in the graph via its pure-Kotlin registrar.",
+            )
 
             val consent = app.koin.get<ArhamScreeningConsentSource>()
             assertTrue(

@@ -19,6 +19,32 @@ import platform.UserNotifications.UNUserNotificationCenterDelegateProtocol
 import platform.darwin.NSObject
 
 /**
+ * عقد تقييد مندوب مركز الإشعارات — واجهة Kotlin صرفة بلا ObjC، وهي **مفتاح Koin حصراً**
+ * لهذه القدرة: KClass لأنواع Kotlin الفرعية من `NSObject` غير مدعوم على K/N — تسجيل
+ * `single` فوق النوع الخرساني يرمي `KClassUnsupportedImpl` وقت تهيئة الملف فيسمّ كلَّ
+ * الملفات المتسلسلة (سجل CI run 42177151822)، كما أن خلط Supertypes الكوتلنية مع ObjC
+ * ممنوع أصلاً في K/N. لذلك تُربط القدرة عبر غلاف Kotlin صرف
+ * [IosArhamNotificationCenterRegistrar] يُغلِّف الخرسانة ObjC.
+ */
+interface IosArhamNotificationCenterRegistering {
+
+    /** يقيّد المندوب مع مركز الإشعارات المُمرَّر ويسجّل فئة الأفعال (التعيين idempotent). */
+    fun register(center: UNUserNotificationCenter)
+}
+
+/**
+ * الغلاف Kotlin الصرف للمندوب — ما يُربط في Koin باسم [IosArhamNotificationCenterRegistering]:
+ * الخرسانة ObjC ([IosArhamNotificationCenterDelegate]) تُبنى داخله لحظة الحلّ، ويبقى
+ * المفرد مقيَّداً في الرسم عبر هذا العقد.
+ */
+internal class IosArhamNotificationCenterRegistrar(
+    private val delegate: IosArhamNotificationCenterDelegate,
+) : IosArhamNotificationCenterRegistering {
+
+    override fun register(center: UNUserNotificationCenter) = delegate.register(center = center)
+}
+
+/**
  * مندوب مركز إشعارات أرحام على iOS (T8-12 · §M · D1 بند 7) — النقطة الوحيدة التي تلمس
  * `UNUserNotificationCenterDelegate`؛ كل الأفعال ترِد إلى النطاق المشترك حصراً:
  * - **العرض في المقدمة:** بانر + قائمة (مرآة أندرويد: التذكير يظهر حتى والتطبيق مقدماً).

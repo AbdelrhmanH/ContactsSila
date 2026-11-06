@@ -13,7 +13,6 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -232,7 +231,14 @@ class IosEmergencyRingingControllerTest {
 
         assertEquals("عنوان_طوارئ", content.title, "العنوان من المُحلّ المحقون حصراً")
         assertEquals("متن:أم الاختبار", content.body, "المتن يُنسَّق داخل المُحلّ باسم الظهور")
-        assertNull(content.interruptionLevel, "النسخة القياسية لا تدّعي حرجاً أبداً — D7 fallback-first")
+        // النسخة القياسية لا تلمس مستوى المقاطعة إطلاقاً — وجسر K/N يُرجع افتراض المنصة
+        // (`active`) للخاصية غير المضبوطة (لا قيمة null على ObjC). الافتراضي بلا ادعاء
+        // حرج — D7 fallback-first كما هو.
+        assertEquals(
+            UNNotificationInterruptionLevel.UNNotificationInterruptionLevelActive,
+            content.interruptionLevel,
+            "النسخة القياسية بلا ادعاء حرج: افتراض المنصة Active حصراً — D7 fallback-first",
+        )
         assertEquals(
             "app.sila.arham.emergency.active",
             IosEmergencyRingingController.EMERGENCY_NOTIFICATION_IDENTIFIER,
