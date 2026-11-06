@@ -185,6 +185,26 @@ final class ArhamPresentationLogicTests: XCTestCase {
 
     // MARK: - فكّ لقطة الودجت (D6 — حد الوصول الوحيد للإضافة)
 
+    /// مرآة فكّ الاختبار لـ `ArhamWidgetSnapshot` في `SnapshotReader.swift` (هدف الودجت
+    /// — لا يُرى من هدف الاختبارات): طابق حقليةً حرفياً مع `IosArhamWidgetSnapshotDto`.
+    /// أي انحراف بين JSON النشر وفكّ الودجت يُكتشف هنا (نفس قيود `Codable`).
+    private struct ArhamWidgetSnapshot: Codable {
+        struct Entry: Codable {
+            let contactId: Int64
+            let displayName: String
+            let relation: String
+            let daysSinceLastContact: Int?
+            let status: String
+        }
+
+        let overdueCount: Int
+        let entries: [Entry]
+        let totalFamilyCalls: Int
+        let longestCallSec: Int
+        let goalCompletionFraction: Double
+        let generatedAtMillis: Int64
+    }
+
     func testSnapshotDecodesAppPublishedJsonWithNullDays() throws {
         // المرآة الحقلية لـ IosArhamWidgetSnapshotDto — أي انحراف يُكتشف هنا قبل
         // أن يصل إلى الودجت (fail-safe: nil يبقى nil في العرض).
