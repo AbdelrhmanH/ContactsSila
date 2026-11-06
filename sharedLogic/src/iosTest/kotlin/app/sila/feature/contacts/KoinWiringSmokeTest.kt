@@ -5,13 +5,19 @@ import app.sila.arham.notification.IosArhamNotificationCenterDelegate
 import app.sila.arham.notification.IosArhamNotificationScheduler
 import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.arham.observer.IosCallStateObserver
+import app.sila.arham.emergency.IosEmergencyCallPlacer
+import app.sila.arham.emergency.IosEmergencyRingingController
+import app.sila.arham.widget.IosArhamWidgetSnapshotPublisher
+import app.sila.core.database.dao.ArhamDataChangeListener
 import app.sila.di.createSilaSharedModule
+import app.sila.feature.arham.domain.EmergencyRingingController
 import app.sila.feature.arham.presentation.ArhamScreeningConsentSource
 import app.sila.feature.contacts.data.IosContactsPlatformSource
 import app.sila.feature.contacts.domain.ContactsPlatformSource
 import org.koin.core.context.startKoin
 import kotlin.test.Test
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -34,10 +40,12 @@ class KoinWiringSmokeTest {
     }
 
     /**
-     * T8-12: عقود أرحام المنصّية تُحلّ من الرسم الكامل نفسه — الجدولة بتنفيذ
+     * T8-12/T8-13: عقود أرحام المنصّية تُحلّ من الرسم الكامل نفسه — الجدولة بتنفيذ
      * `UNUserNotificationCenter`، والمراقبة بجسر `CXCallObserver`، والمندوب مقيَّد
-     * بالرسم، ومصدر موافقة الفرز صامتٌ يعيد `null` (لا فرز على iOS — إخفاء البطاقة).
-     * كلها حثيفة التحميل: الحل لا يلمس مركز الإشعارات ولا `CXCallObserver` إطلاقاً.
+     * بالرسم، ومصدر موافقة الفرز صامتٌ يعيد `null` (لا فرز على iOS — إخفاء البطاقة)،
+     * وحلقة الطوارئ تنفّذ `tel:` مع اسمٍ مستعار لإعادة الاتصال، وناشر لقطة الودجت
+     * مستمعُ تغيّر البيانات (D6). كلها حثيفة التحميل: الحل لا يلمس مركز الإشعارات
+     * ولا `CXCallObserver` إطلاقاً.
      */
     @Test
     fun sharedModule_resolvesArhamPlatformContracts() {
@@ -56,6 +64,32 @@ class KoinWiringSmokeTest {
             assertTrue(
                 consent.isRoleHeld() == null,
                 "iOS has no screening role — the silent source must answer null to hide the consent card.",
+            )
+
+            // T8-13: حلقة الطوارئ بتنفيذ `tel:`، وإعادة الاتصال اليدوية اسمٌ لنفس المثيل،
+            // وناشر لقطة الودجت (D6) هو مستمع تغيّر البيانات المُسجَّل على قاعدة البيانات.
+            val emergency = app.koin.get<EmergencyRingingController>()
+            assertTrue(
+                emergency is IosEmergencyRingingController,
+                "EmergencyRingingController must resolve to the iOS tel:-dial controller.",
+            )
+
+            val placer = app.koin.get<IosEmergencyCallPlacer>()
+            assertSame(
+                emergency,
+                placer,
+                "IosEmergencyCallPlacer must alias the very same controller instance (one Room reader, one dialer).",
+            )
+
+            val widgetListener = app.koin.get<ArhamDataChangeListener>()
+            assertTrue(
+                widgetListener is IosArhamWidgetSnapshotPublisher,
+                "ArhamDataChangeListener must resolve to the App-Group snapshot publisher.",
+            )
+            assertSame(
+                widgetListener,
+                app.koin.get<IosArhamWidgetSnapshotPublisher>(),
+                "The listener alias must be the same publisher instance the bootstrap registers.",
             )
         } finally {
             app.close()

@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 import SharedLogic
 
 @main
@@ -12,6 +13,11 @@ struct iOSApp: App {
 
     init() {
         _ = IosKoinBootstrap.shared.ensureStarted()
+        // T8-13 (D6): جسر إعادة تحميل الودجت — Kotlin يكتب اللقطة في حاوية App Group،
+        // واستدعاء WidgetCenter لا يكون إلا من Swift (لا klib لـ WidgetKit في K/N).
+        IosKoinBootstrap.shared.attachArhamWidgetReloadTrigger {
+            WidgetCenter.shared.reloadTimelines(ofKind: ArhamWidgetKind.value)
+        }
         _store = State(initialValue: MainViewModelStore())
         _contactsStore = State(initialValue: ContactsViewModelStore())
     }

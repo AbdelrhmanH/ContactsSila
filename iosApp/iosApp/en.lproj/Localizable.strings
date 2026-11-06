@@ -295,3 +295,8 @@
 "arham_occasion_anniversary_tomorrow" = "Tomorrow is %@'s anniversary";
 "arham_action_call_now" = "Call now";
 "arham_action_remind_tomorrow" = "Remind me tomorrow";
+
+/* T8-13: emergency ringing notification - mirror of the Android keys (AC-14 / L.6 / D7). */
+"arham_emergency_notification_title" = "Calling your emergency contact";
+"arham_emergency_notification_body" = "Calling %1$@";
+"arham_emergency_notification_target_unknown" = "your emergency contact";

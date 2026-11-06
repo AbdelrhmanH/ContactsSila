@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C04CA77500000000000000BE /* ArhamWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C04CA77500000000000000B1 /* ArhamWidgetExtension.appex */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		5AFC5CA773BCBFE4B5EEB8CD /* ContactsSila.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ContactsSila.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C04CA77500000000000000B1 /* ArhamWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ArhamWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +26,13 @@
 				Info.plist,
 			);
 			target = E6852D7B7D0F2F50CBABCCC7 /* iosApp */;
+		};
+		C04CA77500000000000000B3 /* Exceptions for "ArhamWidget" folder in "ArhamWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C04CA77500000000000000B4 /* ArhamWidgetExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -43,9 +55,24 @@
 			path = iosAppTests;
 			sourceTree = "<group>";
 		};
+		C04CA77500000000000000B2 /* ArhamWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C04CA77500000000000000B3 /* Exceptions for "ArhamWidget" folder in "ArhamWidgetExtension" target */,
+			);
+			path = ArhamWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C04CA77500000000000000B9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C04CA77500000000000000AA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -77,6 +104,7 @@
 			isa = PBXGroup;
 			children = (
 				5AFC5CA773BCBFE4B5EEB8CD /* ContactsSila.app */,
+				C04CA77500000000000000B1 /* ArhamWidgetExtension.appex */,
 				C04CA77500000000000000A1 /* ContactsSilaTests.xctest */,
 			);
 			name = Products;
@@ -85,6 +113,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C04CA77500000000000000B4 /* ArhamWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C04CA77500000000000000B5 /* Build configuration list for PBXNativeTarget "ArhamWidgetExtension" */;
+			buildPhases = (
+				C04CA77500000000000000B8 /* Sources */,
+				C04CA77500000000000000B9 /* Frameworks */,
+				C04CA77500000000000000BA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C04CA77500000000000000B2 /* ArhamWidget */,
+			);
+			name = ArhamWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = ArhamWidgetExtension;
+			productReference = C04CA77500000000000000B1 /* ArhamWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		C04CA77500000000000000A3 /* ContactsSilaTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C04CA77500000000000000A6 /* Build configuration list for PBXNativeTarget "ContactsSilaTests" */;
@@ -116,10 +166,12 @@
 				DFE3F8B742DE5F27FBD8A7CC /* Sources */,
 				184889580EC4714F1175D0AA /* Frameworks */,
 				48FF6DB808050CAC677E62DA /* Resources */,
+				C04CA77500000000000000BD /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C04CA77500000000000000BC /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				28C6CD69B7475E95B258DCB6 /* iosApp */,
@@ -134,6 +186,13 @@
 /* End PBXNativeTarget section */
 
 /* Begin PBXContainerItemProxy section */
+		C04CA77500000000000000BB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B52A308B636BB73F390FC1A9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C04CA77500000000000000B4;
+			remoteInfo = ArhamWidgetExtension;
+		};
 		C04CA77500000000000000A7 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B52A308B636BB73F390FC1A9 /* Project object */;
@@ -142,6 +201,19 @@
 			remoteInfo = iosApp;
 		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C04CA77500000000000000BD /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstSubfolderSpec = 13;
+			files = (
+				C04CA77500000000000000BE /* ArhamWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXProject section */
 		B52A308B636BB73F390FC1A9 /* Project object */ = {
@@ -157,6 +229,9 @@
 					C04CA77500000000000000A3 = {
 						CreatedOnToolsVersion = 16.2;
 						TestTargetID = E6852D7B7D0F2F50CBABCCC7;
+					};
+					C04CA77500000000000000B4 = {
+						CreatedOnToolsVersion = 16.2;
 					};
 				};
 			};
@@ -177,11 +252,17 @@
 			targets = (
 				E6852D7B7D0F2F50CBABCCC7 /* iosApp */,
 				C04CA77500000000000000A3 /* ContactsSilaTests */,
+				C04CA77500000000000000B4 /* ArhamWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXTargetDependency section */
+		C04CA77500000000000000BC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C04CA77500000000000000B4 /* ArhamWidgetExtension */;
+			targetProxy = C04CA77500000000000000BB /* PBXContainerItemProxy */;
+		};
 		C04CA77500000000000000A8 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = E6852D7B7D0F2F50CBABCCC7 /* iosApp */;
@@ -190,6 +271,13 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
+		C04CA77500000000000000BA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C04CA77500000000000000AB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -229,6 +317,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		C04CA77500000000000000B8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C04CA77500000000000000A9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -375,6 +470,7 @@
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Configuration/ContactsSila.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
@@ -403,6 +499,7 @@
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Configuration/ContactsSila.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
@@ -483,9 +580,61 @@
 			};
 			name = Release;
 		};
-/* End XCBuildConfiguration section */
-
-/* Begin XCConfigurationList section */
+		C04CA77500000000000000B6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = Configuration/ArhamWidget.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "${TEAM_ID}";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ArhamWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "app.sila.ContactsSila$(TEAM_ID).ArhamWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C04CA77500000000000000B7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = Configuration/ArhamWidget.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "${TEAM_ID}";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ArhamWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "app.sila.ContactsSila$(TEAM_ID).ArhamWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section *//* Begin XCConfigurationList section */
 		EAD41E0EFE2EED6A97C2D7BA /* Build configuration list for PBXProject "iosApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -509,6 +658,15 @@
 			buildConfigurations = (
 				C04CA77500000000000000A4 /* Debug */,
 				C04CA77500000000000000A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C04CA77500000000000000B5 /* Build configuration list for PBXNativeTarget "ArhamWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C04CA77500000000000000B6 /* Debug */,
+				C04CA77500000000000000B7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
