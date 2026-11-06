@@ -9,12 +9,17 @@ import app.sila.feature.contacts.domain.ContactsPlatformSource
 import app.sila.feature.contacts.domain.ContactsSnapshot
 import app.sila.feature.contacts.domain.ContactsSyncState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -41,6 +46,15 @@ import kotlin.coroutines.cancellation.CancellationException
  * - **انتقالات الصلاحية**: أي انتقال إلى/بين {GRANTED, LIMITED} (منح بعد رفض بينهما)
  *   يجبر استيراداً كاملاً؛ DENIED/PERMANENTLY_DENIED توقف المزامنة (حالة
  *   [ContactsSyncState.PERMISSION_DENIED]) وتبقي Room مقروءة — ولا حذف أبداً.
+ * - **دورة حياة الإشارات مقيَّدة بالصلاحية (DEF-01 · Issue #43 — النطاق B):** حلقة
+ *   الصلاحيات تُشارَك مشاركةً واحدة (`shareIn` + `WhileSubscribed` — استطلاع واحد
+ *   بلا حلقة ثانية) بين مجمّعَي المزامنة والإشارات؛ و`flatMapLatest` فوقها يُلغي
+ *   تدفق الإشارات الداخلي عند كل قيمة صلاحية مميزة (فيُسجَّل خروج المراقب عبر
+ *   `awaitClose`) ولا يُشترك إلا عند توفر الصلاحية — مراقب واحد نشط بلا تكرار
+ *   ولا تسريب، وإعادة الاشتراك تلقائية بلا إعادة تشغيل العملية، وبلا مزامنة غير
+ *   مصرّح بها بعد السحب. ترتيب التسجيل نسبةً للمزامنة القسرية: إشارة أثناء
+ *   الاستيراد تُسلسَل خلف الـ mutex فتلتقط دلتا تالية كل ما بعد ختم T0 — لا فجوة
+ *   دائمة (بقايا نافذة ضيقة موروثة تُعالَج بالمصالحة الدورية وعند الإقلاع التالي).
  * - **الفساد**: لقطة غير قابلة للفك ⇒ [ContactsSyncState.FULL_RESYNC_REQUIRED] ثم استرجاع
  *   تلقائي باستيراد كامل (لا حذف أبداً).
  *
@@ -52,6 +66,7 @@ import kotlin.coroutines.cancellation.CancellationException
  *   ثم إعادة رمي (collectLatest يلغي المزامنة الجارية عند تغيّر الصلاحية، والمعاملة
  *   الذرّية في الـ DAO تضمن عدم تقديم أي شيء جزئي).
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ContactsSyncEngine(
     private val platformSource: ContactsPlatformSource,
     private val syncDao: ContactsSyncDao,
@@ -86,6 +101,14 @@ class ContactsSyncEngine(
     fun start(scope: CoroutineScope) {
         if (started) return
         started = true
+        // DEF-01 (Issue #43) — النطاق B1: حلقة الصلاحيات تُشارَك مشاركةً واحدة
+        // (shareIn + WhileSubscribed) بين مجمّعَي المزامنة والإشارات — لا حلقة
+        // استطلاع ثانية ولا مؤقّت جديد ولا مصدر حالة موازٍ: كلا المجمّعَين يستهلك
+        // البثّ نفسه (استطلاع واحد للصلاحية)، ويتوقف المنتج تلقائياً حين يصبح عدد
+        // المشتركين صفراً (stop() يلغي المجمعين — لا تسريب استطلاع بعد الإيقاف).
+        val sharedPermissionStates = platformSource.observePermissionState()
+            .distinctUntilChanged()
+            .shareIn(scope, SharingStarted.WhileSubscribed(), replay = 1)
         permissionJob = scope.launch {
             // distinctUntilChanged إلزامية: مصادر المنصة تُعيد إبعاث القيمة نفسها في حلقات
             // استطلاع دورية (Android كل ثانيتين، iOS كل 5 ثوانٍ) — بلا التمييز، كان كل
@@ -93,9 +116,7 @@ class ContactsSyncEngine(
             // استيرادٌ أطول من فترة الاستطلاع لا ينتهي أبداً، والخمول يُنفِّذ دورة دلتا
             // كاملة كل فترة (مراجعة PR #35 — F1). الاختبار الموجّه:
             // `permissionLoop_duplicateEmissions_doNotRestartInFlightSync`.
-            platformSource.observePermissionState()
-                .distinctUntilChanged()
-                .collectLatest { permission ->
+            sharedPermissionStates.collectLatest { permission ->
                 val previous = lastPermission
                 lastPermission = permission
                 when (permission) {
@@ -114,15 +135,33 @@ class ContactsSyncEngine(
                 }
             }
         }
+        // DEF-01 (Issue #43) — النطاق B2/B3/B4/B7: دورة حياة الإشارات مقيَّدة بالصلاحية.
+        // flatMapLatest فوق البثّ المشترك: كل قيمة صلاحية مميزة تُلغي التدفق الداخلي
+        // السابق (awaitClose يُسجِّل خروج المراقب عبر بوابة المصدر — النطاق A) ولا
+        // يُشترك في الإشارات إلا عند توفر الصلاحية — مراقب واحد نشط بلا تكرار ولا
+        // تسريب، وإعادة الاشتراك تلقائية بلا إعادة تشغيل العملية، وبلا حلقة إعادة
+        // محاولة ضيقة (استثناء التسجيل المرفوض يُحتضن داخل المصدر نفسه فلا يهرب من
+        // هذا الجامع إطلاقاً). بعد السحب: لا تُستهلك إشارات لاحقة إطلاقاً (لا مزامنة
+        // غير مصرّح بها)، وقراءة lastPermission حيّة عند كل إشارة تبقى الحارس الذري.
         signalsJob = scope.launch {
-            platformSource.observeChangeSignals().collect { _: ContactsChangeSignal ->
-                val permission = lastPermission
-                if (permission == ContactsPermissionState.GRANTED ||
-                    permission == ContactsPermissionState.LIMITED
-                ) {
-                    runGuarded { runInitialOrDelta(permission) }
+            sharedPermissionStates
+                .flatMapLatest { permission ->
+                    if (permission == ContactsPermissionState.GRANTED ||
+                        permission == ContactsPermissionState.LIMITED
+                    ) {
+                        platformSource.observeChangeSignals()
+                    } else {
+                        emptyFlow()
+                    }
                 }
-            }
+                .collect { _: ContactsChangeSignal ->
+                    val current = lastPermission
+                    if (current == ContactsPermissionState.GRANTED ||
+                        current == ContactsPermissionState.LIMITED
+                    ) {
+                        runGuarded { runInitialOrDelta(current) }
+                    }
+                }
         }
     }
 

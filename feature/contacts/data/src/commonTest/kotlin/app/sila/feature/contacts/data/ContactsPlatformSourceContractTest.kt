@@ -6,9 +6,11 @@ import app.sila.feature.contacts.domain.ContactsPermissionState
 import app.sila.feature.contacts.domain.ContactsSnapshot
 import kotlinx.coroutines.Dispatchers.Unconfined
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -163,5 +165,29 @@ class ContactsPlatformSourceContractTest {
         assertNull(delta.deletedSystemContactIds.singleOrNull())
         assertFalse(delta.isFullResync)
         assertEquals(ContactsPermissionState.LIMITED, fake.permissionState.value)
+    }
+
+    @Test
+    fun observeChangeSignals_collectionIsSafeAcrossPermissionStates() = runTest {
+        // DEF-01 (Issue #43) — عقد المراقبة: جمع observeChangeSignals آمن مهما كانت
+        // حالة الصلاحية — تفاصيل المنصة (كـ SecurityException عند تسجيل مراقب
+        // ContentResolver) تبقى خلف حدّ المنصة ولا تتسرب إلى commonMain. المصدر
+        // المُصاب كان يرمي من الجمع نفسه على تثبيت جديد — العقد يمنع ذلك صراحةً.
+        val fake = FakeContactsPlatformSource(initialPermission = ContactsPermissionState.DENIED)
+        val received = mutableListOf<ContactsChangeSignal>()
+        val job = launch { fake.observeChangeSignals().collect { received += it } }
+        runCurrent()
+
+        fake.denyPermission()
+        fake.sendChangeSignal(occurredAtMillis = 1L)
+        runCurrent()
+        assertEquals(1, received.size, "collection while denied must deliver signals without throwing")
+
+        fake.grantPermission()
+        fake.sendChangeSignal(occurredAtMillis = 2L)
+        runCurrent()
+        assertEquals(2, received.size, "collection while granted must keep delivering signals")
+
+        job.cancelAndJoin()
     }
 }
