@@ -5,24 +5,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 
-/**
- * عقد جدولة تذكير أرحام اليومي (T8-08 · D2 المصادَق): نقطةُ الالتقاء الوحيدة بين المنطق
- * المشترك وAlarmManager على أندرويد — كل مَن يريد (إعادة) جدولة الإطلاق اليومي يستدعي
- * `scheduleAt` ولا يعرف آلية المنصة.
- *
- * **D2 — بلا إنذارات دقيقة:** التنفيذ يستخدم `setAndAllowWhileIdle` غير الدقيقة حصراً —
- * لا صلاحية `SCHEDULE_EXACT_ALARM` ولا وعداً بوقتٍ محدد (النسخة تذكر ذلك للمستخدم).
- * الموعد المفقود (Doze عميق/إطفاء) يُعاد حسابه عند أقرب إيقاظ لاحق (تشغيل عملية/
- * إقلاع/تغيير وقت — D2 §8: الجدولة مشتقة من Room والتفضيلات عند كل إطلاق).
- */
-interface ArhamAlarmScheduler {
-
-    /**
-     * يجدول الإطلاق التالي عند لحظة معيّنة (epoch millis). الاستدعاءات المتتابعة
-     * **تستبدل** الموعد السابق ولا تتراكم فوقه (ميزانية ≤ 1/يوم — §M).
-     */
-    fun scheduleAt(fireAtMillis: Long)
-}
+// العقد [ArhamAlarmScheduler] في commonMain (مشترك مع iOS — T8-12)؛ هذا الملف
+// تنفيذُ أندرويد فوق AlarmManager حصراً.
 
 /**
  * تنفيذ أندرويد فوق [AlarmManager]: PendingIntent واحد ثابت (رمز طلب ثابت + إجراء

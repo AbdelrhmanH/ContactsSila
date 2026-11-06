@@ -177,6 +177,43 @@ class CorrelateObservedCallEndUseCaseTest {
         assertTrue(repo.lastContactedWrites.isEmpty())
     }
 
+    /**
+     * تثبيت مصدر الدليل المُحقون (T8-12): الافتراضي يبقى مراقب أندرويد (التوافقية
+     * مع الاختبارات القائمة)، وحقن `IOS_CALL_OBSERVER` يُنسب الدليل إلى المنصة
+     * الصحيحة — المصدر يمثّل المنصة لا يكذب عليها (ADR-0006 §5).
+     */
+    @Test
+    fun observerSource_defaultIsAndroid_injectedIosPinsIosEvidence() = runTest {
+        val repo = FakeArhamCallEventRepository()
+        seedOpenAttempt(repo, startedAtMillis = 1_000L)
+
+        // الافتراضي التوافقي (بلا حقن) ⇒ دليل مراقب أندرويد:
+        val defaultResult = useCase(repo)(ObservedCallEnd(offhookAtMillis = 2_000L, idleAtMillis = 62_000L))
+        val defaultCorrelated = assertIs<ObservedCallEndCorrelation.Correlated>(defaultResult)
+        assertEquals(
+            setOf(CallSource.IN_APP, CallSource.ANDROID_TELEPHONY_OBSERVER),
+            defaultCorrelated.event.evidenceSources,
+            "الافتراضي يحمي الاختبارات والسلوك الأندرويدي القائم",
+        )
+
+        // حقن مصدر iOS (كما تفعل وحدة iOS في Koin) ⇒ الدليل يُنسب لنفس المنصة:
+        val iosRepo = FakeArhamCallEventRepository()
+        seedOpenAttempt(iosRepo, startedAtMillis = 1_000L)
+        val iosUseCase = CorrelateObservedCallEndUseCase(
+            repository = iosRepo,
+            stateMachine = stateMachine,
+            observerSource = CallSource.IOS_CALL_OBSERVER,
+        )
+        val iosResult = iosUseCase(ObservedCallEnd(offhookAtMillis = 2_000L, idleAtMillis = 62_000L))
+        val iosCorrelated = assertIs<ObservedCallEndCorrelation.Correlated>(iosResult)
+        assertEquals(
+            setOf(CallSource.IN_APP, CallSource.IOS_CALL_OBSERVER),
+            iosCorrelated.event.evidenceSources,
+            "دليل مراقب iOS يُنسب إلى IOS_CALL_OBSERVER لا لمنصةٍ أخرى",
+        )
+        assertTrue(iosRepo.lastContactedWrites.isEmpty())
+    }
+
     @Test
     fun enrichment_outcomeNeverCompleted_evenWithLongDuration() = runTest {
         val repo = FakeArhamCallEventRepository()

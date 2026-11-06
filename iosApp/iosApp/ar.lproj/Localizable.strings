@@ -284,3 +284,14 @@
 "edit_type_custom" = "مخصص";
 
 "action_undo" = "تراجع";
+
+/* نصوص إشعارات أرحام اليومي (T8-12 · §M) — مرآة مفاتيح arham_digest_* أندرويد. */
+"arham_digest_title" = "حان وقت صلة الرحم";
+"arham_digest_body_one" = "%@ يشتاق إليك";
+"arham_digest_body_many" = "%@ يشتاق إليك، و%lld آخرون";
+"arham_occasion_birthday_today" = "عيد ميلاد %@ اليوم! اتصل به";
+"arham_occasion_birthday_tomorrow" = "غداً عيد ميلاد %@";
+"arham_occasion_anniversary_today" = "ذكرى %@ اليوم! تواصل معه";
+"arham_occasion_anniversary_tomorrow" = "غداً ذكرى %@";
+"arham_action_call_now" = "اتصل الآن";
+"arham_action_remind_tomorrow" = "ذكّرني غداً";

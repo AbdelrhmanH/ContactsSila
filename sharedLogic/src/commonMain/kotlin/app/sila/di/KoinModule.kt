@@ -292,7 +292,14 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // بمحاولة مفتوحة (D-2 — ربطٌ لا اختراع مفاتيح): الفرز يُدخل إشارات واردة
     // UNASSOCIATED/PENDING (بلا حل رقم→جهة — ADR-0007)، والمراقب لا يكتب صفاً قط.
     factory { ScreeningSignalIngestionUseCase(ingest = get(), stateMachine = get()) }
-    factory { CorrelateObservedCallEndUseCase(repository = get(), stateMachine = get()) }
+    factory {
+        CorrelateObservedCallEndUseCase(
+            repository = get(),
+            stateMachine = get(),
+            // مصدر دليل المراقب لكل منصة (T8-12) — أندرويد/iOS actuals في وحدتي الفرز.
+            observerSource = platformObserverCallSource,
+        )
+    }
     single<ArhamCelebrationPolicy> { ArhamCelebrationPolicyBridge(userPreferencesDataSource = get()) }
     factory { CelebrateTransitionUseCase(policy = get(), clock = get()) }
 

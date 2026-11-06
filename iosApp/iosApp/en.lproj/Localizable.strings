@@ -284,3 +284,14 @@
 "edit_type_custom" = "Custom";
 
 "action_undo" = "Undo";
+
+/* Arham daily reminder notifications (T8-12 · §M) — mirrors Android arham_digest_* keys. */
+"arham_digest_title" = "Time for family connection";
+"arham_digest_body_one" = "%@ misses you";
+"arham_digest_body_many" = "%@ misses you, plus %lld more";
+"arham_occasion_birthday_today" = "It's %@'s birthday today! Call them";
+"arham_occasion_birthday_tomorrow" = "Tomorrow is %@'s birthday";
+"arham_occasion_anniversary_today" = "%@'s anniversary is today! Reach out";
+"arham_occasion_anniversary_tomorrow" = "Tomorrow is %@'s anniversary";
+"arham_action_call_now" = "Call now";
+"arham_action_remind_tomorrow" = "Remind me tomorrow";

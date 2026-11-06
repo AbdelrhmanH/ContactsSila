@@ -32,6 +32,8 @@ class IosKoinBootstrapTest {
     @BeforeTest
     fun setUp() {
         stopKoin()
+        IosKoinBootstrap.resetCleanupLaunchForTest()
+        IosKoinBootstrap.resetArhamLifecycleFlagsForTest()
         Dispatchers.setMain(UnconfinedTestDispatcher())
     }
 

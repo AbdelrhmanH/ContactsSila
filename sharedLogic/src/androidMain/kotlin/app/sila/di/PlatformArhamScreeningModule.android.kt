@@ -6,6 +6,7 @@ import app.sila.arham.observer.AndroidCallStateObserver
 import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.arham.observer.HostAbsentCallStateObserver
 import app.sila.arham.screening.ScreeningRoleController
+import app.sila.core.model.CallSource
 import app.sila.feature.arham.presentation.ArhamScreeningConsentSource
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -54,3 +55,6 @@ internal actual val platformArhamScreeningModule: Module = module {
         }
     }
 }
+
+/** مصدر دليل مراقب أندرويد — مراقب Telephony (T8-09). */
+internal actual val platformObserverCallSource: CallSource = CallSource.ANDROID_TELEPHONY_OBSERVER

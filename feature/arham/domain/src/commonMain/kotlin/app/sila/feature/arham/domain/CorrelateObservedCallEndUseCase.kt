@@ -49,6 +49,12 @@ sealed interface ObservedCallEndCorrelation {
 class CorrelateObservedCallEndUseCase(
     private val repository: ArhamCallEventRepository,
     private val stateMachine: CallEventStateMachine = CallEventStateMachine(),
+    /**
+     * مصدرُ دليل المراقب في اتحاد الأدلة (ADR-0006 §5) — أندرويد الافتراضي التوافقي؛
+     * iOS تمرّر `CallSource.IOS_CALL_OBSERVER` من وحدتها (T8-12) فلا يُنسب دليلُ
+     * مراقبها إلى منصةٍ أخرى (العقد المصادَق: المصدر يمثّل المنصة لا يكذب عليها).
+     */
+    private val observerSource: CallSource = CallSource.ANDROID_TELEPHONY_OBSERVER,
 ) {
 
     /**
@@ -99,8 +105,10 @@ class CorrelateObservedCallEndUseCase(
             return ObservedCallEndCorrelation.NoOpenAttempt
         }
         // اتحاد الدليل: المراقب شاهد النهاية — دليله يُضاف ولا يستبدل المصدر الأول (ADR-0006 §5).
+        // مصدر الدليل مُحقون (أندرويد افتراضياً؛ iOS تمرّر IOS_CALL_OBSERVER — T8-12) فلا
+        // يُنسب دليلُ مراقب منصةٍ إلى منصة أخرى.
         val withObserverEvidence = enriched.copy(
-            evidenceSources = enriched.evidenceSources + CallSource.ANDROID_TELEPHONY_OBSERVER,
+            evidenceSources = enriched.evidenceSources + observerSource,
         )
         repository.upsertEvent(withObserverEvidence)
         return ObservedCallEndCorrelation.Correlated(withObserverEvidence)

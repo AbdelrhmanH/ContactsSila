@@ -1,5 +1,8 @@
 package app.sila.di
 
+import app.sila.arham.notification.IosArhamNotificationCenterDelegate
+import app.sila.arham.notification.IosArhamReminderDispatch
+import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
@@ -14,6 +17,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.koin.core.Koin
 import org.koin.core.context.stopKoin
 import org.koin.core.parameter.parametersOf
@@ -41,6 +45,15 @@ object IosKoinBootstrap {
     /** F-02: علم تشغيل واحد لصيانة الاستبقاء لكل عملية (idempotent — كما start أعلاه). */
     private var cleanupLaunched = false
 
+    /** T8-12 (D2 §8): علم إعادة جدولة واحدة للتذكير اليومي لكل عملية (idempotent). */
+    private var reminderRescheduled = false
+
+    /** T8-12 (AC-6): علم بدء مراقب المكالمات لكل عملية — ضمن حياة التطبيق فقط. */
+    private var callObserverStarted = false
+
+    /** T8-12: علم تقييد مندوب مركز الإشعارات لكل عملية (التعيين idempotent). */
+    private var notificationDelegateRegistered = false
+
     /**
      * للاختبارات حصراً (نفس مبدئ خطافات `LocalSilaDatabase` الداخلية): يعيد علم
      * الإطلاق الواحد [cleanupLaunched] إلى حالة ما قبل الإطلاق، ليستطيع اختبار مسار
@@ -53,6 +66,17 @@ object IosKoinBootstrap {
     }
 
     /**
+     * للاختبارات حصراً (مرآة [resetCleanupLaunchForTest]): يعيد أعلام دورة حياة أرحام
+     * الثلاثة (T8-12) إلى ما قبل الإطلاق ليبقى اختبار المهيئ مستقلاً عن ترتيب تنفيذه —
+     * لا يُستدعى من كود الإنتاج إطلاقاً.
+     */
+    internal fun resetArhamLifecycleFlagsForTest() {
+        reminderRescheduled = false
+        callObserverStarted = false
+        notificationDelegateRegistered = false
+    }
+
+    /**
      * F-02: تشغيل صيانة الاستبقاء (تنظيف القبور >30 يوماً والمكالمات >365 يوماً) مرة واحدة
      * لكل عملية على نطاق عمر التطبيق — من كلا مساري [ensureStarted]، والتنفيذ خارج الخيط
      * الرئيسي (Dispatchers.io في الـ DAO) والإخفاق يُسجَّل بلا PII ولا يسقط التطبيق.
@@ -61,6 +85,46 @@ object IosKoinBootstrap {
         if (cleanupLaunched) return
         cleanupLaunched = true
         koin.get<RetentionCleanupCoordinator>().launchIn(engineScope)
+    }
+
+    /**
+     * T8-12 (D2 §8 — مرآة SilaApplication): إعادة جدولة التذكير اليومي عند كل تشغيل
+     * عملية — الميزة معطّلة؟ إلغاء الطلب المعلّق (فارق iOS الموثّق)؛ وإلا خطةٌ جديدة
+     * من `now` (الموعد المفقود أثناء الغياب يُحسب من جديد). idempotent بمرآة الأعلام.
+     */
+    private fun rescheduleDailyReminder(koin: Koin) {
+        if (reminderRescheduled) return
+        reminderRescheduled = true
+        engineScope.launch {
+            runCatching {
+                IosArhamReminderDispatch.rescheduleFromNow(
+                    preferences = koin.get(),
+                    planner = koin.get(),
+                    scheduler = koin.get(),
+                )
+            }.onFailure { println("IosArhamReminderDispatch failed: ${it::class.simpleName}") }
+        }
+    }
+
+    /**
+     * T8-12 (AC-6 — مرآة SilaApplication): مراقب حالة المكالمات ضمن حياة التطبيق فقط —
+     * حالته بلا هوية (`CXCall` لا يعرض رقماً) والربط عبر النطاق المشترك. بدايته
+     * idempotent، والإخفاق يُسجَّل بنوعٍ حصراً — بلا انهيار.
+     */
+    private fun startCallStateObserver(koin: Koin) {
+        if (callObserverStarted) return
+        callObserverStarted = true
+        koin.get<ArhamCallStateObserver>().start(engineScope)
+    }
+
+    /**
+     * T8-12: تقييد مندوب مركز الإشعارات + تسجيل فئة الأفعال — قبل أول تفاعل مع
+     * الإشعارات (استدعاء المهيئ يسبق جسم الواجهة — iOSApp.init).
+     */
+    private fun registerNotificationCenterDelegate(koin: Koin) {
+        if (notificationDelegateRegistered) return
+        notificationDelegateRegistered = true
+        koin.get<IosArhamNotificationCenterDelegate>().register()
     }
 
     /**
@@ -122,6 +186,9 @@ object IosKoinBootstrap {
                 // start() idempotent — إعادة التشغيل على حاوية قائمة لا تكرر المراقبة.
                 existingKoin.get<ContactsSyncEngine>().start(engineScope)
                 startRetentionCleanup(existingKoin)
+                rescheduleDailyReminder(existingKoin)
+                startCallStateObserver(existingKoin)
+                registerNotificationCenterDelegate(existingKoin)
                 return existingKoin
             }
             stopKoin()
@@ -140,6 +207,9 @@ object IosKoinBootstrap {
 
         koin.get<ContactsSyncEngine>().start(engineScope)
         startRetentionCleanup(koin)
+        rescheduleDailyReminder(koin)
+        startCallStateObserver(koin)
+        registerNotificationCenterDelegate(koin)
         return koin
     }
 

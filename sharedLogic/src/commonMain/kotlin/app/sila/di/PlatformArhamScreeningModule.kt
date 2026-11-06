@@ -1,5 +1,6 @@
 package app.sila.di
 
+import app.sila.core.model.CallSource
 import org.koin.core.module.Module
 
 /**
@@ -10,3 +11,11 @@ import org.koin.core.module.Module
  * iOS فارغة في المرحلة الأولى (T8-12 محجوبة — بلا تحقق Swift/SKIE على Windows).
  */
 internal expect val platformArhamScreeningModule: Module
+
+/**
+ * مصدرُ دليل مراقب المكالمات لكل منصة (T8-12): أندرويد `ANDROID_TELEPHONY_OBSERVER`
+ * (مراقب Telephony — T8-09) وiOS `IOS_CALL_OBSERVER` (مراقب CXCallObserver) — يُمرَّر
+ * إلى [CorrelateObservedCallEndUseCase] في ربط Koin المشترك فلا يُنسب دليلُ مراقب
+ * منصةٍ إلى منصة أخرى (العقد المصادَق في `CallSource`).
+ */
+internal expect val platformObserverCallSource: CallSource

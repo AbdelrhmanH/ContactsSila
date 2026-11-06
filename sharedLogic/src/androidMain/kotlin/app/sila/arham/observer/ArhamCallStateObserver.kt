@@ -17,23 +17,8 @@ import app.sila.feature.arham.domain.ObservedCallState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-/**
- * عقد مراقب حالة الهاتف (T8-09 · AC-4/AC-17) — **حالة فقط بلا هوية**: لا رقم ولا
- * جهة ولا محتوى يمرّ هنا قط؛ النهاية المرصودة تُربَط بمحاولة صِلَة المفتوحة عبر
- * [CorrelateObservedCallEndUseCase] (حل D-2 بالربط لا باختراع المفاتيح).
- */
-interface ArhamCallStateObserver {
-
-    /**
-     * يبدأ المراقبة — **idempotent**: الاستدعاءات المتكررة بلا أثر. البوابة صلاحية
-     * `READ_PHONE_STATE` حصراً (بلا مفتاح DataStore جديد — قرار مثبت): مرفوضة ⇒
-     * لا تسجيل ولا عملية، بسجلٍّ بنوعٍ حصراً.
-     */
-    fun start(scope: CoroutineScope)
-
-    /** يوقف المراقبة ويفكّ كل التسجيلات (idempotent — آمن قبل `start`). */
-    fun stop()
-}
+// العقد [ArhamCallStateObserver] في commonMain (مشترك مع iOS — T8-12)؛ هذا الملف
+// تنفيذُ أندرويد فوق TelephonyManager حصراً.
 
 /** تنفيذ مضيف الاختبارات/JVM الصامت — نمط `HostAbsentPlatformSource` (ADR-0010 §5). */
 object HostAbsentCallStateObserver : ArhamCallStateObserver {
