@@ -1,5 +1,6 @@
 package app.sila.feature
 
+import androidx.lifecycle.viewModelScope
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.ServiceDao
 import app.sila.core.model.ArhamFrequency
@@ -18,6 +19,10 @@ import app.sila.feature.services.presentation.ServicesViewModel
 import app.sila.feature.settings.presentation.SettingsViewModel
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.resetMain
@@ -33,6 +38,12 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeatureViewModelsTest {
 
+    /** (Issue #42) نطاقات الـ VM المحلولة تُتتبَّع هنا وتُلغى بالانضمام في tearDown قبل إغلاق
+     * الحاوية — بدون join يظل فشل حقيقي أثناء انحلال جامعي Room/DataStore بلا معالج فيُخزَّن
+     * عالمياً (ExceptionCollector — JVM واحد لكل مهمة testAndroidHostTest) ويُسقط على أول
+     * runTest تالٍ في أي صنف (UncaughtExceptionsBeforeTest). نمط T8 (353cf99) نفسه. */
+    private val resolvedViewModels = mutableListOf<androidx.lifecycle.ViewModel>()
+
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(Dispatchers.Unconfined)
@@ -40,6 +51,17 @@ class FeatureViewModelsTest {
 
     @AfterTest
     fun tearDown() {
+        runBlocking {
+            withTimeout(5_000) {
+                resolvedViewModels.forEach { viewModel ->
+                    // per-VM runCatching (353cf99): فشل انحلال VM واحد لا يُسقط انحلال البقية قبل close
+                    runCatching {
+                        viewModel.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+                    }
+                }
+            }
+        }
+        resolvedViewModels.clear()
         stopKoin()
         Dispatchers.resetMain()
     }
@@ -96,6 +118,7 @@ class FeatureViewModelsTest {
         val arhamVm = koin.get<ArhamViewModel>()
         val servicesVm = koin.get<ServicesViewModel>()
         val settingsVm = koin.get<SettingsViewModel>()
+        resolvedViewModels += listOf(contactsVm, arhamVm, servicesVm, settingsVm)
 
         assertNotNull(contactsVm)
         assertNotNull(arhamVm)

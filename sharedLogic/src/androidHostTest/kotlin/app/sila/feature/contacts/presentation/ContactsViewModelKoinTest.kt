@@ -13,13 +13,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.AfterClass
 import org.junit.BeforeClass
@@ -62,9 +64,15 @@ class ContactsViewModelKoinTest {
             Dispatchers.setMain(mainDispatcher)
         }
 
+        /** مهلة الانحلال المنتظر — انسداد أعلى من هذا يعني خط أنابيب عالقاً فيُفشل بصوت مسموع. */
+        private const val WIND_DOWN_TIMEOUT_MILLIS = 5_000L
+
         @AfterClass
         @JvmStatic
         fun tearDownClass() {
+            // (Issue #42) حاجز تصريف لطابور Main بعد انحلالات النطاقات المنتظرة (join): مع
+            // join-قبل-الإغلاق يكون كل عمل Main مملوك للـ VM قد طابور وانصرف FIFO — الباقي هنا
+            // تدفق وقائي لأي بقايا إلغاء من مسارات فشل منتصف الاختبار، وليس نوماً يخفي سباقاً.
             repeat(times = 3) {
                 runCatching { mainExecutor.submit(Runnable {}).get() }
                 Thread.sleep(50)
@@ -74,8 +82,24 @@ class ContactsViewModelKoinTest {
 
     @AfterTest
     fun tearDown() {
-        runCatching { koin.getOrNull<ContactsViewModel>()?.viewModelScope?.cancel() }
+        // (Issue #42) طبقة دفاعية: انحلال منتظر لنطاق أي VM حي قبل إغلاق الحاوية — بدون join
+        // يظل فشل حقيقي أثناء الانحلال بلا معالج فيُخزَّن عالمياً (ExceptionCollector) ويُسقط
+        // على أول runTest تالٍ (UncaughtExceptionsBeforeTest). الالتفاف يخفض التصريف المسدود
+        // إلى سلوك اليوم في مسارات الفشل حصراً (نمط 353cf99).
+        runCatching {
+            koin.getOrNull<ContactsViewModel>()?.let { viewModel ->
+                runBlocking { awaitViewModelWindDown(viewModel) }
+            }
+        }
         stopKoin()
+    }
+
+    /** (Issue #42) انحلال منتظر لنطاق الـ VM قبل أي إغلاق حاوية/قاعدة — نمط T8 (353cf99):
+     * قراءات وكتابات Room على IO تخرج من المسبح قبل closeConnection. */
+    private suspend fun awaitViewModelWindDown(viewModel: ContactsViewModel) {
+        withTimeout(WIND_DOWN_TIMEOUT_MILLIS) {
+            viewModel.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+        }
     }
 
     // ===== أدوات =====
@@ -128,7 +152,7 @@ class ContactsViewModelKoinTest {
 
         val state = await("initial load") { viewModel.state.first { !it.isLoading } }
         assertTrue(t3Contacts(state).isNotEmpty(), "التركيبة الصريحة تُقرأ من Room عبر الخط كاملاً")
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -147,7 +171,7 @@ class ContactsViewModelKoinTest {
         // عودة الاستعلام الفارغ إلى كل الجهات الحيّة:
         viewModel.onIntent(ContactsIntent.UpdateSearchQuery(""))
         await("blank restores") { viewModel.state.first { !it.isSearchActive && it.contacts.isNotEmpty() } }
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -161,7 +185,7 @@ class ContactsViewModelKoinTest {
             viewModel.state.first { it.isSearchActive && it.contacts.isEmpty() }
         }
         assertTrue(!state.hasError, "لا نتائج بحث حالة عادية ليست خطأ")
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -176,7 +200,7 @@ class ContactsViewModelKoinTest {
         val reResolved = contactsViewModel()
         assertEquals(viewModel, reResolved, "الـ ViewModel Koin single واحد")
         assertEquals(Category.FAMILY, reResolved.state.value.selectedCategory)
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -208,7 +232,7 @@ class ContactsViewModelKoinTest {
             after.categoryCounts[Category.FAMILY],
             "العدادات الحية تتضمن التصنيف الجماعي فوراً"
         )
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -224,7 +248,7 @@ class ContactsViewModelKoinTest {
 
         viewModel.onIntent(ContactsIntent.ToggleFavorite(id, false))
         await("favorite off") { viewModel.state.first { state -> state.favorites.none { it.id == id } } }
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -247,7 +271,7 @@ class ContactsViewModelKoinTest {
             }
         }
         assertTrue(after.contacts.none { it.systemContactId == "t3_delete" })
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -268,7 +292,7 @@ class ContactsViewModelKoinTest {
         collector.join()
 
         assertEquals(ContactsEffect.OpenDialer("+201055555555", id), effects.single(), "الاتصال يفتح الهاتف عبر الأثر")
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -294,7 +318,7 @@ class ContactsViewModelKoinTest {
         val picker = effects.single() as ContactsEffect.ShowNumberPicker
         assertEquals(2, picker.phones.size, "تعددت الأرقام بلا أساسي ⇒ منتقي أرقام (معيار القبول)")
         assertEquals(id, picker.contactId)
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -323,6 +347,6 @@ class ContactsViewModelKoinTest {
             viewModel.state.first { state -> state.suggestions.none { it.id == card.id } }
         }
         assertTrue(after.suggestions.none { it.id == card.id })
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 }
