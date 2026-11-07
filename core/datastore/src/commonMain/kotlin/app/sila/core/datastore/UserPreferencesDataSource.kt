@@ -15,6 +15,7 @@ import app.sila.core.model.DefaultTab
 import app.sila.core.model.TopFiveSelection
 import app.sila.core.model.UserPreferences
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -82,12 +83,21 @@ class SilaPreferencesDataSource(
      * النطاق مملوك لمثيل المصدر ويبقى حياً مدى عمر العملية — نفس النمط الداخلي لمكتبة DataStore
      * نفسها (CoroutineScope(ioDispatcher + SupervisorJob()) بلا إلغاء)، ولا يستخدم النطاق العام
      * العالمي إطلاقاً. البديل في الذاكرة أدناه لا يمسّه هذا التغيير إطلاقاً.
+     *
+     * دلالة الفشل (مراجعة 4ff0e1b): مع Eagerly لا يوجد جامع يلتقط استثناء مجموعة المشاركة
+     * الوحيدة (ملف تالف مثلاً) — بلا معالج لينهار فشل نادر عند الإقلاع حتى بلا مستهلكين؛
+     * المعالج هنا يسجل بلا PII ويترك التدفق ميتاً بقيمته الأخيرة — لا كتم لأخطاء الكتابة
+     * (تظل تُرمى على المستدعي عبر `edit`) ولا التفاف واسع.
      */
     private val hotDiskPreferences: Flow<UserPreferences>? = dataStore?.let { dataStore ->
         dataStore.data
             .map { prefs -> toUserPreferences(prefs) }
             .shareIn(
-                scope = CoroutineScope(SupervisorJob() + defaultDispatcher),
+                scope = CoroutineScope(
+                    SupervisorJob() + defaultDispatcher + CoroutineExceptionHandler { _, throwable ->
+                        println("SilaPreferencesDataSource: hot preferences collection failed (no PII): ${throwable::class.simpleName}")
+                    }
+                ),
                 started = SharingStarted.Eagerly,
                 replay = 1
             )

@@ -201,6 +201,32 @@ class OnboardingViewModelStateDeliveryTest {
         viewModel.viewModelScope.cancel()
     }
 
+    /** إلغاء ثم إعادة اشتراك: المستهلك العائد يرى أحدث حالة مدوَّنة (حرف G من مصفوفة الانحدار). */
+    @Test
+    fun diskMode_cancelAndResubscribe_seesLatestPersistedState() = runBlocking {
+        startDiskKoin()
+        val viewModel = onboardingViewModel()
+        awaitFirstRealState(viewModel)
+
+        // إلغاء صريح لمستهلك نشط (محاكاة مغادرة الشاشة):
+        val firstCollector = launch { viewModel.state.collect {} }
+        withTimeout(FIRST_STATE_TIMEOUT_MILLIS) { viewModel.state.first { !it.isLoading } }
+        firstCollector.cancel()
+        firstCollector.join()
+
+        viewModel.onIntent(OnboardingIntent.StartOnboarding)
+        withTimeout(POST_WRITE_TIMEOUT_MILLIS) {
+            preferences().preferences.first { it.onboardingResumeStep == "PERMISSION" }
+        }
+
+        // إعادة الاشتراك بعد الإلغاء ترى أحدث حالة مدوَّنة:
+        val resubscribed = withTimeout(POST_WRITE_TIMEOUT_MILLIS) {
+            viewModel.state.first { it.step == OnboardingStep.PERMISSION }
+        }
+        assertEquals(OnboardingStep.PERMISSION, resubscribed.step)
+        viewModel.viewModelScope.cancel()
+    }
+
     /** المفصل البياناتي: مستلم حيّ على preferences يستلم إصدارات ثلاث كتابات متلاحقة (أحدثها إلزامياً). */
     @Test
     fun dataSeam_diskMode_continuousCollectorReceivesRapidSetterEmissions() = runBlocking {
