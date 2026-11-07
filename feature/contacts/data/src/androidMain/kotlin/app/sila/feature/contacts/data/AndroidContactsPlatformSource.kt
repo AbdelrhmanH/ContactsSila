@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.database.Cursor
 import android.net.Uri
 import android.provider.ContactsContract
@@ -34,13 +35,18 @@ import kotlinx.coroutines.launch
  *   الحذف يُحل حصراً عبر `LOOKUP_KEY` المحفوظ في اللقطة — النقص/الصلاحية الجزئية لا حذف.
  * - **observeChangeSignals:** `ContentObserver` على `Contacts.CONTENT_URI` مع تجميع
  *   (debounce) ≥ [DEFAULT_CHANGE_SIGNAL_DEBOUNCE_MILLIS] — إشارة اتساخ فقط بلا هوية السجل.
+ *   **محمية (DEF-01 · Issue #43):** بلا `READ_CONTACTS` لا تسجيل ولا لمس للمزوّد ولا
+ *   أحداث مزيفة — تدفق خامل حتى إلغاء الجمع، ونداء التسجيل نفسه مُحاط بالتقاط ضيق
+ *   لـ [SecurityException] (نافذة سحب بين الفحص والنداء — TOCTOU) يُسجَّل بلا PII.
  * - **observePermissionState:** `checkSelfPermission` فقط — يُميّز GRANTED عن غير
  *   المنح (DENIED). لا يُبلَّغ عن `PERMANENTLY_DENIED` من هنا: الكشف العلني الوحيد
  *   لـ"لا تسأل مرة أخرى" على Android هو نمط الطلبين عبر
  *   `shouldShowRequestPermissionRationale` داخل تدفق الطلب (يتطلب Activity)،
  *   فيُكمّله UI/الصلاحيات فوق حالة DENIED (راجع D1 في مراجعة PR #32).
  *
- * كل تحويل يمر حصراً عبر المنطق النقي في [AndroidContactsSourceLogic] (JVM-testable).
+ * كل تحويل يمر حصراً عبر المنطق النقي في [AndroidContactsSourceLogic] (JVM-testable)،
+ * ومراقبة الإشارات عبر [observeChangeSignalsFlow] بنفس النمط — عبر بوابة
+ * [ContactsProviderAccessGateway] حدّ اللمس الوحيد للمزوّد في هذا الصنف.
  * `readPage` بلا صلاحية/مع خطأ مؤقت يعيد صفحة فارغة، و`readDelta` عند الفشل يعيد
  * [ContactsDelta.newSnapshot] = null (لا تطبيق جزئي أبداً — ADR-0010 §8).
  */
@@ -51,8 +57,14 @@ class AndroidContactsPlatformSource(
     private val changeSignalDebounceMillis: Long = DEFAULT_CHANGE_SIGNAL_DEBOUNCE_MILLIS,
 ) : ContactsPlatformSource {
 
+    /** حدّ اللمس الوحيد للمزوّد — الإنتاج عبر [ContentResolverBackedGateway] حصراً. */
+    private val providerGateway: ContactsProviderAccessGateway =
+        ContentResolverBackedGateway(contentResolver, applicationContext)
+
     override suspend fun readPage(offset: Int, limit: Int): ContactsPage {
-        if (limit <= 0 || !isReadGranted()) return ContactsPage(emptyList(), offset, limit, hasMore = false)
+        if (limit <= 0 || !providerGateway.isReadPermissionGranted()) {
+            return ContactsPage(emptyList(), offset, limit, hasMore = false)
+        }
         return runCatching {
             val contactRows = queryContactRowsByPage(offset = offset, limit = limit)
             val contacts = mapAndroidContactRows(
@@ -77,27 +89,8 @@ class AndroidContactsPlatformSource(
         ContactsDelta(upserted = emptyList(), deletedSystemContactIds = emptyList(), newSnapshot = null, isFullResync = false)
     }
 
-    override fun observeChangeSignals(): Flow<ContactsChangeSignal> = callbackFlow {
-        var debounceJob: Job? = null
-        val observer = object : android.database.ContentObserver(null) {
-            override fun onChange(selfChange: Boolean) {
-                debounceJob?.cancel()
-                debounceJob = launch {
-                    delay(changeSignalDebounceMillis)
-                    trySend(ContactsChangeSignal(occurredAtMillis = System.currentTimeMillis()))
-                }
-            }
-        }
-        contentResolver.registerContentObserver(
-            ContactsContract.Contacts.CONTENT_URI,
-            /* notifyForDescendants = */ true,
-            observer
-        )
-        awaitClose {
-            debounceJob?.cancel()
-            contentResolver.unregisterContentObserver(observer)
-        }
-    }
+    override fun observeChangeSignals(): Flow<ContactsChangeSignal> =
+        observeChangeSignalsFlow(providerGateway, changeSignalDebounceMillis)
 
     override fun observePermissionState(): Flow<ContactsPermissionState> = flow {
         while (true) {
@@ -345,11 +338,8 @@ class AndroidContactsPlatformSource(
 
     // ---------------------------------------------------------------- Permission
 
-    private fun isReadGranted(): Boolean =
-        applicationContext.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
-
     private fun currentPermissionState(): ContactsPermissionState =
-        if (isReadGranted()) ContactsPermissionState.GRANTED else ContactsPermissionState.DENIED
+        if (providerGateway.isReadPermissionGranted()) ContactsPermissionState.GRANTED else ContactsPermissionState.DENIED
 
     // D1 (مراجعة PR #32): كان يُفترض هنا كشف "لا تسأل مرة أخرى" عبر
     // `AppOpsManager.unsafeCheckOpNoThrow(OPSTR_READ_CONTACTS) == MODE_ERRORED` — وهو خطأ:
@@ -421,6 +411,109 @@ class AndroidContactsPlatformSource(
             ContactsContract.Data.DATA8,
             ContactsContract.Data.DATA9
         )
+    }
+}
+
+/**
+ * بوابة الوصول لمزوّد الاتصالات — حدّ اللمس الوحيد للمزوّد في
+ * [AndroidContactsPlatformSource] (DEF-01 · Issue #43): فحص صلاحية القراءة +
+ * تسجيل/إلغاء مراقب إشارات التغيير. استُخرجت بنمط [AndroidContactsSourceLogic]
+ * نفسه (منطق قابل للاختبار على مضيف JVM بلا أنواع أندرويد). الإنتاج عبر
+ * [ContentResolverBackedGateway] حصراً؛ وبدائل الاختبارات تقع على حدّ التسجيل
+ * نفسه (لا تتجاوزه — القيمة المُختبرة هي حماية المصدر لا النداء البيني، الذي
+ * تثبته اختبارات الجهاز الفعلية في قائمة QA الأجهزة).
+ */
+internal interface ContactsProviderAccessGateway {
+
+    /**
+     * سياسة القراءة المرجعية — `READ_CONTACTS` حصراً (لا `WRITE_CONTACTS` وحدها
+     * كبديل: أقل امتياز — ADR-0009 §4). المصدر الوحيد لهذا الفحص في الصنف
+     * (readPage + observePermissionState + مراقبة الإشارات).
+     */
+    fun isReadPermissionGranted(): Boolean
+
+    /**
+     * تسجيل مراقب يُبلّغ عبر [onChange] عند أي تغيير في دفتر الاتصالات. يرمي
+     * [SecurityException] حصراً حين يرفض المزوّد التسجيل (نافذة سحبٍ بين فحص
+     * الصلاحية والنداء البيني — TOCTOU). يعيد مقبض إلغاء التسجيل — يُستدعى
+     * مرة واحدة بعد تسجيل ناجح حصراً (لا unregister لتسجيل لم يحدث — A3).
+     */
+    fun registerChangeObserver(onChange: () -> Unit): AutoCloseable
+}
+
+/** الإنتاج: نداء `ContentResolver` البيني حصراً — نفس دلالات URI/السلالات السابقة (A4). */
+private class ContentResolverBackedGateway(
+    private val contentResolver: ContentResolver,
+    private val applicationContext: Context,
+) : ContactsProviderAccessGateway {
+
+    override fun isReadPermissionGranted(): Boolean =
+        applicationContext.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+
+    override fun registerChangeObserver(onChange: () -> Unit): AutoCloseable {
+        val observer = object : ContentObserver(null) {
+            override fun onChange(selfChange: Boolean) {
+                onChange()
+            }
+        }
+        contentResolver.registerContentObserver(
+            ContactsContract.Contacts.CONTENT_URI,
+            /* notifyForDescendants = */ true,
+            observer
+        )
+        return AutoCloseable { contentResolver.unregisterContentObserver(observer) }
+    }
+}
+
+/** وسم اللوح لفشل تسجيل مراقب الإشارات — سياق تقني حصراً، بلا أسماء ولا أرقام (الإرشادات §7 و§9). */
+private const val CHANGE_SIGNAL_OBSERVER_TAG = "ContactsChangeSignals"
+
+/**
+ * تدفق إشارات التغيير **المحمي** (DEF-01 · Issue #43) — منطق الحماية الكامل
+ * JVM-testable بنفس نمط [AndroidContactsSourceLogic]:
+ *
+ * 1. **حارس الصلاحية (A1):** بلا `READ_CONTACTS` لا تسجيل ولا نداء للمزوّد ولا
+ *    أحداث مزيفة — تدفق خامل حتى إلغاء الجمع (نمط «مراقب خامل» في
+ *    `ArhamCallStateObserver`). كان غياب هذا الحارس يرمي `SecurityException`
+ *    قاتلة للعملية عند أول جمع على تثبيت جديد.
+ * 2. **التقاط ضيق (A2):** نافذة سحبٍ بين الفحص والنداء البيني فقط — الالتقاط حول
+ *    نداء التسجيل حصراً (لا `runCatching` حول `callbackFlow` كله، لا `Throwable`،
+ *    ولا معالج استثناءات عام). الرفض المتوقع يُسجَّل بلا PII ويعود التدفق خاملاً
+ *    بلا ادعاء نشاط؛ إعادة الاشتراك عند عودة الصلاحية من مسؤولية دورة حياة
+ *    [ContactsSyncEngine] (النطاق B) — بلا حلقة إعادة محاولة ضيقة.
+ * 3. **التوازن (A3):** إلغاء التسجيل مرة واحدة بعد نجاح التسجيل حصراً عبر
+ *    `awaitClose`؛ تسجيل لم ينجح لا يُلغى إطلاقاً.
+ */
+internal fun observeChangeSignalsFlow(
+    gateway: ContactsProviderAccessGateway,
+    debounceMillis: Long,
+): Flow<ContactsChangeSignal> = callbackFlow {
+    var debounceJob: Job? = null
+    if (!gateway.isReadPermissionGranted()) {
+        awaitClose { }
+        return@callbackFlow
+    }
+    val registration: AutoCloseable = try {
+        gateway.registerChangeObserver(
+            onChange = {
+                debounceJob?.cancel()
+                debounceJob = launch {
+                    delay(debounceMillis)
+                    trySend(ContactsChangeSignal(occurredAtMillis = System.currentTimeMillis()))
+                }
+            }
+        )
+    } catch (registrationDenied: SecurityException) {
+        println(
+            "$CHANGE_SIGNAL_OBSERVER_TAG: observer registration denied " +
+                "(${registrationDenied.javaClass.simpleName}); observer idle until permission re-grant"
+        )
+        awaitClose { }
+        return@callbackFlow
+    }
+    awaitClose {
+        debounceJob?.cancel()
+        registration.close()
     }
 }
 
