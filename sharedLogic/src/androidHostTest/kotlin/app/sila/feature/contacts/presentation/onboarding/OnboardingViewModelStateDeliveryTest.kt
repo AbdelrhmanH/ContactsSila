@@ -82,6 +82,9 @@ class OnboardingViewModelStateDeliveryTest {
         /** مهلة انتظار الإصدار بعد الكتابة — زمن حقيقي كافٍ لممثّل DataStore القرصي على CI. */
         private const val POST_WRITE_TIMEOUT_MILLIS = 15_000L
 
+        /** مهلة الانحلال المنتظر — انسداد أعلى من هذا يعني خط أنابيب عالقاً فيُفشل بصوت مسموع. */
+        private const val WIND_DOWN_TIMEOUT_MILLIS = 5_000L
+
         /** مهلة أول حالة/تدفئة — أول تشغيل بارد لـ JVM (بداية تهيئة Room + DataStore على القرص). */
         private const val FIRST_STATE_TIMEOUT_MILLIS = 60_000L
     }
@@ -100,7 +103,7 @@ class OnboardingViewModelStateDeliveryTest {
 
     /** (Issue #42) انحلال منتظر لنطاق الـ VM قبل أي إغلاق حاوية/قاعدة — نمط T8 (353cf99). */
     private suspend fun awaitViewModelWindDown(viewModel: OnboardingViewModel) {
-        withTimeout(POST_WRITE_TIMEOUT_MILLIS) {
+        withTimeout(WIND_DOWN_TIMEOUT_MILLIS) {
             viewModel.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
         }
     }

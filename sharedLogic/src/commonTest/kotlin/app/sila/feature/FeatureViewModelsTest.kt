@@ -1,5 +1,6 @@
 package app.sila.feature
 
+import androidx.lifecycle.viewModelScope
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.ServiceDao
 import app.sila.core.model.ArhamFrequency
@@ -16,7 +17,6 @@ import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.services.presentation.ServicesViewModel
 import app.sila.feature.settings.presentation.SettingsViewModel
-import androidx.lifecycle.viewModelScope
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,15 +51,17 @@ class FeatureViewModelsTest {
 
     @AfterTest
     fun tearDown() {
-        runCatching {
-            runBlocking {
-                withTimeout(5_000) {
-                    resolvedViewModels.forEach { viewModel ->
+        runBlocking {
+            withTimeout(5_000) {
+                resolvedViewModels.forEach { viewModel ->
+                    // per-VM runCatching (353cf99): فشل انحلال VM واحد لا يُسقط انحلال البقية قبل close
+                    runCatching {
                         viewModel.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
                     }
                 }
             }
         }
+        resolvedViewModels.clear()
         stopKoin()
         Dispatchers.resetMain()
     }
