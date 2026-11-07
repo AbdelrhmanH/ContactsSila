@@ -2,9 +2,12 @@ package app.sila.arham.notification
 
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import platform.UserNotifications.UNNotification
 import platform.UserNotifications.UNNotificationAction
@@ -30,6 +33,14 @@ interface IosArhamNotificationCenterRegistering {
 
     /** يقيّد المندوب مع مركز الإشعارات المُمرَّر ويسجّل فئة الأفعال (التعيين idempotent). */
     fun register(center: UNUserNotificationCenter)
+
+    /**
+     * إيقاف نطاق أفعال الإزاحة القابل للانتظار (تكامل دورة حياة الموارد — للتصريف
+     * قبل إغلاق الحاوية حصراً): يلغي نطاق المندوب وينتظر اكتمال أي «ذكّرني غداً»
+     * جارية — فلا قراءة Room/DataStore على حاوية مغلقة بعد عودته. لا يلمس تسجيل
+     * المندوب لدى النظام (استبدال الحاوية يعيد التقييد بنفسه). Idempotent.
+     */
+    suspend fun drainForShutdown()
 }
 
 /**
@@ -42,6 +53,8 @@ internal class IosArhamNotificationCenterRegistrar(
 ) : IosArhamNotificationCenterRegistering {
 
     override fun register(center: UNUserNotificationCenter) = delegate.register(center = center)
+
+    override suspend fun drainForShutdown() = delegate.drainForShutdown()
 }
 
 /**
@@ -94,6 +107,15 @@ class IosArhamNotificationCenterDelegate(
         center.setNotificationCategories(categories = setOf(category))
     }
 
+    /**
+     * إيقاف نطاق الأفعال القابل للانتظار (تكامل دورة حياة الموارد — يُستدعى من
+     * الغلاف [IosArhamNotificationCenterRegistrar] في التصريف قبل إغلاق الحاوية
+     * حصراً): يلغي [dispatchScope] وينتظر اكتمال أي «ذكّرني غداً» جارية. Idempotent.
+     */
+    internal suspend fun drainForShutdown() {
+        dispatchScope.coroutineContext[Job]?.cancelAndJoin()
+    }
+
     override fun userNotificationCenter(
         center: UNUserNotificationCenter,
         willPresentNotification: UNNotification,
@@ -117,7 +139,12 @@ class IosArhamNotificationCenterDelegate(
                         planner = planner,
                         scheduler = scheduler,
                     )
-                }.onFailure { IosArhamNotificationScheduler.logTypeOnly("Remind-tomorrow reschedule failed", it) }
+                }.onFailure {
+                    // إعادة رمي الإلغاء إلزامية: كتمها يجعل تفكيك نطاق الأفعال في
+                    // drainForShutdown يُسجَّل زوراً كإخفاق إزاحة جدولة.
+                    if (it is CancellationException) throw it
+                    IosArhamNotificationScheduler.logTypeOnly("Remind-tomorrow reschedule failed", it)
+                }
                 center.removeDeliveredNotificationsWithIdentifiers(
                     identifiers = listOf(IosArhamNotificationScheduler.REMINDER_IDENTIFIER),
                 )

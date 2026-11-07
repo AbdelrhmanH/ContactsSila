@@ -4,9 +4,12 @@ import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.feature.arham.domain.ArhamNotificationContent
 import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
@@ -58,14 +61,37 @@ class IosArhamNotificationScheduler(
     },
 ) : ArhamAlarmScheduler, IosArhamReminderScheduling {
 
+    /**
+     * نطاق الجدولة المملوك للمجدول حصراً — واحد لكل أعمار الكائن (تكامل دورة حياة
+     * الموارد: كان `scheduleAt` يفرخ نطاقاً منفصلاً بلا مالك لكل نداء فلا إلغاء
+     * ولا انتظار ممكنين؛ الآن كل جدولة ابنٌ هنا و[drainForShutdown] يلغي وينتظر).
+     */
+    internal val schedulingScope = CoroutineScope(SupervisorJob() + schedulingContext)
+
     override fun scheduleAt(fireAtMillis: Long) {
         // غير متزامن عمداً (نمط `ArhamNotificationActionReceiver` أندرويد): تخطيط المحتوى
         // يقرأ DataStore/Room — لا `runBlocking` على خيط المستدعي إطلاقاً؛ الاستبدال
         // بالمُعرّف الثابت يجعل التداخل بين جدولتين متتاليتين بلا أثر (الأخير يفوز).
-        CoroutineScope(SupervisorJob() + schedulingContext).launch {
+        schedulingScope.launch {
             runCatching { scheduleSuspended(fireAtMillis) }
-                .onFailure { logTypeOnly("Arham reminder scheduling failed", it) }
+                .onFailure {
+                    // إعادة رمي الإلغاء إلزامية: كتمه داخل runCatching يجعل تفكيك
+                    // النطاق في [drainForShutdown] يسجَّل زوراً كإخفاق جدولة.
+                    if (it is CancellationException) throw it
+                    logTypeOnly("Arham reminder scheduling failed", it)
+                }
         }
+    }
+
+    /**
+     * إيقاف الجدولة القابل للانتظار (تكامل دورة حياة الموارد — للتصريف قبل إغلاق
+     * الحاوية حصراً): يلغي النطاق المملوك وينتظر اكتمال كل جدولة جارية/لم تُبدأ —
+     * فلا قراءة DataStore/Room على حاوية مغلقة بعد عودته. **لا يلمس الإشعار المُسلَّم
+     * للنظام إطلاقاً** (الزنّاد اليومي بمُعرّف ثابت ملكٌ للنظام ويعاد تخطيطه من `now`
+     * عند كل إقلاع — `cancelPending` مسار تعطيل الميزة حصراً). Idempotent.
+     */
+    internal suspend fun drainForShutdown() {
+        schedulingScope.coroutineContext[Job]?.cancelAndJoin()
     }
 
     /** يلغي الطلب المعلّق — مسار تعطيل الميزة/غياب المحتوى (الزنّاد المتكرر لا يُترك يتائح). */

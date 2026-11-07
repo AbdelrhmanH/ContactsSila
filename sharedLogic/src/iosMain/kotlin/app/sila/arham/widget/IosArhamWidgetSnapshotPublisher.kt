@@ -8,9 +8,12 @@ import kotlin.coroutines.CoroutineContext
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -51,10 +54,8 @@ class IosArhamWidgetSnapshotPublisher(
     /** مُشغِّل إعادة التحميل الذي يضبطه Swift في عملية التطبيق نفسها (استدعاء داخل العملية). */
     private val reloadTrigger = AtomicReference<(() -> Unit)?>(null)
 
-    init {
-        scope.launch {
-            requests.receiveAsFlow().collect { publishOnce() }
-        }
+    private val collectorJob: Job = scope.launch {
+        requests.receiveAsFlow().collect { publishOnce() }
     }
 
     /** يضبط (أو يصفّر) دالة إعادة تحميل الودجت التي يستدعيها Kotlin بعد كل كتابة ناجحة. */
@@ -65,6 +66,24 @@ class IosArhamWidgetSnapshotPublisher(
     override fun onArhamDataChanged() {
         runCatching { requests.trySend(Unit) }
             .onFailure { logTypeOnly("Widget snapshot request enqueue failed", it) }
+    }
+
+    /**
+     * إغلاق الناشر القابل للانتظار (تكامل دورة حياة الموارد — يُستدعى من التصريف
+     * قبل إغلاق الحاوية حصراً): يغلق قناة الأحداث ثم **ينضم للجامع** حتى يُكمل أيّ
+     * نشر معلّق في القناة وينتهي بنفسه، والإلغاء بعدها حاجز خلفي لمسارٍ مرضي فقط —
+     * فلا قراءة Room ولا كتابة لقطة على حاوية مغلقة بعد عودته. لا يلمس ملف اللقطة المكتوب سابقاً (الإضافة تقرأه على دورتها).
+     * Idempotent — إغلاق قناة مغلقة وإنضمام مُتَمٍّ بلا أثر.
+     */
+    suspend fun close() {
+        // 1) إغلاق القناة يجعل الجامع يُكمل أيّ نشر معلّق في القناة ثم ينتهي بنفسه؛
+        // الانضمام أولاً هو الضمان — الإلغاء حاجزٌ خلفي فقط لمسار مرضي لا يكمل.
+        requests.close()
+        try {
+            collectorJob.join()
+        } finally {
+            scope.coroutineContext[Job]?.cancelAndJoin()
+        }
     }
 
     /**
@@ -89,7 +108,12 @@ class IosArhamWidgetSnapshotPublisher(
                 return
             }
             reloadTrigger.value?.invoke()
-        }.onFailure { logTypeOnly("Widget snapshot publish failed", it) }
+        }.onFailure {
+            // إعادة رمي الإلغاء إلزامية: كتمها يجعل انضمام الجامع في [close] يُسجَّل
+            // زوراً كإخفاق نشر ويُفقد ضمان «لا عمل حي بعد العودة».
+            if (it is CancellationException) throw it
+            logTypeOnly("Widget snapshot publish failed", it)
+        }
     }
 
     internal companion object {
