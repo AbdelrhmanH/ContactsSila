@@ -9,7 +9,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -86,8 +88,21 @@ class OnboardingViewModelStateDeliveryTest {
 
     @AfterTest
     fun tearDown() {
-        runCatching { koin.getOrNull<OnboardingViewModel>()?.viewModelScope?.cancel() }
+        // (Issue #42) طبقة دفاعية: انحلال منتظر قبل إغلاق الحاوية — بدون join يُخزَّن أي فشل
+        // حقيقي أثناء الانحلال عالمياً (ExceptionCollector) ويُسقط على أول runTest تالٍ.
+        runCatching {
+            koin.getOrNull<OnboardingViewModel>()?.let { viewModel ->
+                runBlocking { awaitViewModelWindDown(viewModel) }
+            }
+        }
         stopKoin()
+    }
+
+    /** (Issue #42) انحلال منتظر لنطاق الـ VM قبل أي إغلاق حاوية/قاعدة — نمط T8 (353cf99). */
+    private suspend fun awaitViewModelWindDown(viewModel: OnboardingViewModel) {
+        withTimeout(POST_WRITE_TIMEOUT_MILLIS) {
+            viewModel.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+        }
     }
 
     /** مستلم حيّ لا يفصل الاشتراك يعبر كتابة نية فعلية — DataStore قرصي فعلي + مسار إنتاجي كامل عبر Koin. */
@@ -118,7 +133,7 @@ class OnboardingViewModelStateDeliveryTest {
         // توصيل القيمة إلى المستلم الحيّ عبر إشارة من داخله (حتمي — لا فحص قائمة غير مصفّاة):
         withTimeout(POST_WRITE_TIMEOUT_MILLIS) { permissionObserved.await() }
         collector.cancel()
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     /** ضابط تحكم: نفس المتن فوق مصدر في الذاكرة (فرع _memoryState لا يمسه الإصلاح). */
@@ -146,7 +161,7 @@ class OnboardingViewModelStateDeliveryTest {
         }
         withTimeout(POST_WRITE_TIMEOUT_MILLIS) { permissionObserved.await() }
         collector.cancel()
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     /**
@@ -176,7 +191,7 @@ class OnboardingViewModelStateDeliveryTest {
             state.step,
             "Subscriber arriving after the write must see the latest persisted state."
         )
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     /** نوايا متلاحقة: التقارب على أحدث حالة مدوَّنة (إسقاط الوسطيات قانوني، الاستقرار على الأحدث إلزامي). */
@@ -198,7 +213,7 @@ class OnboardingViewModelStateDeliveryTest {
             converged.step,
             "Rapid multi-write sequence must converge to the latest persisted step."
         )
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     /** إلغاء ثم إعادة اشتراك: المستهلك العائد يرى أحدث حالة مدوَّنة (حرف G من مصفوفة الانحدار). */
@@ -224,7 +239,7 @@ class OnboardingViewModelStateDeliveryTest {
             viewModel.state.first { it.step == OnboardingStep.PERMISSION }
         }
         assertEquals(OnboardingStep.PERMISSION, resubscribed.step)
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     /** المفصل البياناتي: مستلم حيّ على preferences يستلم إصدارات ثلاث كتابات متلاحقة (أحدثها إلزامياً). */

@@ -11,7 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -19,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.AfterClass
 import org.junit.BeforeClass
@@ -52,6 +55,9 @@ class OnboardingViewModelKoinTest {
             }
         private val mainDispatcher: ExecutorCoroutineDispatcher = mainExecutor.asCoroutineDispatcher()
 
+        /** مهلة الانحلال المنتظر — انسداد أعلى من هذا يعني خط أنابيب عالقاً فيُفشل بصوت مسموع. */
+        private const val WIND_DOWN_TIMEOUT_MILLIS = 5_000L
+
         @BeforeClass
         @JvmStatic
         fun setUpClass() {
@@ -82,8 +88,33 @@ class OnboardingViewModelKoinTest {
     @AfterTest
     fun tearDown() {
         // إيقاف أي ViewModel حيّة قبل stopKoin — دون فكّ Main بين الاختبارات (انظر setUpClass):
-        runCatching { koin.getOrNull<OnboardingViewModel>()?.viewModelScope?.cancel() }
+        // (Issue #42) الانحلال أصبح منتظراً (join): بدون انضمام يظل فشل حقيقي أثناء انحلال
+        // خط أنابيب Room/DataStore بلا معالج فيُخزَّن عالمياً (ExceptionCollector) ويُسقط
+        // على أول runTest تالٍ (UncaughtExceptionsBeforeTest — سبق ووقع في run 42188088602).
+        // الالتفاف يخفض التصريف المسدود إلى سلوك اليوم في مسارات الفشل حصراً (نمط 353cf99).
+        runCatching {
+            koin.getOrNull<OnboardingViewModel>()?.let { viewModel ->
+                runBlocking { awaitViewModelWindDownBounded(viewModel) }
+            }
+        }
         stopKoin()
+    }
+
+    /** (Issue #42) انحلال منتظر لنطاق الـ VM قبل أي إغلاق حاوية/قاعدة — نمط T8 (353cf99):
+     * قراءات وكتابات Room على IO تخرج من المسبح قبل closeConnection، فلا يولد فشل حقيقي
+     * في نافذة [leave() ← enter()] التي يخزنها جامع الاستثناءات العالمي للاختبار التالي.
+     *
+     * داخل runTest: بلا withTimeout — زمنه الافتراضي يطلق فوراً على انتظار IO حقيقي
+     * (الدرس الموثق أعلاه)، وحد runTest الواقعي (60s) هو الحارس الصامت. */
+    private suspend fun awaitViewModelWindDown(viewModel: OnboardingViewModel) {
+        viewModel.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+    }
+
+    /** انحلال منتظر بزمن حقيقي مسموع — لسياقات runBlocking حصراً (@AfterTest وأجسام القرص). */
+    private suspend fun awaitViewModelWindDownBounded(viewModel: OnboardingViewModel) {
+        withTimeout(WIND_DOWN_TIMEOUT_MILLIS) {
+            viewModel.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+        }
     }
 
     @Test
@@ -97,7 +128,7 @@ class OnboardingViewModelKoinTest {
 
         assertEquals(OnboardingStep.PERMISSION, awaitStep(OnboardingStep.PERMISSION).step)
         assertTrue(!preferences().preferences.first().onboardingCompleted, "onboardingCompleted must stay false mid-onboarding.")
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -137,7 +168,7 @@ class OnboardingViewModelKoinTest {
                 persisted.onboardingContactsPermission,
                 "$state must be persisted via the repository (platform never asks from domain)."
             )
-            viewModel.viewModelScope.cancel()
+            awaitViewModelWindDown(viewModel)
             stopKoin()
         }
     }
@@ -170,7 +201,7 @@ class OnboardingViewModelKoinTest {
             effects.last() == OnboardingEffect.OpenAppSettings,
             "Third request must route to app settings instead of a new system prompt."
         )
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -188,7 +219,7 @@ class OnboardingViewModelKoinTest {
         }
         assertFalse(uiState.hasContactsError, "Empty search results are a normal state, not an error.")
         assertTrue(uiState.selections.isEmpty())
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -213,7 +244,7 @@ class OnboardingViewModelKoinTest {
         assertEquals(Relation.MOTHER, saved.first { it.systemContactId == "sys_9" }.relation)
         saved.forEach { assertEquals("WEEKLY", it.frequency.name, "Default handoff frequency stays WEEKLY.") }
         assertEquals(OnboardingStep.ORGANIZING, awaitStep(OnboardingStep.ORGANIZING).step)
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -231,7 +262,7 @@ class OnboardingViewModelKoinTest {
             preferences().preferences.first().onboardingTopFiveSelections.isEmpty(),
             "Skipping must not create any Arham record (Issue #26)."
         )
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -250,7 +281,7 @@ class OnboardingViewModelKoinTest {
         }
 
         assertEquals(5, awaitState { it.selections.size == 5 }.selections.size)
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 
     @Test
@@ -271,7 +302,7 @@ class OnboardingViewModelKoinTest {
                 it.onboardingContactsPermission == "SKIPPED" && it.onboardingResumeStep == "GUEST_LOGIN"
             }
         }
-        firstViewModel.viewModelScope.cancel()
+        awaitViewModelWindDownBounded(firstViewModel)
         stopKoin()
 
         // محاكاة موت العملية: حاوية جديدة بنفس مسار التخزين على القرص.
@@ -283,7 +314,7 @@ class OnboardingViewModelKoinTest {
 
         assertEquals(OnboardingStep.GUEST_LOGIN, resumed.step, "Re-entry resumes at the first incomplete step.")
         assertFalse(preferences().preferences.first().onboardingCompleted)
-        resumedViewModel.viewModelScope.cancel()
+        awaitViewModelWindDownBounded(resumedViewModel)
     }
 
     @Test
@@ -310,7 +341,7 @@ class OnboardingViewModelKoinTest {
             }
         }
         assertTrue(finalPrefs.isGuest, "Phase 1 completion keeps the guest path (zero cloud writes).")
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDownBounded(viewModel)
         stopKoin()
 
         // محاكاة موت العملية: حاوية جديدة بنفس مسار التخزين على القرص.
@@ -325,7 +356,7 @@ class OnboardingViewModelKoinTest {
             resumed.step,
             "With onboardingCompleted=true the home gate never repeats onboarding (resumeStep stays null)."
         )
-        resumedViewModel.viewModelScope.cancel()
+        awaitViewModelWindDownBounded(resumedViewModel)
     }
 
     private fun onboardingViewModel(): OnboardingViewModel = koin.get()
