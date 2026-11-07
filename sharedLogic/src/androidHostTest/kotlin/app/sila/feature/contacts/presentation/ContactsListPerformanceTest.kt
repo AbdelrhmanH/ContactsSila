@@ -10,7 +10,6 @@ import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.setMain
@@ -57,6 +56,8 @@ class ContactsListPerformanceTest {
         @AfterClass
         @JvmStatic
         fun tearDownClass() {
+            // (Issue #42) حاجز تصريف لطابور Main بعد انحلالات النطاقات المنتظرة (join) —
+            // تدفق وقائي لأي بقايا إلغاء، وليس نوماً يخفي سباقاً.
             repeat(times = 3) {
                 runCatching { mainExecutor.submit(Runnable {}).get() }
                 Thread.sleep(50)
