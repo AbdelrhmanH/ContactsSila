@@ -1,5 +1,6 @@
 package app.sila.di
 
+import app.sila.arham.notification.IosArhamNotificationScheduler
 import app.sila.arham.notification.IosArhamNotificationCenterRegistering
 import app.sila.arham.notification.IosArhamReminderDispatch
 import app.sila.arham.notification.iosNotificationCenterIfPresent
@@ -14,6 +15,7 @@ import app.sila.feature.contacts.presentation.ContactDetailsViewModel
 import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
+import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
 import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.main.MainViewModel
@@ -102,6 +104,33 @@ object IosKoinBootstrap {
     @Volatile
     private var activeEngine: ContactsSyncEngine? = null
 
+    /** مراقب حالة المكالمات الذي أطلقه [startCallStateObserver] على الحاوية الحالية —
+     * يوقفه التصريف قبل أي إغلاق (خروج المندوب ObjC متزامن — لا انتظار لازم). */
+    @Volatile
+    private var activeCallObserver: ArhamCallStateObserver? = null
+
+    /** مجدول التذكير الذي التقطه [rescheduleDailyReminder] على خيط المستدعي — التصريف
+     * يلغي نطاقه المملوك وينتظر (أعمالُ الجدولة لم تعد نطاقات منفصلة بلا مالك). */
+    @Volatile
+    private var activeArhamScheduler: IosArhamNotificationScheduler? = null
+
+    /** غلاف مندوب الإشعارات المقيد في [registerNotificationCenterDelegate] — التصريف
+     * يلغي نطاق أفعال الإزاحة فيه وينتظر؛ تسجيل المندوب لدى النظام يستبدل ذاتياً عند
+     * إعادة التقييد على الحاوية التالية. */
+    @Volatile
+    private var activeArhamRegistrar: IosArhamNotificationCenterRegistering? = null
+
+    /** ثلاثية جسر الودجت الحالية (الناشر + قاعدة الحاوية + المستمع) — التصريف يزيل
+     * المستمع من القاعدة القديمة أولاً (وقف إنتاج الأحداث) ثم يغلق الناشر وينتظر. */
+    @Volatile
+    private var activeWidgetPublisher: IosArhamWidgetSnapshotPublisher? = null
+
+    @Volatile
+    private var activeWidgetDb: LocalSilaDatabase? = null
+
+    @Volatile
+    private var activeWidgetListener: ArhamDataChangeListener? = null
+
     /**
      * للاختبارات حصراً (نفس مبدئ خطافات `LocalSilaDatabase` الداخلية): يعيد علم
      * الإطلاق الواحد [cleanupLaunched] إلى حالة ما قبل الإطلاق، ليستطيع اختبار مسار
@@ -116,6 +145,11 @@ object IosKoinBootstrap {
     /** بصمة علم الإطلاق الواحد للاختبارات حصراً (مرآة [resetCleanupLaunchForTest]). */
     internal fun isCleanupLaunchedForTest(): Boolean = cleanupLaunched
 
+    /** بصمة أعلام أرحام للاختبارات حصراً — true فقط بعد تصريفٍ صفّرها كلها (النمط المرجعي). */
+    internal fun areArhamLifecycleFlagsResetForTest(): Boolean =
+        !reminderRescheduled && !callObserverStarted && !notificationDelegateRegistered &&
+            !widgetBridgeRegistered && !emergencyReconciled && !materializationLaunched
+
     /**
      * تصريف عمل النطاق المحفوظ **قبل** إغلاق أي حاوية Koin — الحاجز الذي يمنع
      * `stopKoin()` من إغلاق تجمع اتصالات SQLite تحت عملٍ حيّ. الترتيب إلزامي:
@@ -126,12 +160,18 @@ object IosKoinBootstrap {
      * ليستلمه الاختبار/المسار التالي. لا تُستدعى `stopKoin()` في هذه الدالة —
      * تُستدعى من المستدعي **بعد** عودتها فقط.
      *
-     * التغطية: كل ما يُطلقه [ensureStarted] يعيش في [engineScope] — مهمة دورة حياة
-     * المحرك (كوروتين المشاركة + جامعا الصلاحيات/الإشارات) ومهمة صيانة الاستبقاء —
-     * فالتصريف يغطيها كلها. **خارج التغطية عمداً:** نطاقات `viewModelScope` لـ
-     * ViewModels حاوية Koin (مالكها من استدعى الـ getters — يلغيها من حلّها في
-     * اختباره بنمط `ContactsViewModelKoinTest` المستقر)، ويلزم تغطيتها عند دمج T8
-     * (سجّل في تقرير المهمة ضمن متطلبات الدمج).
+     * التغطية بعد دمج T8: كل ما يُطلقه [ensureStarted] — دورة حياة المحرك
+     * (كوروتين المشاركة + جامعا الصلاحيات/الإشارات)، صيانة الاستبقاء، تجسيد «أهم 5»،
+     * إعادة جدولة التذكير، موافة الطوارئ، ومراقب المكالمات — في [engineScope]،
+     * **وأضف إلى ذلك** نطاقات أرحام المملوكة: مجدول التذكير ونطاق أفعال مندوب
+     * الإشعارات ([drainForShutdown] لكلٍّ)، وجسر الودجت (إزالة المستمع من القاعدة
+     * القديمة ثم [IosArhamWidgetSnapshotPublisher.close]). **خارج التغطية عمداً:**
+     * نطاقات `viewModelScope` لـ ViewModels حاوية Koin (مالكها من استدعى الـ getters
+     * — يلغيها من حلّها في اختباره بنمط `ContactsViewModelKoinTest` المستقر —
+     * مطبَّقة في اختبارات T8)، ونطاق متحكم الرنين المقاطَع (حاوية-النطاق بلا أي
+     * مسار اختبار عبر الحاويات؛ كل إطلاقاته بعزل runCatching وتوافى جلساته عند
+     * الإقلاع التالي — مقبول بالتصميم)، ونطاق الناشر الخامل في `KoinWiringSmokeTest`
+     * (قناة فارغة بلا مستمع — لا لمس لأي تابع).
      *
      * @param strictTimeout الوضع الصارم (الاختبارات): تجاوز المهلة يفشل loudly
      *   ولا يسمح بإغلاق الحاوية تحت عمل حيّ. في مسار الإنتاج الشاذ (تبديل حاوية
@@ -147,16 +187,26 @@ object IosKoinBootstrap {
                     // مكسور) لا يجوز أن يتخطى الثابتَ الأكبر — إلغاء النطاق
                     // والانتظار لكل أبنائه. إعادة رمي الإلغاء إلزامية كي لا يبتلع
                     // هذا العزل إلغاء withTimeout نفسه.
-                    try {
-                        activeEngine?.stop()
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        println(
-                            "[IosKoinBootstrap] engine stop skipped during drain: " +
-                                "${e::class.simpleName}"
-                        )
+                    // خطوة 0 — وقف مراقب المكالمات (خروج المندوب متزامن — نظافة، ليست صحة)
+                    drainStep("call-observer stop") { activeCallObserver?.stop() }
+                    // خطوة 1 — جدولة التذكير: إلغاء النطاق المملوك والانتظار (بلا لمس
+                    // للإشعار المسلَّم للنظام — الزنّاد اليومي يعاد تخطيطه عند كل إقلاع)
+                    drainStep("reminder-scheduler drain") { activeArhamScheduler?.drainForShutdown() }
+                    // خطوة 2 — نطاق أفعال مندوب الإشعارات: إلغاء وانتظار أي «ذكّرني غداً»
+                    drainStep("notification-delegate drain") { activeArhamRegistrar?.drainForShutdown() }
+                    // خطوة 3 — وقف إنتاج أحداث الودجت من القاعدة القديمة (إزالة المستمع
+                    // ذرّية قبل إغلاق قناة الناشر — أحدث الأحداث فقط قد تصل وكلها آمنة)
+                    drainStep("widget-listener removal") {
+                        val listener = activeWidgetListener
+                        val db = activeWidgetDb
+                        if (listener != null && db != null) db.removeArhamDataChangeListener(listener)
                     }
+                    // خطوة 4 — إغلاق الناشر: قناة تغلق (يكمل النشر المعلق نفسه) ثم انضمام
+                    drainStep("widget-publisher close") { activeWidgetPublisher?.close() }
+                    // خطوة 5 — إيقاف المحرك (النمط المرجعي من PR #46)
+                    drainStep("engine stop") { activeEngine?.stop() }
+                    // خطوة 6 — إلغاء نطاق الكائن والانتظار لكل أبنائه (المنسّقون والموافة
+                    // وإعادة الجدولة ومراقبة المكالمات والاستبقاء)
                     scopeJob?.cancelAndJoin()
                 }
             }
@@ -183,7 +233,28 @@ object IosKoinBootstrap {
         resetCleanupLaunchForTest()
         resetArhamLifecycleFlagsForTest()
         activeEngine = null
+        activeCallObserver = null
+        activeArhamScheduler = null
+        activeArhamRegistrar = null
+        activeWidgetPublisher = null
+        activeWidgetDb = null
+        activeWidgetListener = null
         engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    }
+
+    /**
+     * عزل ضيق لخطوة تصريف واحدة: فشلها لا يتخطى الثابت الأكبر (اكتمال التفكيك
+     * كله) — يسجَّل بنوعه ويُكمل، بإعادة رمي الإلغاء إلزامياً كي لا يبتلع العزلُ
+     * إلغاء withTimeout نفسه (نمط PR #46 المرجعي لعازل المحرك).
+     */
+    private inline fun drainStep(name: String, step: () -> Unit) {
+        try {
+            step()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            println("[IosKoinBootstrap] " + name + " skipped during drain: " + e::class.simpleName)
+        }
     }
 
     /**
@@ -250,14 +321,24 @@ object IosKoinBootstrap {
     private fun rescheduleDailyReminder(koin: Koin) {
         if (reminderRescheduled) return
         reminderRescheduled = true
+        // حل التبعيات على خيط المستدعي (نمط activeEngine المرجعي): فشل الحل فوري
+        // عند الإقلاع، والمرجع الملتقط هو ما يصرفه التصريف لاحقاً — لا koin.get
+        // متأخر يضرب حاوية مغلقة (فجوة ClosedScopeException المدمجة).
+        val scheduler = koin.get<IosArhamNotificationScheduler>()
+        val preferences = koin.get<UserPreferencesDataSource>()
+        val planner = koin.get<PlanArhamDailyNotificationUseCase>()
+        activeArhamScheduler = scheduler
         engineScope.launch {
             runCatching {
                 IosArhamReminderDispatch.rescheduleFromNow(
-                    preferences = koin.get(),
-                    planner = koin.get(),
-                    scheduler = koin.get(),
+                    preferences = preferences,
+                    planner = planner,
+                    scheduler = scheduler,
                 )
-            }.onFailure { println("IosArhamReminderDispatch failed: ${it::class.simpleName}") }
+            }.onFailure {
+                if (it is CancellationException) throw it // إلغاء التصريف ليس إخفاقاً
+                println("IosArhamReminderDispatch failed: ${it::class.simpleName}")
+            }
         }
     }
 
@@ -269,7 +350,9 @@ object IosKoinBootstrap {
     private fun startCallStateObserver(koin: Koin) {
         if (callObserverStarted) return
         callObserverStarted = true
-        koin.get<ArhamCallStateObserver>().start(engineScope)
+        val observer = koin.get<ArhamCallStateObserver>()
+        activeCallObserver = observer
+        observer.start(engineScope)
     }
 
     /**
@@ -286,8 +369,9 @@ object IosKoinBootstrap {
         // (تنفيذية بلا حزمة) تُهمل العملية صامتاً — والتطبيق الحقيقي (حزمة سليمة) لا أثر
         // عليه الفحص أصلاً.
         val center = iosNotificationCenterIfPresent() ?: return
-        koin.get<IosArhamNotificationCenterRegistering>()
-            .register(center = center)
+        val registrar = koin.get<IosArhamNotificationCenterRegistering>()
+        activeArhamRegistrar = registrar
+        registrar.register(center = center)
     }
 
     /**
@@ -299,8 +383,13 @@ object IosKoinBootstrap {
     private fun registerWidgetRefreshBridge(koin: Koin) {
         if (widgetBridgeRegistered) return
         widgetBridgeRegistered = true
-        val listener: ArhamDataChangeListener = koin.get()
-        koin.get<LocalSilaDatabase>().addArhamDataChangeListener(listener)
+        val publisher = koin.get<IosArhamWidgetSnapshotPublisher>()
+        val db = koin.get<LocalSilaDatabase>()
+        val listener: ArhamDataChangeListener = publisher
+        db.addArhamDataChangeListener(listener)
+        activeWidgetPublisher = publisher
+        activeWidgetDb = db
+        activeWidgetListener = listener
     }
 
     /**
@@ -311,9 +400,15 @@ object IosKoinBootstrap {
     private fun reconcileInterruptedEmergencySessions(koin: Koin) {
         if (emergencyReconciled) return
         emergencyReconciled = true
+        // حلّ حالة الاستخدام على خيط المستدعي (نمط activeEngine — لا koin.get متأخر
+        // يضرب حاوية مغلقة بعد الاستبدال).
+        val reconcile = koin.get<ReconcileInterruptedSessionUseCase>()
         engineScope.launch {
-            runCatching { koin.get<ReconcileInterruptedSessionUseCase>()() }
-                .onFailure { println("ReconcileInterruptedSessionUseCase failed: ${it::class.simpleName}") }
+            runCatching { reconcile() }
+                .onFailure {
+                    if (it is CancellationException) throw it // إلغاء التصريف ليس إخفاقاً
+                    println("ReconcileInterruptedSessionUseCase failed: ${it::class.simpleName}")
+                }
         }
     }
 

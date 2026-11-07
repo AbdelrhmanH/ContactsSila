@@ -15,9 +15,10 @@ import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -131,10 +132,14 @@ class IosKoinBootstrapTest {
             assertEquals(DefaultTab.ARHAM, vm.state.value.activeTab)
         } finally {
             // نطاق الـ VM خارج engineScope (مالكه الـ ViewModel نفسه ولا يعرفه
-            // التصريف) — يُلغى هنا قبل تفكيك الحاوية بالنمط المستقر في
+            // التصريف) — يُلغى **بالانضمام** هنا قبل تفكيك الحاوية بالنمط المستقر في
             // ContactsViewModelKoinTest، وإلا بقيت مجاميعه (DataStore/DAO) حية عبر
             // stopKoin فتلمس حاوية مغلقة. في finally كي لا يتخطاه فشل تأكيد.
-            runCatching { vm.viewModelScope.cancel() }
+            runBlocking {
+                withTimeout(5_000) {
+                    runCatching { vm.viewModelScope.coroutineContext[Job]!!.cancelAndJoin() }
+                }
+            }
         }
     }
 
@@ -310,5 +315,51 @@ class IosKoinBootstrapTest {
             "retention must relaunch on the fresh container after the replacement drain"
         )
         writeAndReadOnCurrentContainer(diskKoin, marker = "replacement_probe")
+    }
+
+    @Test
+    fun shutdownForTest_resetsArhamLifecycleFlags_afterFullDrain() {
+        // أعلام أرحام تُستهلك عند ensureStarted وتُصفَّر بالتصريف فقط — التصريف
+        // المدمج صفَّرها (الفجوة الاتحادية للدمج: بلا تصفير تبقى أرحام ميتة لبقية
+        // عمر العملية بعد أي استبدال حاوية).
+        IosKoinBootstrap.resetCleanupLaunchForTest()
+        IosKoinBootstrap.ensureStarted()
+        assertFalse(
+            IosKoinBootstrap.areArhamLifecycleFlagsResetForTest(),
+            "ensureStarted must consume the arham lifecycle flags"
+        )
+
+        IosKoinBootstrap.shutdownForTest()
+
+        assertTrue(
+            IosKoinBootstrap.areArhamLifecycleFlagsResetForTest(),
+            "the drain may only reset the arham flags after the lifecycle fully stopped"
+        )
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    @Test
+    fun arhamLifecycle_reArms_onFreshContainer_afterDrainCycle() {
+        // البرهان السلوكي (لا تصفير أعلامٍ يدوي قبل الدورة الثانية — التصريف نفسه هو
+        // الذي أعاد الأعلام): دورة كاملة (استهلاك → تصريف → إغلاق) ثم حاوية جديدة
+        // تُجسِّد «أهم 5» من جديد — قبل الإصلاح كان العلم العالق يمنع أي تجسيد بعد
+        // أول تصريف وينتهي الاستطلاع بلا نتيجة.
+        IosKoinBootstrap.resetCleanupLaunchForTest()
+        IosKoinBootstrap.ensureStarted()
+        IosKoinBootstrap.shutdownForTest()
+        stopKoin()
+
+        val koin2 = IosKoinBootstrap.ensureStarted()
+        val coordinator = koin2.get<ArhamMaterializationCoordinator>()
+        var waitedMillis = 0L
+        while (coordinator.lastOutcome.value == null && waitedMillis < 15_000L) {
+            usleep(100_000u) // 100ms — نمط الاستطلاع المستقر في هذا الملف
+            waitedMillis += 100L
+        }
+        assertNotNull(
+            coordinator.lastOutcome.value,
+            "top-five materialization must re-arm on the fresh container after a full drain cycle"
+        )
+        writeAndReadOnCurrentContainer(koin2, marker = "rearm_probe")
     }
 }
