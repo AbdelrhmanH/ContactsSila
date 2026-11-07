@@ -25,6 +25,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.koin.core.context.stopKoin
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -43,8 +49,26 @@ class FeatureViewModelsTest {
         Dispatchers.setMain(Dispatchers.Unconfined)
     }
 
+    /** ViewModels الحالية في الحاوية — تُسجَّل عند الحل (لا getOrNull متأخر يُنشئ
+     * وحيدات جديدة عند فشلٍ سابق) ويُلغى نطاقها **بالانضمام** قبل stopKoin. */
+    private val resolvedViewModels = mutableListOf<androidx.lifecycle.ViewModel>()
+
     @AfterTest
     fun tearDown() {
+        // نطاقات ViewModels ملك لأصحابها — من حلّها في الاختبار يلغيها قبل إغلاق
+        // الحاوية، **بالانضمام** (لا مجرد طلب إلغاء): جامعات Room على IO تخرج من
+        // المُشغِّل فعلياً قبل stopKoin فلا تلمس تجمع اتصالات مغلقاً (تكامل دورة حياة
+        // الموارد). runBlocking مقيد بمهلة في اختبار مشترك — سابقة المستودع.
+        runBlocking {
+            withTimeout(5_000) {
+                resolvedViewModels.forEach { vm ->
+                    runCatching {
+                        vm.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+                    }
+                }
+            }
+        }
+        resolvedViewModels.clear()
         stopKoin()
         Dispatchers.resetMain()
     }
@@ -106,6 +130,7 @@ class FeatureViewModelsTest {
         val arhamVm = koin.get<ArhamViewModel>()
         val servicesVm = koin.get<ServicesViewModel>()
         val settingsVm = koin.get<SettingsViewModel>()
+        resolvedViewModels += listOf(contactsVm, arhamVm, servicesVm, settingsVm)
 
         assertNotNull(contactsVm)
         assertNotNull(arhamVm)

@@ -22,7 +22,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.resetMain
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.setMain
 import kotlinx.datetime.Instant
 import kotlin.test.AfterTest
@@ -79,6 +84,7 @@ class MainViewModelTest {
         // T8-06 · خطة §D.3-4/AC-3/AC-8: الاتصال من داخل صِلَة يسجّل محاولة IN_APP حصراً —
         // الاختبار المتعمد المعاكس للسلوك القديم: بُعدُه عن الآلة كان يكتب آخر تواصل بلا بوابة.
         val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers, seedDemoData = true)
+        var vm: MainViewModel? = null
         try {
             val contactsRepo = ContactsRepositoryImpl(db)
             val servicesRepo = ServicesRepositoryImpl(db)
@@ -91,7 +97,7 @@ class MainViewModelTest {
                 dispatchers = unconfinedDispatchers,
             )
 
-            val vm = MainViewModel(
+            vm = MainViewModel(
                 contactsRepository = contactsRepo,
                 recordDialAttempt = recordDialAttempt(db),
                 servicesRepository = servicesRepo,
@@ -111,6 +117,17 @@ class MainViewModelTest {
             val event = db.getCallEventById("inapp-2-${fixedClock.nowEpochMillis()}")
             assertEquals(CallOutcome.ATTEMPTED, event?.outcome)
         } finally {
+            // نطاق الـ VM ملك له: يُلغى قبل إغلاق القاعدة (نمط ContactsViewModelKoinTest)
+            // — جامعات Room الحية لا تلمس قاعدة مغلقة (تكامل دورة حياة الموارد).
+            vm?.let { currentVm ->
+                runBlocking {
+                    withTimeout(5_000) {
+                        runCatching {
+                            currentVm.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+                        }
+                    }
+                }
+            }
             db.closeConnection()
         }
     }
@@ -118,8 +135,9 @@ class MainViewModelTest {
     @Test
     fun callNumberWithoutContact_dialsWithoutPersistingEvent() = runTest {
         val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers, seedDemoData = true)
+        var vm: MainViewModel? = null
         try {
-            val vm = MainViewModel(
+            vm = MainViewModel(
                 contactsRepository = ContactsRepositoryImpl(db),
                 recordDialAttempt = recordDialAttempt(db),
                 servicesRepository = ServicesRepositoryImpl(db),
@@ -138,6 +156,17 @@ class MainViewModelTest {
             assertEquals("+201111111111", vm.state.value.lastDialedPhone)
             assertTrue(db.getCallEventById("inapp-0-${fixedClock.nowEpochMillis()}") == null)
         } finally {
+            // نطاق الـ VM ملك له: يُلغى قبل إغلاق القاعدة (نمط ContactsViewModelKoinTest)
+            // — جامعات Room الحية لا تلمس قاعدة مغلقة (تكامل دورة حياة الموارد).
+            vm?.let { currentVm ->
+                runBlocking {
+                    withTimeout(5_000) {
+                        runCatching {
+                            currentVm.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+                        }
+                    }
+                }
+            }
             db.closeConnection()
         }
     }
@@ -146,6 +175,7 @@ class MainViewModelTest {
     fun selectingCategoryAndTogglingLanguage_updatesUiState() = runTest {
         // F-01: الإنتاج لا يبذر — البذر الصريح يجعل تصفية FAMILY تأكيداً غير فارغ (كان يمر فراغاً).
         val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers, seedDemoData = true)
+        var vm: MainViewModel? = null
         try {
             val contactsRepo = ContactsRepositoryImpl(db)
             val servicesRepo = ServicesRepositoryImpl(db)
@@ -158,7 +188,7 @@ class MainViewModelTest {
                 dispatchers = unconfinedDispatchers,
             )
 
-            val vm = MainViewModel(
+            vm = MainViewModel(
                 contactsRepository = contactsRepo,
                 recordDialAttempt = recordDialAttempt(db),
                 servicesRepository = servicesRepo,
@@ -177,6 +207,17 @@ class MainViewModelTest {
             vm.onIntent(MainIntent.ToggleLanguage)
             assertEquals(AppLanguage.ENGLISH, vm.state.value.preferences.language)
         } finally {
+            // نطاق الـ VM ملك له: يُلغى قبل إغلاق القاعدة (نمط ContactsViewModelKoinTest)
+            // — جامعات Room الحية لا تلمس قاعدة مغلقة (تكامل دورة حياة الموارد).
+            vm?.let { currentVm ->
+                runBlocking {
+                    withTimeout(5_000) {
+                        runCatching {
+                            currentVm.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+                        }
+                    }
+                }
+            }
             db.closeConnection()
         }
     }
