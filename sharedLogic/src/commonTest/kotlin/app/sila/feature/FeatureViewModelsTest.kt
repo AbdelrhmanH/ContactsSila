@@ -20,21 +20,17 @@ import app.sila.feature.services.presentation.ServicesViewModel
 import app.sila.feature.settings.presentation.SettingsViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.koin.core.context.stopKoin
 import kotlin.test.AfterTest
@@ -45,12 +41,6 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeatureViewModelsTest {
-
-    /** (Issue #42) نطاقات الـ VM المحلولة تُتتبَّع هنا وتُلغى بالانضمام في tearDown قبل إغلاق
-     * الحاوية — بدون join يظل فشل حقيقي أثناء انحلال جامعي Room/DataStore بلا معالج فيُخزَّن
-     * عالمياً (ExceptionCollector — JVM واحد لكل مهمة testAndroidHostTest) ويُسقط على أول
-     * runTest تالٍ في أي صنف (UncaughtExceptionsBeforeTest). نمط T8 (353cf99) نفسه. */
-    private val resolvedViewModels = mutableListOf<androidx.lifecycle.ViewModel>()
 
     @BeforeTest
     fun setUp() {
