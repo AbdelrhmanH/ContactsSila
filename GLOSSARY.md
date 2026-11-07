@@ -27,8 +27,15 @@
 | الاستعجال | Urgency | `urgency` | الأيام منذ آخر اتصال ÷ أيام الوتيرة |
 | النطاق الأحمر/الأصفر/الأخضر | Overdue / Soon / OK | `ArhamStatus` | حالة الوصال |
 | المنصة | Podium | `ArhamPodium` | أكثر 3 أقارب تواصلت معهم |
-| تتبع المكالمات | Call tracking (سابقاً Silent tracking) | `SyncCallLogUseCase` → `CallEventSyncWorker` · `CallEventSource` | تحديث `lastContactedAt` من أحداث المكالمات المؤكدة من أي مصدر تسمح به المنصة؛ المرحلة 1 ([ADR-0006](docs/adr/0006-call-log-strategy.md) مقبول — B+): `IN_APP` + `ANDROID_CALL_SCREENING` + `ANDROID_TELEPHONY_OBSERVER` + `IOS_CALL_OBSERVER` + `MANUAL`، مع تأكيد احتياطي؛ لا `CALL_LOG` ولا `READ_CALL_LOG` |
-| مصدر حدث المكالمة | Call event source | `CallEventSource` | منشأ الدليل: `IN_APP` · `ANDROID_CALL_SCREENING` · `ANDROID_TELEPHONY_OBSERVER` · `IOS_CALL_OBSERVER` · `MANUAL`؛ لا يضمن المصدر توفر كل الحقول |
+| تتبع المكالمات | Call tracking | `CallEventStateMachine` · `IngestCallEventUseCase` · `CorrelateObservedCallEndUseCase` | تحديث `lastContactedAt` من أحداث المكالمات المؤكدة من أي مصدر تسمح به المنصة؛ المرحلة 1 ([ADR-0006](docs/adr/0006-call-log-strategy.md) مقبول — B+): `IN_APP` + `ANDROID_CALL_SCREENING` + `ANDROID_TELEPHONY_OBSERVER` + `IOS_CALL_OBSERVER` + `MANUAL`، مع تأكيد احتياطي ومنع تكرار؛ لا `CALL_LOG` ولا `READ_CALL_LOG` |
+| مصدر حدث المكالمة | Call source | `CallSource` | منشأ الدليل (enum في `:core:model`): `IN_APP` · `ANDROID_CALL_SCREENING` · `ANDROID_TELEPHONY_OBSERVER` · `IOS_CALL_OBSERVER` · `MANUAL`؛ لا يضمن المصدر توفر كل الحقول — والقيمتان الإرثيتان `CALL_LOG`/`OBSERVER` للبيانات القديمة فقط |
+| آلة حالات المكالمات | Call event state machine | `CallEventStateMachine` | التبويب والدمج ومنع التكرار وقاعدة `lastContactedAt` الجدولية — عقد نقي في `:feature:arham:domain` (ADR-0006) |
+| تأكيد المكالمة | Call confirmation | `CallConfirmation` · `CorrelateObservedCallEndUseCase` | الأحداث الملاحظة غير المكتملة تدخل قائمة التأكيد — لا يجوز تحديث `lastContactedAt` قبل الحسم |
+| فرز المكالمات | Call screening | `SilaCallScreeningService` · `ScreeningRoleController` | دور `ROLE_CALL_SCREENING` الاختياري بأندرويد بموافقة صريحة؛ استجابة محايدة خلال 5 ثوانٍ — لا حجب ولا رفض ولا صمت ولا تحويل، ولا قراءة سجل اتصالات |
+| مراقب حالة المكالمة | Call state observer | `ArhamCallStateObserver` · `IosCallStateTracker` | حالة المكالمة فقط (جارٍ/انتهى) بلا هوية ولا أرقام؛ على iOS ضمن حياة التطبيق فقط (AC-6) |
+| جلسة الاستعجال | Emergency session | `EmergencySessionDao` · `ArhamEmergencyRingingService` | رنين طوارئ لأجراء EMERGENCY حصراً بحد معدل وحجب وأقصى 10 محاولات — قابل للإيقاف دائماً (AC-14) |
+| تجسيد أهم 5 | Top-Five materialization | `MaterializeTopFiveUseCase` · `TopFiveMaterializationDao` | نقل اختيارات تهيئة الضيف إلى أرحام بمعاملة واحدة idempotent، بعلامة إنجاز لمرة واحدة (raise-only) ومشغّل إقلاع single-fire |
+| لقطة الودجت | Widget snapshot | `arham-widget-snapshot.json` (App Group) | الناشر يكتب اللقطة من Room حصراً؛ الودجت (Glance/WidgetKit) يقرأها ولا يكتب أبداً (D6 — AC-15) |
 | صلة القرابة | Relation | `Relation` | أب، عم، خال… |
 | طبقة القرابة | Kinship layer | `KinshipLayer` | أصول / فروع / حواشٍ |
 | شجرة العائلة | Family tree | `FamilyTreeScreen` | عرض هرمي للأقارب |

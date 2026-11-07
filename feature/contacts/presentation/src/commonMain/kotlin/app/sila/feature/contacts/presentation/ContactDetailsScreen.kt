@@ -1,5 +1,6 @@
 package app.sila.feature.contacts.presentation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -18,10 +19,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -177,10 +180,18 @@ private fun DetailsBody(
     onShowActions: () -> Unit,
 ) {
     val contact = state.contact ?: return
+    var showEmergencyWarning by remember { mutableStateOf(false) }
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item { TopBar(state, strings, onIntent, onShowActions) }
         item { HeaderBlock(state, strings, contact) }
         item { QuickActions(state, strings, contact, onIntent) }
+
+        // رنين الطوارئ (T8-11 · docs/features/06): جهة EMERGENCY حصراً — حوار التحذير
+        // أولاً، والبدء الفعلي قرار المضيف (بوابة CALL_PHONE + استخدام أرحام).
+        if (contact.category == Category.EMERGENCY) {
+            item { EmergencyRingButton(strings = strings, onAsk = { showEmergencyWarning = true }) }
+        }
+
         item { SectionDivider() }
 
         // الأرقام — الحقول الفارغة لا تظهر (AC).
@@ -344,6 +355,63 @@ private fun DetailsBody(
                 )
                 Spacer(modifier = Modifier.height(SilaDimens.Space24))
             }
+        }
+    }
+
+    // حوار التحذير قبل بدء الرنين — الشرح الكامل للأثر قبل أي التزام (spec §102-103).
+    if (showEmergencyWarning) {
+        AlertDialog(
+            onDismissRequest = { showEmergencyWarning = false },
+            title = { Text(text = strings.emergencyWarningTitle) },
+            text = { Text(text = strings.emergencyWarningBody) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showEmergencyWarning = false
+                        onIntent(ContactDetailsIntent.EmergencyRing(contact.id))
+                    },
+                ) {
+                    Text(
+                        text = strings.emergencyWarningConfirm,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEmergencyWarning = false }) {
+                    Text(text = strings.cancel)
+                }
+            },
+        )
+    }
+}
+
+/** زر رنين الطوارئ (T8-11) — لون فئة الطوارئ وعرضٌ كامل؛ اللمس يفتح التحذير أولاً. */
+@Composable
+private fun EmergencyRingButton(strings: ContactDetailsStrings, onAsk: () -> Unit) {
+    val emergencyColor = SilaColors.forCategory(Category.EMERGENCY)
+    Surface(
+        shape = RoundedCornerShape(SilaDimens.CardCornerRadius),
+        color = emergencyColor.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, emergencyColor),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = SilaDimens.Space16),
+    ) {
+        Row(
+            modifier = Modifier
+                .clickable(onClick = onAsk)
+                .padding(horizontal = SilaDimens.Space16, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = strings.emergencyRingButton,
+                style = MaterialTheme.typography.labelLarge,
+                color = emergencyColor,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }

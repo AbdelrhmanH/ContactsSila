@@ -79,7 +79,10 @@ internal enum class LegacySchemaLevel {
     /** FTS بستة أعمدة (بعد T3) — يشمل L3 (بوابة F-01 لم تُغيّر المخطط الفيزيائي). */
     L2_OR_L3,
 
-    /** المخطط الهدف كاملاً (v2 — جداول الحقول الخمسة + عمودا الهواتف + PK يعلن NOT NULL) — لا شيم مطلوب. */
+    /**
+     * المخطط الهدف كاملاً (v3 منذ T8-02 — جداول الحقول الخمسة + عمودا الهواتف + PK يعلن
+     * NOT NULL + `call_events` بـ 18 عموداً + جدول جلسات الطوارئ) — لا شيم مطلوب.
+     */
     PARITY_DONE,
 
     /** قاعدة تديرها Room أصلاً (`user_version != 0`) — يتصرف Room مباشرة. */
@@ -103,10 +106,14 @@ internal object LegacySchemaFingerprint {
         "contact_emails", "contact_addresses", "contact_dates", "contact_custom_fields", "contact_websites",
     )
 
-    /** جداول المستخدم المستهدفة (8 فعلية + FTS + جداول الحقول القياسية الخمسة — T6 · v2). */
+    /**
+     * جداول المستخدم المستهدفة (8 فعلية + FTS + جداول الحقول القياسية الخمسة + جلسات
+     * الطوارئ — T6 · v2، ثم T8-02 · v3).
+     */
     private val TARGET_TABLES = setOf(
         "contacts", "contact_phones", "arham", "services", "call_events",
         "arham_inbox", "dispute_logs", "contacts_sync_checkpoints", "contacts_fts",
+        "emergency_ringing_sessions",
     ) + STANDARD_FIELD_TABLES
 
     private val CORE_TABLES = setOf(
@@ -267,14 +274,6 @@ internal object LegacySchemaFingerprint {
             LegacyColumn("ownerVerified", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
             LegacyColumn("isSavedByUser", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
         ),
-        "call_events" to setOf(
-            LegacyColumn("callLogId", "TEXT", notNull = true, pkPosition = 1, defaultValue = null),
-            LegacyColumn("e164", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
-            LegacyColumn("direction", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
-            LegacyColumn("durationSec", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
-            LegacyColumn("timestamp", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
-            LegacyColumn("source", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
-        ),
         "arham_inbox" to setOf(
             LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
             LegacyColumn("senderUid", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
@@ -296,6 +295,57 @@ internal object LegacySchemaFingerprint {
         ),
     )
 
+    /**
+     * شكل `call_events` الإرثي v2 (ستة أعمدة — T6) — المسموح في المستويات التاريخية
+     * L0..L3، وهو مدخل إعادة البناء والنسخ عبر [MIGRATION_2_3]/الشيم (T8-02).
+     */
+    private val CALL_EVENTS_V2_COLUMN_SPECS: Set<LegacyColumn> = setOf(
+        LegacyColumn("callLogId", "TEXT", notNull = true, pkPosition = 1, defaultValue = null),
+        LegacyColumn("e164", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("direction", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("durationSec", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("timestamp", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("source", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+    )
+
+    /**
+     * شكل `call_events` الهدف v3 (18 عموداً تحمل حقول ADR-0006 السبعة عشر) — شرط
+     * `PARITY_DONE` بعد T8-02 (§F.2 من تقرير بوابة T8-02).
+     */
+    private val CALL_EVENTS_V3_COLUMN_SPECS: Set<LegacyColumn> = setOf(
+        LegacyColumn("callLogId", "TEXT", notNull = true, pkPosition = 1, defaultValue = null),
+        LegacyColumn("e164", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("timestamp", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("primarySource", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("evidenceSources", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("remoteNumber", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("contactId", "INTEGER", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("direction", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("startedAt", "INTEGER", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("connectedAt", "INTEGER", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("endedAt", "INTEGER", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("durationSec", "INTEGER", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("outcome", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("association", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("confirmation", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("confidence", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("dedupeKey", "TEXT", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("simSlot", "INTEGER", notNull = false, pkPosition = 0, defaultValue = null),
+    )
+
+    /**
+     * مواصفات جدول جلسات الطوارئ (قرار D4 — T8-02): **يُفحص عند وجوده حصراً** (القواعد
+     * التاريخية L0..L3 بلا جدول؛ الشيم هو من ينشئه)، والوجود بشكل مخالف يُصنَّف UNKNOWN.
+     */
+    private val EMERGENCY_SESSIONS_COLUMN_SPECS: Set<LegacyColumn> = setOf(
+        LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
+        LegacyColumn("contactId", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("startedAt", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("lastAttemptAt", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("attempts", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("status", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+    )
+
     private val CHECKPOINTS_COLUMN_SPECS: Set<LegacyColumn> = setOf(
         LegacyColumn("key", "TEXT", notNull = true, pkPosition = 1, defaultValue = null),
         LegacyColumn("value", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
@@ -310,6 +360,7 @@ internal object LegacySchemaFingerprint {
         "arham_inbox" to "id",
         "dispute_logs" to "id",
         "contacts_sync_checkpoints" to "key",
+        "emergency_ringing_sessions" to "id",
         "contact_emails" to "id",
         "contact_addresses" to "id",
         "contact_dates" to "id",
@@ -330,6 +381,7 @@ internal object LegacySchemaFingerprint {
         "call_events" to setOf(
             LegacyIndex("idx_call_events_ts", unique = false, origin = "c", partial = false, columns = listOf("timestamp"), orders = listOf("ASC")),
         ),
+        "emergency_ringing_sessions" to emptySet(),
         "arham_inbox" to setOf(
             LegacyIndex("idx_arham_inbox_sent", unique = false, origin = "c", partial = false, columns = listOf("sentAt"), orders = listOf("ASC")),
         ),
@@ -542,14 +594,17 @@ internal object LegacySchemaFingerprint {
         if (contactsColumns != TARGET_CONTACT_COLUMN_SPECS) return UNKNOWN
         if (!hasValidV2ContactsIndices(snapshot)) return UNKNOWN
 
-        // الحالة الهدف (v2 — T6): كامل شكل المخطط الحالي — FTS موحّد، فهارس contacts،
-        // PK هواتف يعلن NOT NULL، عمودا الهواتف الجديدان، والجداول الخمسة موجودة كاملة.
-        val reachesFullV2Parity = ftsShapeIsTarget(snapshot) &&
+        // الحالة الهدف (v3 — T8-02 · Issue #29): كامل شكل المخطط الحالي — FTS موحّد،
+        // فهارس contacts، PK هواتف يعلن NOT NULL، عمودا الهواتف، الجداول الخمسة،
+        // `call_events` بالصورة v3 (18 عموداً)، وجدول جلسات الطوارئ موجود.
+        val reachesFullV3Parity = ftsShapeIsTarget(snapshot) &&
             hasTargetContactsIndices(snapshot) &&
             phonesPkDeclaresNotNull(snapshot) &&
             phonesHaveV2Columns(snapshot) &&
-            snapshot.columnsByTable.keys.containsAll(STANDARD_FIELD_TABLES)
-        if (reachesFullV2Parity) return PARITY_DONE
+            snapshot.columnsByTable.keys.containsAll(STANDARD_FIELD_TABLES) &&
+            snapshot.columnsByTable["call_events"]?.map { it.normalized() }?.toSet() == CALL_EVENTS_V3_COLUMN_SPECS &&
+            "emergency_ringing_sessions" in snapshot.columnsByTable
+        if (reachesFullV3Parity) return PARITY_DONE
 
         return when {
             ftsShapeIsTarget(snapshot) -> L2_OR_L3
@@ -577,11 +632,34 @@ internal object LegacySchemaFingerprint {
                 return false
             }
         }
+
+        // `call_events` شكلان مسموحان حصراً (T8-02): الإرثي v2 (ستة أعمدة — مستويات
+        // L0..L3 ومدخل إعادة البناء) أو الهدف v3 (18 عموداً — بعد الشيم) — أي شكل
+        // آخر (عمود زائد/ناقص) يُصنَّف UNKNOWN فشلاً آمناً.
+        val callEventsColumns = snapshot.columnsByTable["call_events"]
+            ?.map { it.normalized() }?.toSet() ?: return false
+        if (callEventsColumns != CALL_EVENTS_V2_COLUMN_SPECS &&
+            callEventsColumns != CALL_EVENTS_V3_COLUMN_SPECS
+        ) {
+            return false
+        }
+
         // جداول الحقول القياسية (v2): تُفحص عند وجودها حصراً — القواعد التاريخية بلا جداول.
         for ((table, expectedSpecs) in STANDARD_FIELD_TABLE_COLUMN_SPECS) {
             if (table !in tables) continue
             val actualList = snapshot.columnsByTable[table]?.map { it.normalized() } ?: return false
             if (actualList.size != expectedSpecs.size || actualList.toSet() != expectedSpecs) {
+                return false
+            }
+        }
+        // جدول جلسات الطوارئ (v3 — قرار D4): يُفحص عند وجوده حصراً — القواعد التاريخية
+        // بلا جدول، والشيم هو من ينشئه بالشكل الموحد.
+        if ("emergency_ringing_sessions" in tables) {
+            val actualSessions = snapshot.columnsByTable["emergency_ringing_sessions"]
+                ?.map { it.normalized() } ?: return false
+            if (actualSessions.size != EMERGENCY_SESSIONS_COLUMN_SPECS.size ||
+                actualSessions.toSet() != EMERGENCY_SESSIONS_COLUMN_SPECS
+            ) {
                 return false
             }
         }

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- T8-13 (D6): نقطة امتداد WidgetKit — يضيفها Xcode تلقائياً إلى الإضافة. -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+	<!-- T8-13 (D6): مُعرِّف App Group للقارئ (Swift) — يُوسَّع من APP_GROUP_ID في Config.xcconfig؛
+	     التطبيق يقرأ مفتاحه المماثل من Info.plist الخاصة به. -->
+	<key>AppGroupId</key>
+	<string>$(APP_GROUP_ID)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Arham</string>
+</dict>
+</plist>

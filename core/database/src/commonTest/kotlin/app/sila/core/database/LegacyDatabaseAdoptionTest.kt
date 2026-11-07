@@ -421,19 +421,20 @@ class LegacyDatabaseAdoptionTest {
         }
 
         assertEquals(SILA_ROOM_VERSION, userVersionOf(tempDbPath), "المخطط الفعلي يُنشأ منشأً عند إصدار Room الحالي")
-        // الجداول الثمانية المُدارة + FTS المستقل + جدول هوية Room:
+        // الجداول التسعة المُدارة (14 كياناً — T8-02 أضاف جلسات الطوارئ) + FTS المستقل + جدول هوية Room:
         val managedTables = listOf(
             "contacts", "contact_phones", "arham", "services", "call_events",
             "arham_inbox", "dispute_logs", "contacts_sync_checkpoints",
+            "emergency_ringing_sessions",
         )
         managedTables.forEach { table ->
             assertTrue(tableExists(tempDbPath, table), "جدول مُدار منشأ: $table")
         }
         assertTrue(tableExists(tempDbPath, "contacts_fts"), "FTS4 المستقل مُنشأ عبر Callback")
         assertTrue(tableExists(tempDbPath, "room_master_table"), "جدول هوية Room مُنشأ")
-        // الكيانان الشبحيان لا يُنشآن أبداً (Decision 5 — ADR-0011):
+        // الكيان الشبحي الوحيد لا يُنشأ أبداً (Decision 5 — ADR-0011)؛ جلسات الطوارئ
+        // صارت كياناً حقيقياً منذ T8-02 (قرار D4) فانتقلت لقائمة المُدار أعلاه.
         assertFalse(tableExists(tempDbPath, "scheduled_messages"), "بلا جدول شبحي scheduled_messages")
-        assertFalse(tableExists(tempDbPath, "emergency_ringing_sessions"), "بلا جدول شبحي emergency_ringing_sessions")
         // مخطط contacts الناتج يطابق التصدير (29 عموداً):
         assertEquals(29, contactsColumnCount(tempDbPath), "contacts بـ 29 عموداً مطابقاً للمخطط المُصدَّر")
         // DDL الفعلي لجدول مُدار مصدره مولِّد Room حصراً:

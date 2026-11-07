@@ -8,6 +8,26 @@
     <!-- صلاحية الكتابة — تفاصيل/إضافة/حذف جهة (T6 · Issue #27 · ميثاق J-1) -->
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
 
+    <!-- إشعارات أرحام (T8-08 · §M): الإظهار يتطلب منح الإذن وقت التشغيل — طلبُه من
+         الواجهة مسؤولية T8-11؛ المستقبِل يفحص `areNotificationsEnabled` ويصمت بلا انهيار -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- إعادة جدولة التذكير اليومي بعد الإقلاع (T8-08 · D2 §8 — بلا إنذارات دقيقة) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- مراقبة حالة الهاتف (T8-09 · AC-17): حالة الاتصال فقط بلا هوية — لا رقم ولا
+         سجل مكالمات (READ_CALL_LOG ممنوع إطلاقاً). البوابة صلاحية وقت التشغيل فقط؛
+         رفضها يُبقي التسجيل داخل التطبيق والتأكيد اليدوي (بديل AC-4) -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- حلقة رنين الطوارئ (T8-10 · §K.6 · AC-14): CALL_PHONE لطلب مكالمات الاتصال
+         المباشرة عبر الطلبار — صلاحية وقت التشغيل، طلبُها من الواجهة مسؤولية T8-11؛
+         بلا منحٍ لا تُطلق الحلقة إطلاقاً (فشل هادئ في المنفذ). FOREGROUND_SERVICE(+PHONE_CALL)
+         لنوع الخدمة الأمامية `phoneCall` — بلا RECORD_AUDIO ولا ميكروفون قط -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
     <!-- استعلام الحزم المسمّى لكاشف التطبيقات المتصلة (T6) — بلا QUERY_ALL_PACKAGES -->
     <queries>
         <package android:name="com.whatsapp" />
@@ -34,6 +54,67 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- مستقبِلات إشعارات أرحام (T8-08) — غير مُصدَّرة حصراً: الإنذار اليومي
+             (بلا مرشح — Intent صريح من الجدولة)، أفعال الإشعار، واستمرارية الجدولة
+             (بثوثٌ نظامية محمية — الإقلاع/تغيير الوقت/المنطقة). -->
+        <receiver
+            android:name="app.sila.arham.notification.ArhamReminderReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="app.sila.arham.notification.ArhamNotificationActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="app.sila.arham.notification.ArhamBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- خدمة فرز المكالمات الاختيارية (T8-09 · AC-4/AC-5): مُصدَّرة حصراً لارتباط
+             النظام بها بإذن BIND_SCREENING_SERVICE المحمي، والدور يُمنح بموافقة المستخدم
+             (طلبُه من الواجهة مسؤولية T8-11). لا تحكم على المكالمات — استجابة محايدة
+             دائماً، ورصدٌ فقط يُدخل أحداثاً UNASSOCIATED/PENDING -->
+        <service
+            android:name="app.sila.arham.screening.SilaCallScreeningService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
+        </service>
+
+        <!-- خدمة رنين الطوارئ الأمامية (T8-10 · AC-14): غير مُصدَّرة حصراً (ids-only —
+             الإطلاق داخلي من التطبيق)، ونوع `phoneCall` يشترط إذن CALL_PHONE ممنوحاً —
+             بلا منحٍ لا تبدأ الحلقة. كل القرارات في النطاق؛ الخدمة منفّذ حصراً -->
+        <service
+            android:name="app.sila.arham.emergency.ArhamEmergencyRingingService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <!-- زر الإيقاف في إشعار الطوارئ الجاري (T8-10 · §N.8) — غير مُصدَّر، بلا extras
+             (idempotent عبر StopEmergencyRingingUseCase — نفس الانتقال النهائي) -->
+        <receiver
+            android:name="app.sila.arham.emergency.EmergencyStopActionReceiver"
+            android:exported="false" />
+
+        <!-- ودجت أرحام (T8-10 · AC-15): غير مُصدَّر — APPWIDGET_UPDATE بثٌّ محميّ من
+             النظام (النظام يسلّمه للمستقبِلات غير المُصدَّرة)، والانعاش عبر worker D3 -->
+        <receiver
+            android:name="app.sila.arham.widget.ArhamWidgetReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/arham_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

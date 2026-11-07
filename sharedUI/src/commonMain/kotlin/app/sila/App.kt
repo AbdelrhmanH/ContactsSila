@@ -47,6 +47,7 @@ import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.DefaultTab
 import app.sila.di.ensureKoinStarted
+import app.sila.feature.arham.presentation.ArhamPlatformEffect
 import app.sila.feature.arham.presentation.ArhamScreen
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.presentation.ContactsScreen
@@ -77,7 +78,13 @@ import app.sila.feature.settings.presentation.SettingsViewModel
 @Preview
 fun App(
     storageDirPath: String? = null,
-    onContactsNavEffect: (ContactsNavEffect) -> Unit = {}
+    onContactsNavEffect: (ContactsNavEffect) -> Unit = {},
+
+    /**
+     * T8-11 (AC-4): طلب دور فرز المكالمات منصويٌ حصراً — المضيف يطلق النية ثم يُعيد
+     * التقييم عبر [ArhamIntent.RefreshScreeningConsent] على نفس نسخة الـ VM من Koin.
+     */
+    onArhamRequestScreeningRole: () -> Unit = {}
 ) {
     val koin = remember(storageDirPath) { ensureKoinStarted(storageDirPath) }
     val mainViewModel = remember(koin) { koin.get<MainViewModel>() }
@@ -132,7 +139,15 @@ fun App(
                 arhamContent = {
                     ArhamScreen(
                         viewModel = arhamViewModel,
-                        isArabic = isAr
+                        strings = rememberArhamStrings(),
+                        onPlatformEffect = { effect ->
+                            when (effect) {
+                                is ArhamPlatformEffect.OpenDialer ->
+                                    onContactsNavEffect(ContactsNavEffect.OpenDialer(effect.phone))
+
+                                ArhamPlatformEffect.RequestScreeningRole -> onArhamRequestScreeningRole()
+                            }
+                        },
                     )
                 },
                 settingsContent = {

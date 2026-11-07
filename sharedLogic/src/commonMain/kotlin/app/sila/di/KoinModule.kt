@@ -9,15 +9,44 @@ import app.sila.core.database.dao.ArhamDao
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.ContactsSyncDao
 import app.sila.core.database.dao.DataRetentionCleanupDao
+import app.sila.core.database.dao.EmergencySessionDao
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.dao.ServiceDao
+import app.sila.core.database.dao.TopFiveMaterializationDao
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.datastore.UserPreferencesDataSource
+import app.sila.feature.arham.data.ArhamCallEventRepositoryImpl
 import app.sila.feature.arham.data.ArhamRepositoryImpl
+import app.sila.feature.arham.data.EmergencySessionRepositoryImpl
+import app.sila.feature.arham.data.TopFiveMaterializationRepositoryImpl
+import app.sila.feature.arham.domain.ArhamCallEventRepository
+import app.sila.feature.arham.domain.ArhamCelebrationPolicy
 import app.sila.feature.arham.domain.ArhamRepository
+import app.sila.feature.arham.domain.BuildArhamFamilyTreeUseCase
+import app.sila.feature.arham.domain.CallEventStateMachine
+import app.sila.feature.arham.domain.CelebrateTransitionUseCase
+import app.sila.feature.arham.domain.CorrelateObservedCallEndUseCase
+import app.sila.feature.arham.domain.EmergencySessionRepository
 import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
-import app.sila.feature.arham.domain.RecordArhamCallUseCase
+import app.sila.feature.arham.domain.GetArhamWidgetSnapshotUseCase
+import app.sila.feature.arham.domain.IngestCallEventUseCase
+import app.sila.feature.arham.domain.MaterializeTopFiveUseCase
+import app.sila.feature.arham.domain.ObserveArhamContactsUseCase
+import app.sila.feature.arham.domain.ObservePendingConfirmationsUseCase
+import app.sila.feature.arham.domain.ObserveUpcomingOccasionsUseCase
+import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
+import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
+import app.sila.feature.arham.domain.RecordDialAttemptUseCase
+import app.sila.feature.arham.domain.RecordEmergencyAttemptUseCase
+import app.sila.feature.arham.domain.RecordManualContactUseCase
+import app.sila.feature.arham.domain.ResolveConfirmationUseCase
+import app.sila.feature.arham.domain.ScreeningSignalIngestionUseCase
+import app.sila.feature.arham.domain.StartEmergencyRingingUseCase
+import app.sila.feature.arham.domain.StopEmergencyRingingUseCase
+import app.sila.feature.arham.domain.TopFiveMaterializationRepository
+import app.sila.feature.arham.domain.UpdateKinshipUseCase
+import app.sila.feature.arham.presentation.ArhamScreeningConsentSource
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.data.ContactsListPreferencesRepositoryImpl
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
@@ -72,6 +101,7 @@ import app.sila.feature.settings.domain.SetSmartFilterUseCase
 import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
 import app.sila.feature.settings.presentation.SettingsViewModel
+import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
@@ -100,6 +130,22 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // الكاتب الضيق + معالج الصورة + كاشف التطبيقات المتصلة.
     includes(platformContactsWriterModule)
 
+    // جدولة إشعارات أرحام على المنصة (T8-08 · D2) — actuals per-platform:
+    // أندرويد فوق AlarmManager (بلا دقة — D2)، وiOS فارغة حتى T8-12.
+    includes(platformArhamNotificationModule)
+
+    // فرز المكالمات ومراقبة الحالة على المنصة (T8-09) — actuals per-platform:
+    // أندرويد فوق TelephonyManager/RoleManager (حالة فقط — AC-17)، وiOS فارغة حتى T8-12.
+    includes(platformArhamScreeningModule)
+
+    // منفذ حلقة رنين الطوارئ (T8-10 · §K.6) — actuals per-platform: أندرويد فوق FGS
+    // `phoneCall`، وiOS فارغة حتى T8-13.
+    includes(platformArhamEmergencyModule)
+
+    // انعاش ودجت أرحام (T8-10 · D3) — actuals per-platform: أندرويد فوق Glance+WorkManager،
+    // وiOS فارغة (WidgetKit مسؤولية T8-13).
+    includes(platformArhamWidgetModule)
+
     // قاعدة Room KMP الوحيدة (PR B · ADR-0011): [LocalSilaDatabase] هي واجهة الوصول
     // الموحّدة — تنفّذ واجهات DAO الخمس مباشرة (كتابات مركّبة بـ SQL خام داخل معاملات
     // Room، وقراءات عبر DAOs الكيانات المولَّدة)، و[SilaRoomDatabase] صاحبة المخطط.
@@ -118,6 +164,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single<ServiceDao> { get<LocalSilaDatabase>() }
     single<DataRetentionCleanupDao> { get<LocalSilaDatabase>() }
     single<ContactsSyncDao> { get<LocalSilaDatabase>() }
+    // T8-10 (D4 v3): واجهة جلسات الطوارئ — تنفّذها [LocalSilaDatabase] مباشرة (نمط PR B).
+    single<EmergencySessionDao> { get<LocalSilaDatabase>() }
+    // T8-15 (F-1): واجهة تجسيد «أهم 5» — تنفّذها [LocalSilaDatabase] مباشرة (نمط PR B نفسه).
+    single<TopFiveMaterializationDao> { get<LocalSilaDatabase>() }
 
     // محرك المزامنة التزايدية لجهات الاتصال (Issue #23 · ADR-0010) — يُشغَّل من مهيئات المنصات
     // (SilaApplication / IosKoinBootstrap) عبر start(scope) بمعرّف idempotent.
@@ -237,14 +287,122 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
 
     // :feature:arham (Domain UseCases + Data Repository + Presentation ViewModel)
     single<ArhamRepository> { ArhamRepositoryImpl(arhamDao = get()) }
+
+    // T8-06 (Issue #29): استمرارية أحداث المكالمات فوق آلة الحالات (ADR-0006) —
+    // جذر التركيب هو المكان الوحيد الذي يعرف المستودع والآلة معاً (DIP). المكوّنات
+    // الإدخالية كانت غير مسجَّلة قبل T8-06 (خلل D.3-4): مسار زر الاتصال كان يكتب
+    // آخر تواصل بلا بوابة AC-8.
+    single<ArhamCallEventRepository> { ArhamCallEventRepositoryImpl(arhamDao = get()) }
+    single { CallEventStateMachine() }
+    factory { IngestCallEventUseCase(repository = get(), stateMachine = get()) }
+    factory { RecordDialAttemptUseCase(ingest = get(), stateMachine = get()) }
+    factory { ResolveConfirmationUseCase(repository = get(), stateMachine = get()) }
+    factory { RecordManualContactUseCase(repository = get(), stateMachine = get()) }
+    factory { ObservePendingConfirmationsUseCase(repository = get()) }
+
+    // T8-09 (Issue #29): فرز المكالمات الاختياري (AC-4/AC-5) وربط نهاية المرصود
+    // بمحاولة مفتوحة (D-2 — ربطٌ لا اختراع مفاتيح): الفرز يُدخل إشارات واردة
+    // UNASSOCIATED/PENDING (بلا حل رقم→جهة — ADR-0007)، والمراقب لا يكتب صفاً قط.
+    factory { ScreeningSignalIngestionUseCase(ingest = get(), stateMachine = get()) }
+    factory {
+        CorrelateObservedCallEndUseCase(
+            repository = get(),
+            stateMachine = get(),
+            // مصدر دليل المراقب لكل منصة (T8-12) — أندرويد/iOS actuals في وحدتي الفرز.
+            observerSource = platformObserverCallSource,
+        )
+    }
+    single<ArhamCelebrationPolicy> { ArhamCelebrationPolicyBridge(userPreferencesDataSource = get()) }
+    factory { CelebrateTransitionUseCase(policy = get(), clock = get()) }
+
     factory { GetArhamPriorityListUseCase(repository = get(), clock = get()) }
-    factory { GetArhamDashboardStatsUseCase(getPriorityList = get()) }
-    factory { RecordArhamCallUseCase(repository = get(), clock = get()) }
+
+    // T8-08 (Issue #29): اشتعال مناسبات أرحام القادمة (D1 مشتق — تسجيل Koin الأول، O-4)
+    // وتخطيط التذكير اليومي (§M): موعد + محتوى قرارٌ حتّي مشترك، والمنصة تُنفّذ.
+    factory { ObserveUpcomingOccasionsUseCase(repository = get(), clock = get()) }
+    factory {
+        PlanArhamDailyNotificationUseCase(
+            getPriorityList = get(),
+            observeUpcomingOccasions = get(),
+            clock = get(),
+        )
+    }
+
+    // T8-07 (Issue #29): تجميع اللوحة من أحداث حقيقية فوق قاعدة AC-8 (آلة الحالات مصدر
+    // القاعدة الوحيد) + بناء شجرة العائلة من الطبقات/الآباء.
+    factory {
+        GetArhamDashboardStatsUseCase(
+            arhamRepository = get(),
+            callEventRepository = get(),
+            clock = get(),
+            stateMachine = get(),
+        )
+    }
+    factory { BuildArhamFamilyTreeUseCase(repository = get(), clock = get()) }
+
+    // T8-10 (Issue #29): حلقة رنين الطوارئ (§K.6/§N) — كل القرارات (بوابة الفئة، حد
+    // المعدل 3/24h، سقف 10 محاولات، الحسم idempotent) في النطاق؛ المنفذ [EmergencyRingingController]
+    // مربوط في platformArhamEmergencyModule (FGS أندرويد / مضيف غائب). المستودع يفوّض
+    // [EmergencySessionDao] حصراً والهوية تُقرأ لحظياً عبر [ContactDao] (بلا PII مخزَّن).
+    single<EmergencySessionRepository> {
+        EmergencySessionRepositoryImpl(emergencySessionDao = get(), contactDao = get())
+    }
+    factory {
+        StartEmergencyRingingUseCase(
+            repository = get(),
+            controller = get(),
+            clock = get(),
+        )
+    }
+    factory {
+        RecordEmergencyAttemptUseCase(
+            repository = get(),
+            controller = get(),
+            clock = get(),
+        )
+    }
+    factory {
+        StopEmergencyRingingUseCase(repository = get(), controller = get(), clock = get())
+    }
+    factory {
+        ReconcileInterruptedSessionUseCase(
+            repository = get(),
+            controller = get(),
+            clock = get(),
+        )
+    }
+    // T8-10 (AC-15): لقطة الودجت — تركيبة واحدة من مصدَري T8-07 (قائمة + إحصاءات).
+    factory { GetArhamWidgetSnapshotUseCase(getPriorityList = get(), getDashboardStats = get()) }
+
+    // T8-11 (AC-1/AC-13): تحرير القرابة ومرصد أقارب أرحام — رقيقة فوق المستودع.
+    factory { UpdateKinshipUseCase(repository = get()) }
+    factory { ObserveArhamContactsUseCase(repository = get()) }
+
+    // T8-15 (F-1): تجسيد «أهم 5» — ربط المستودع فوق DAO+DataStore، والحالة الاستخدامية،
+    // ومشغِّل الإقلاع (مرآة RetentionCleanupCoordinator: single-flight + نتيجة منشورة
+    // تُطلقه مهيئا المنصتين مرة واحدة لكل عملية).
+    single<TopFiveMaterializationRepository> {
+        TopFiveMaterializationRepositoryImpl(dao = get(), userPreferences = get())
+    }
+    factory { MaterializeTopFiveUseCase(repository = get()) }
+    single { ArhamMaterializationCoordinator(materialize = get()) }
+
     single {
         ArhamViewModel(
             getPriorityList = get(),
             getDashboardStats = get(),
-            recordArhamCall = get()
+            recordDialAttempt = get(),
+            celebrateTransition = get(),
+            buildTree = get(),
+            observePendingConfirmations = get(),
+            resolveConfirmation = get(),
+            observeOccasions = get(),
+            observeContacts = get(),
+            updateKinship = get(),
+            stopEmergency = get(),
+            emergencySessionRepository = get(),
+            screeningConsentSource = get(),
+            clock = get(),
         )
     }
 
@@ -275,7 +433,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single {
         MainViewModel(
             contactsRepository = get(),
-            arhamRepository = get(),
+            recordDialAttempt = get(),
             servicesRepository = get(),
             getArhamPriorityList = get(),
             getArhamStats = get(),

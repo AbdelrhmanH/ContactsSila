@@ -11,6 +11,7 @@ import app.sila.core.database.dao.CallEventEntityDao
 import app.sila.core.database.dao.ContactEntityDao
 import app.sila.core.database.dao.ContactsSyncCheckpointEntityDao
 import app.sila.core.database.dao.DisputeLogEntityDao
+import app.sila.core.database.dao.EmergencyRingingSessionEntityDao
 import app.sila.core.database.dao.ServiceEntityDao
 import app.sila.core.database.entity.ArhamEntity
 import app.sila.core.database.entity.ArhamInboxEntity
@@ -24,14 +25,18 @@ import app.sila.core.database.entity.ContactPhoneEntity
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.database.entity.ContactWebsiteEntity
 import app.sila.core.database.entity.DisputeLogEntity
+import app.sila.core.database.entity.EmergencyRingingSessionEntity
 import app.sila.core.database.entity.ServiceEntity
 
 /**
  * إصدار مخطط Room الحالي — مصدر الحقيقة الوحيد للإصدار: يُستهلك في `@Database`
  * وفي التحقق اللاحق للاعتماد الآمن (`PRAGMA user_version`) حرفاً — أي ترقية مستقبلي
  * يعدّل هذا الثابت حصراً (T6 · Issue #27 · ADR-0011/0012).
+ *
+ * v3 (T8-02 · Issue #29): توسعة `call_events` لحقول ADR-0006 السبعة عشر (إعادة بناء
+ * ونسخ عبر [MIGRATION_2_3]) + جدول جلسات الاتصال الطارئ (قرار D4 المُصادق — §W).
  */
-const val SILA_ROOM_VERSION: Int = 2
+const val SILA_ROOM_VERSION: Int = 3
 
 /**
  * قاعدة بيانات Room 3 KMP المركزية لتطبيق صِلَة — **صاحبة المخطط الوحيدة**
@@ -40,15 +45,18 @@ const val SILA_ROOM_VERSION: Int = 2
  * PR B (F-04/F-05): هذه الفئة لم تعد شلاً تجميعياً — هي المنتِج الفعلي والوحيد
  * لجداول الإنتاج ومخططها عبر KSP (`SilaRoomDatabase_Impl`)، بمحرك
  * `BundledSQLiteDriver` على أندرويد و iOS معاً، والإصدار الفعلي [SILA_ROOM_VERSION]
- * (قواعد المستخدمين القائمة من v1 تُرحَّل عبر `MIGRATION_1_2` — T6/Issue #27؛
+ * (قواعد المستخدمين القائمة من v1 تُرحَّل عبر `MIGRATION_1_2` — T6/Issue #27؛ وقواعد
+ * v2 عبر `MIGRATION_2_3` — T8-02/Issue #29؛
  * قواعد `user_version = 0` القديمة تُعتمَد عبر مسار create/validate المُوثَّق
  * في ADR-0011 — ليس `Migration(0,1)`).
  *
- * الكيانات الثلاثة عشر (جداول فعلية مُدارة) — بلا كيانات شبحية:
- * `scheduled_messages` و`emergency_ringing_sessions` أُزيلتا بعد التحقق من انعدام
- * مستهلكيها الفعليين (Decision 5 · ADR-0011). خمسة جداول حقول قياسية أُضيفت في v2
+ * الكيانات الأربعة عشر (جداول فعلية مُدارة) — بلا كيانات شبحية:
+ * `scheduled_messages` أُزيل بعد التحقق من انعدام مستهلكيه الفعليين (Decision 5 ·
+ * ADR-0011). خمسة جداول حقول قياسية أُضيفت في v2
  * (`contact_emails`/`contact_addresses`/`contact_dates`/`contact_custom_fields`/
- * `contact_websites` — ترحيل غير هدمي MIGRATION_1_2 · ADR-0012).
+ * `contact_websites` — ترحيل غير هدمي MIGRATION_1_2 · ADR-0012). وفي v3 عاد
+ * `emergency_ringing_sessions` كياناً فعلياً بنموذج بيانات أدنى مُصادقاً (قرار D4 —
+ * §W؛ ليس الكيان الشبحي القديم — T8-02/Issue #29).
  *
  * جدول `contacts_fts` (FTS4 مستقل) **ليس كياناً هنا عمداً**: KSP على أهداف Native
  * (iOS) لا يعالج كيانات `@Fts4` المستقلة — `FtsTableEntityProcessor` يفشل في حلّ
@@ -72,6 +80,7 @@ const val SILA_ROOM_VERSION: Int = 2
         ArhamEntity::class,
         ServiceEntity::class,
         CallEventEntity::class,
+        EmergencyRingingSessionEntity::class,
         ArhamInboxEntity::class,
         DisputeLogEntity::class,
         ContactsSyncCheckpointEntity::class,
@@ -88,6 +97,8 @@ abstract class SilaRoomDatabase : RoomDatabase() {
     abstract fun serviceEntityDao(): ServiceEntityDao
 
     abstract fun callEventEntityDao(): CallEventEntityDao
+
+    abstract fun emergencySessionEntityDao(): EmergencyRingingSessionEntityDao
 
     abstract fun arhamInboxEntityDao(): ArhamInboxEntityDao
 

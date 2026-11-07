@@ -3,8 +3,8 @@ package app.sila.core.database
 import app.sila.core.common.AppDispatchers
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.entity.ArhamInboxEntity
-import app.sila.core.database.entity.CallEventEntity
 import app.sila.core.database.entity.DisputeLogEntity
+import app.sila.core.database.entity.EmergencyRingingSessionEntity
 import app.sila.core.model.CallDirection
 import app.sila.core.model.CallSource
 import app.sila.core.model.Category
@@ -15,6 +15,7 @@ import app.sila.core.model.MessageDirection
 import app.sila.core.model.MessageStatus
 import app.sila.core.model.Phone
 import app.sila.core.model.Relation
+import app.sila.core.model.RingingStatus
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamInfo
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +36,8 @@ import kotlin.test.assertTrue
  * - سجلات المستخدم غير المشمولة بالسياسة لا تُمسّ أبداً.
  *
  * نطاقات السياسة الثابتة (لا تُغيَّر): call_events 365 يوماً، arham_inbox 30 يوماً،
- * أرشفة المحلوم من dispute_logs 90 يوماً، حذف قبور جهات أقدم من 30 يوماً (ADR-0010 §6).
+ * أرشفة المحلوم من dispute_logs 90 يوماً، حذف قبور جهات أقدم من 30 يوماً (ADR-0010 §6)،
+ * تطهير جلسات الطوارئ المنتهية (أي حالة غير IN_PROGRESS) بعد 48 ساعة من آخر محاولة (قرار D4 · T8-02).
  */
 class RetentionCleanupTest {
 
@@ -46,6 +48,7 @@ class RetentionCleanupTest {
     }
 
     private val dayMs = 86_400_000L
+    private val hourMs = 3_600_000L
     private val now = 1_800_000_000_000L
 
     private fun syncContact(systemContactId: String, displayName: String) = Contact(
@@ -77,8 +80,8 @@ class RetentionCleanupTest {
             // call_events: حدّ 365 يوماً — عند الحد يبقى، وأقدم بمللي ثانية واحدة يُحذف.
             db.seedCallEventsForTest(
                 listOf(
-                    CallEventEntity("call_exact", "+201011112222", CallDirection.OUT, 30, now - 365 * dayMs, CallSource.CALL_LOG),
-                    CallEventEntity("call_past", "+201011112222", CallDirection.OUT, 30, now - 365 * dayMs - 1, CallSource.CALL_LOG)
+                    legacyCallEvent("call_exact", "+201011112222", CallDirection.OUT, 30, now - 365 * dayMs, CallSource.CALL_LOG),
+                    legacyCallEvent("call_past", "+201011112222", CallDirection.OUT, 30, now - 365 * dayMs - 1, CallSource.CALL_LOG)
                 )
             )
             // arham_inbox: حدّ 30 يوماً — نفس الدقة.
@@ -123,7 +126,7 @@ class RetentionCleanupTest {
         val db = LocalSilaDatabase(dispatchers = testDispatchers)
         try {
             db.seedCallEventsForTest(
-                listOf(CallEventEntity("old_call", "+201011112222", CallDirection.OUT, 45, now - 400 * dayMs, CallSource.CALL_LOG))
+                listOf(legacyCallEvent("old_call", "+201011112222", CallDirection.OUT, 45, now - 400 * dayMs, CallSource.CALL_LOG))
             )
             db.seedInboxForTest(
                 listOf(ArhamInboxEntity(id = 1L, senderUid = "u1", senderName = "مُرسل", recipientUid = "أنا", messageText = "قديمة", direction = MessageDirection.RECEIVED, status = MessageStatus.READ, sentAt = now - 40 * dayMs))
@@ -165,7 +168,7 @@ class RetentionCleanupTest {
         val db = LocalSilaDatabase(dispatchers = testDispatchers)
         try {
             db.seedCallEventsForTest(
-                listOf(CallEventEntity("old_call", "+201011112222", CallDirection.OUT, 45, now - 400 * dayMs, CallSource.CALL_LOG))
+                listOf(legacyCallEvent("old_call", "+201011112222", CallDirection.OUT, 45, now - 400 * dayMs, CallSource.CALL_LOG))
             )
             db.applySyncBatch(
                 upserts = listOf(syncContact("tomb_old", "قبر منتهٍ")),
@@ -195,7 +198,7 @@ class RetentionCleanupTest {
             // جهة حية (غير مُقبرة) بتواصل قديم جداً + حدث مكالمة حديث + قبر حديث قابل للاسترجاع.
             db.upsertContact(activeArhamContact("user_active"))
             db.seedCallEventsForTest(
-                listOf(CallEventEntity("recent_call", "+201011112222", CallDirection.OUT, 60, now - 10 * dayMs, CallSource.CALL_LOG))
+                listOf(legacyCallEvent("recent_call", "+201011112222", CallDirection.OUT, 60, now - 10 * dayMs, CallSource.CALL_LOG))
             )
             db.applySyncBatch(
                 upserts = listOf(syncContact("tomb_fresh", "قبر حديث")),
@@ -219,6 +222,125 @@ class RetentionCleanupTest {
             val repeat = db.cleanupExpiredData(now)
             assertEquals(0, repeat.deletedCallEvents)
             assertEquals(0, repeat.deletedTombstonedContacts)
+        } finally {
+            db.closeConnection()
+        }
+    }
+
+    // ===== جلسات الطوارئ (D4 — T8-02): تطهير المنتهية بعد 48 ساعة من آخر محاولة =====
+
+    /** مُعين جلسة طوارئ للاختبار — `startedAt = lastAttemptAt` (كافٍ لسياسة التطهير المبنية على آخر محاولة). */
+    private fun emergencySession(
+        id: Long,
+        contactId: Long,
+        lastAttemptAt: Long,
+        status: RingingStatus
+    ) = EmergencyRingingSessionEntity(
+        id = id,
+        contactId = contactId,
+        startedAt = lastAttemptAt,
+        lastAttemptAt = lastAttemptAt,
+        attempts = 1,
+        status = status
+    )
+
+    @Test
+    fun cleanupExpiredData_oldTerminalEmergencySessions_areDeleted_andReported() = runTest {
+        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        try {
+            // الحالات المنتهية الأربع كلها (المنتهي = أي RingingStatus غير IN_PROGRESS)
+            // — جميعها أقدم من 48 ساعة بمللي ثانية واحدة.
+            db.seedEmergencySessionsForTest(
+                listOf(
+                    emergencySession(1L, contactId = 101L, lastAttemptAt = now - 48 * hourMs - 1, status = RingingStatus.ANSWERED),
+                    emergencySession(2L, contactId = 102L, lastAttemptAt = now - 48 * hourMs - 1, status = RingingStatus.STOPPED_BY_USER),
+                    emergencySession(3L, contactId = 103L, lastAttemptAt = now - 48 * hourMs - 1, status = RingingStatus.MAX_REACHED),
+                    emergencySession(4L, contactId = 104L, lastAttemptAt = now - 48 * hourMs - 1, status = RingingStatus.BLOCKED)
+                )
+            )
+
+            val report = db.cleanupExpiredData(now)
+
+            assertEquals(4, report.deletedEmergencySessions, "الجلسات المنتهية الأربع الأقدم من 48 ساعة تُحذف جميعاً ويُبلَّغ عنها")
+            assertTrue(db.readEmergencySessionsForTest().isEmpty(), "لا صفوف متبقية في الجدول بعد التطهير")
+            // بلا بيانات للسياسات الأخرى — تقاريرها صفرية (سلوك غير متأثر).
+            assertEquals(0, report.deletedCallEvents)
+            assertEquals(0, report.deletedInboxMessages)
+            assertEquals(0, report.archivedDisputes)
+            assertEquals(0, report.deletedTombstonedContacts)
+        } finally {
+            db.closeConnection()
+        }
+    }
+
+    @Test
+    fun cleanupExpiredData_emergencySession48HourBoundary_exactSemantics() = runTest {
+        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        try {
+            // اتفاقية الحد الموثقة (KDoc هذا الملف + SQL الفعلي `lastAttemptAt < ?`):
+            // الحذف `<` حصراً — عند الحد بالضبط تبقى، والأقدم بمللي ثانية تُحذف، والأحدث تبقى.
+            db.seedEmergencySessionsForTest(
+                listOf(
+                    emergencySession(1L, contactId = 201L, lastAttemptAt = now - 48 * hourMs, status = RingingStatus.ANSWERED),
+                    emergencySession(2L, contactId = 202L, lastAttemptAt = now - 48 * hourMs - 1, status = RingingStatus.ANSWERED),
+                    emergencySession(3L, contactId = 203L, lastAttemptAt = now - 48 * hourMs + 1, status = RingingStatus.ANSWERED)
+                )
+            )
+
+            val report = db.cleanupExpiredData(now)
+
+            assertEquals(1, report.deletedEmergencySessions, "يُحذف ما هو أقدم من 48 ساعة حصراً")
+            assertEquals(listOf(1L, 3L), db.readEmergencySessionsForTest().map { it.id }, "عند الحد بالضبط وأحدث منه يبقيان")
+        } finally {
+            db.closeConnection()
+        }
+    }
+
+    @Test
+    fun cleanupExpiredData_activeEmergencySession_survivesRegardlessOfAge() = runTest {
+        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        try {
+            // الحالة النشطة الوحيدة (IN_PROGRESS) — لا تُمس مهما بلغ عمرها:
+            // قرارها بيد منطق الاستئناف/الإجهاض حصراً (قرار D4).
+            val active = emergencySession(1L, contactId = 301L, lastAttemptAt = now - 400 * dayMs, status = RingingStatus.IN_PROGRESS)
+            db.seedEmergencySessionsForTest(listOf(active))
+
+            val report = db.cleanupExpiredData(now)
+
+            assertEquals(0, report.deletedEmergencySessions, "الجلسة النشطة القديمة جداً لا تُحذف ولا تُعدّ محذوفة")
+            assertEquals(listOf(active), db.readEmergencySessionsForTest(), "صف الجلسة النشطة باقٍ بلا أي تغيير")
+        } finally {
+            db.closeConnection()
+        }
+    }
+
+    @Test
+    fun cleanupExpiredData_mixedEmergencySessions_exactDeletionCount_andIdempotentRerun() = runTest {
+        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        try {
+            db.seedEmergencySessionsForTest(
+                listOf(
+                    emergencySession(10L, contactId = 310L, lastAttemptAt = now - 48 * hourMs - 1, status = RingingStatus.ANSWERED),
+                    emergencySession(20L, contactId = 320L, lastAttemptAt = now - 100 * dayMs, status = RingingStatus.BLOCKED),
+                    emergencySession(30L, contactId = 330L, lastAttemptAt = now - 48 * hourMs, status = RingingStatus.STOPPED_BY_USER),
+                    emergencySession(40L, contactId = 340L, lastAttemptAt = now - 10 * hourMs, status = RingingStatus.MAX_REACHED),
+                    emergencySession(50L, contactId = 350L, lastAttemptAt = now - 400 * dayMs, status = RingingStatus.IN_PROGRESS)
+                )
+            )
+
+            // التشغيل الأول: حذف المنتهيتين المؤهلتين حصراً بعدد مضبوط.
+            val first = db.cleanupExpiredData(now)
+            assertEquals(2, first.deletedEmergencySessions, "عدد محذوفات مضبوط: المنتهيتان الأقدم من 48 ساعة فقط")
+            assertEquals(listOf(30L, 40L, 50L), db.readEmergencySessionsForTest().map { it.id }, "عند الحد + داخل النافذة + النشطة يبقون جميعاً")
+            assertEquals(0, first.deletedCallEvents, "عمليات التنظيف الأخرى بلا بيانات — لا حذف مكالمات")
+            assertEquals(0, first.deletedInboxMessages, "بلا حذف رسائل")
+            assertEquals(0, first.archivedDisputes, "بلا أرشفة نزاعات")
+            assertEquals(0, first.deletedTombstonedContacts, "بلا حذف قبور")
+
+            // التشغيل الثاني عند الساعة نفسها: idempotent — لا حذف إضافي ولا عدّ مزدوج.
+            val second = db.cleanupExpiredData(now)
+            assertEquals(0, second.deletedEmergencySessions, "الإعادة لا تعدّ محذوفات سابقة")
+            assertEquals(listOf(30L, 40L, 50L), db.readEmergencySessionsForTest().map { it.id }, "المحميات باقية بعد الإعادة")
         } finally {
             db.closeConnection()
         }
