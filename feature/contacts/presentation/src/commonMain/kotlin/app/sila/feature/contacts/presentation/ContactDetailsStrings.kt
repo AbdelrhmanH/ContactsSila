@@ -86,4 +86,10 @@ interface ContactDetailsStrings {
     val deleteError: String
     val noPhoneNumber: String
     val cancel: String
+
+    // رنين الطوارئ (T8-11 — جهة EMERGENCY حصراً؛ التحذير أولاً)
+    val emergencyRingButton: String
+    val emergencyWarningTitle: String
+    val emergencyWarningBody: String
+    val emergencyWarningConfirm: String
 }

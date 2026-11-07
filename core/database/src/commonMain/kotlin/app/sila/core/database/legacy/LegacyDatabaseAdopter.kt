@@ -7,6 +7,7 @@ import androidx.sqlite.async.prepare
 import androidx.sqlite.async.step
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import app.sila.core.common.ArabicTextNormalizer
+import app.sila.core.database.CallEventsV3Ddl
 import app.sila.core.database.StandardFieldTablesDdl
 
 /** فشل آمن: مخطط قاعدة غير مصنَّف — لا يُعدَّل ولا يُفتح (فحص الدخول قبل أي شيء). */
@@ -36,9 +37,10 @@ internal data class LegacyAdoptionResult(
  * قواعد لا تُكسر:
  * - **لا `Migration(0,1)`** — الاعتماد عبر «إنشاء/تحقق إصدار-صفر» في Room: الكيانات تطابق
  *   الحقيقة الفيزيائية بعد الشيم، وRoom يتحقق ويُسجل إصدار مخططه الحالي
- *   (`SILA_ROOM_VERSION` — v2 منذ T6) عند أول فتح. لذلك **يجب أن يوصل الشيم القاعدة
+ *   (`SILA_ROOM_VERSION` — v3 منذ T8-02) عند أول فتح. لذلك **يجب أن يوصل الشيم القاعدة
  *   لشكل المخطط الحالي كاملاً** — أعمدة التكافؤ التاريخية وجداول الحقول القياسية الخمسة
- *   وعمودا `contact_phones` الجديدان (T6 · Issue #27) — إذ تتحقق Room من مخطط
+ *   وعمودا `contact_phones` الجديدان (T6 · Issue #27) و`call_events` بصورة v3 وجدول
+ *   جلسات الطوارئ (T8-02 · Issue #29) — إذ تتحقق Room من مخطط
  *   إصدار-صفر مباشرةً ضد كيانات المخطط الحالي، لا ضد شكل v1 التاريخي.
  * - **فشل آمن**: مخطط غير مصنَّف (مشغّلات/FKs/جداول غير معروفة/أعمدة خارج الهدف) ⇒ نسخة
  *   احتياطية ثم رمي [LegacySchemaUnknownException] — **لا تعديل إطلاقاً**.
@@ -246,6 +248,7 @@ internal class LegacyDatabaseAdopter(
                 rebuildFtsIfNeeded(conn)
                 ensureCheckpointsTable(conn)
                 ensureStandardFieldTables(conn)
+                rebuildCallEventsToV3(conn)
                 normalizeContactsIndices(conn)
                 ensurePhonesIndices(conn)
                 backfillFtsFromContacts(conn)
@@ -336,6 +339,18 @@ internal class LegacyDatabaseAdopter(
     private suspend fun ensureStandardFieldTables(conn: SQLiteConnection) {
         StandardFieldTablesDdl.CREATE_TABLE_STATEMENTS.forEach { conn.executeSQL(it) }
         StandardFieldTablesDdl.CREATE_INDEX_STATEMENTS.forEach { conn.executeSQL(it) }
+    }
+
+    /**
+     * `call_events` بصورة v3 كاملة (v3 — T8-02 · Issue #29) بDDL والتسلسل الموحدين حرفاً
+     * مع `MIGRATION_2_3` ([CallEventsV3Ddl.rebuildCallEventsToV3AndCreateEmergencySessionsTable])
+     * — يجب الوصول للشكل كاملاً قبل فتح Room لأن قواعد إصدار-صفر تتحقق مباشرةً ضد كيانات
+     * المخطط الحالي. إعادة بناء ونسخ (§H.2) للقواعد الإرثية، وإنشاء جدول جلسات الطوارئ
+     * (قرار D4) — مع fail-closed على نصوص تعداد إرثية تالفة (القاعدة تبقى كما كانت
+     * والنسخة الواقية باقية). يستهدف فجوات الحالة idempotently (جدول v3 أصلاً يُتخطى).
+     */
+    private suspend fun rebuildCallEventsToV3(conn: SQLiteConnection) {
+        CallEventsV3Ddl.rebuildCallEventsToV3AndCreateEmergencySessionsTable(conn)
     }
 
     /**

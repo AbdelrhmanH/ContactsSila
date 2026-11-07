@@ -31,6 +31,9 @@ kotlin {
         commonMain.dependencies {
             api(project(":feature:arham:domain"))
             implementation(project(":core:database"))
+            // T8-04 (§F.1): علامة الإنجاز والقائمة المعلّقة في DataStore — ينفّذ مستودع
+            // التجسيد عقدَه عبر UserPreferencesDataSource (سبق موديول بيانات جهات الاتصال).
+            implementation(project(":core:datastore"))
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.androidx.sqlite.bundled.jvm)

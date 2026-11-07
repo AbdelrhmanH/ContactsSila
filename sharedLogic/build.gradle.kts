@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.skie)
+    // T8-10: ودجت Glance — محتواها Composable على androidMain (مُجمِّع كادنس حصراً للودجت).
+    alias(libs.plugins.composeCompiler)
 }
 
 /**
@@ -87,10 +89,25 @@ kotlin {
         getByName("androidMain").dependencies {
             // androidContext() في appDeclaration (SilaApplication) — Issue #22.
             api(libs.koin.android)
+            // T8-08: NotificationCompat/NotificationManagerCompat لبناء إشعارات أرحام.
+            implementation(libs.androidx.core.ktx)
+            // T8-10: حلقة الطوارئ FGS + ودجت Glance وتحديثاتها عبر WorkManager (D3).
+            implementation(libs.androidx.work.runtime.ktx)
+            implementation(libs.androidx.glance.appwidget)
+            // T8-10: LifecycleService لحلقة الرنين (coroutine scope مرتبط بدورة الخدمة).
+            implementation(libs.androidx.lifecycle.service)
+            // T8-10: كادنس الودجت — تعليقات @Composable وColor/Dp لـ Glance.
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.ui)
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.androidx.sqlite.bundled.jvm)
             implementation(libs.konsist)
+            // T8-08: إطار أندرويد محاكى فوق JVM — قنوات/إنذارات/إشعارات فوق Koin حقيقي.
+            implementation(libs.robolectric)
+            // T8-10: اختبار worker الودجت (WorkManagerTestInitHelper) ولقطات Glance.
+            implementation(libs.androidx.work.testing)
+            implementation(libs.androidx.glance.appwidget.testing)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

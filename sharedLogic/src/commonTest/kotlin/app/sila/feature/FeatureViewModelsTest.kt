@@ -12,10 +12,12 @@ import app.sila.core.model.Relation
 import app.sila.core.model.Service
 import app.sila.core.model.ServiceVisibility
 import app.sila.di.ensureKoinStarted
+import app.sila.feature.arham.domain.TopFiveMaterializationRepository
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.services.presentation.ServicesViewModel
 import app.sila.feature.settings.presentation.SettingsViewModel
+import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,6 +25,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.koin.core.context.stopKoin
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -35,11 +43,32 @@ class FeatureViewModelsTest {
 
     @BeforeTest
     fun setUp() {
+        // عزل Koin العام على K/N (عدّاء الاختبارات عملية واحدة): صنفٌ سابق قد يترك
+        // السياق العام مشدوداً — كل اختبار يبدأ من حاوية نظيفة (المرآة في tearDown).
+        stopKoin()
         Dispatchers.setMain(Dispatchers.Unconfined)
     }
 
+    /** ViewModels الحالية في الحاوية — تُسجَّل عند الحل (لا getOrNull متأخر يُنشئ
+     * وحيدات جديدة عند فشلٍ سابق) ويُلغى نطاقها **بالانضمام** قبل stopKoin. */
+    private val resolvedViewModels = mutableListOf<androidx.lifecycle.ViewModel>()
+
     @AfterTest
     fun tearDown() {
+        // نطاقات ViewModels ملك لأصحابها — من حلّها في الاختبار يلغيها قبل إغلاق
+        // الحاوية، **بالانضمام** (لا مجرد طلب إلغاء): جامعات Room على IO تخرج من
+        // المُشغِّل فعلياً قبل stopKoin فلا تلمس تجمع اتصالات مغلقاً (تكامل دورة حياة
+        // الموارد). runBlocking مقيد بمهلة في اختبار مشترك — سابقة المستودع.
+        runBlocking {
+            withTimeout(5_000) {
+                resolvedViewModels.forEach { vm ->
+                    runCatching {
+                        vm.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+                    }
+                }
+            }
+        }
+        resolvedViewModels.clear()
         stopKoin()
         Dispatchers.resetMain()
     }
@@ -92,10 +121,16 @@ class FeatureViewModelsTest {
         // SilaApplication / IosKoinBootstrap مرة واحدة لكل عملية) — إسقاط التسجيل يُفشل هنا.
         assertNotNull(koin.get<RetentionCleanupCoordinator>())
 
+        // T8-15 (F-1): مشغِّل تجسيد «أهم 5» وربط مستودعه (فوق DAO+DataStore) مُسجَّلان
+        // في حاوية الإنتاج — إسقاط التسجيل يُفشل هنا (مرآة F-02 أعلاه).
+        assertNotNull(koin.get<ArhamMaterializationCoordinator>())
+        assertNotNull(koin.get<TopFiveMaterializationRepository>())
+
         val contactsVm = koin.get<ContactsViewModel>()
         val arhamVm = koin.get<ArhamViewModel>()
         val servicesVm = koin.get<ServicesViewModel>()
         val settingsVm = koin.get<SettingsViewModel>()
+        resolvedViewModels += listOf(contactsVm, arhamVm, servicesVm, settingsVm)
 
         assertNotNull(contactsVm)
         assertNotNull(arhamVm)

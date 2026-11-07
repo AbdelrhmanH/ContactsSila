@@ -13,9 +13,9 @@ import app.sila.core.model.Contact
 import app.sila.core.model.DefaultTab
 import app.sila.core.model.Service
 import app.sila.core.model.UserPreferences
-import app.sila.feature.arham.domain.ArhamRepository
 import app.sila.feature.arham.domain.GetArhamDashboardStatsUseCase
 import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
+import app.sila.feature.arham.domain.RecordDialAttemptUseCase
 import app.sila.feature.contacts.domain.ContactsRepository
 import app.sila.feature.services.domain.ServicesRepository
 import app.sila.feature.settings.domain.SettingsRepository
@@ -71,7 +71,7 @@ sealed interface MainEffect {
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val contactsRepository: ContactsRepository,
-    private val arhamRepository: ArhamRepository,
+    private val recordDialAttempt: RecordDialAttemptUseCase,
     private val servicesRepository: ServicesRepository,
     private val getArhamPriorityList: GetArhamPriorityListUseCase,
     private val getArhamStats: GetArhamDashboardStatsUseCase,
@@ -146,8 +146,14 @@ class MainViewModel(
             }
             is MainIntent.CallNumber -> {
                 viewModelScope.launch {
-                    if (intent.contactId != null) {
-                        arhamRepository.recordContactCall(intent.contactId, clock.nowEpochMillis())
+                    // AC-3/§D.3-4: الاتصال من داخل صِلَة يسجّل محاولة IN_APP عبر آلة
+                    // الحالات حصراً — لا كتابة مباشرة لآخر تواصل (بوابة AC-8 في الآلة).
+                    intent.contactId?.let { contactId ->
+                        recordDialAttempt(
+                            contactId = contactId,
+                            remoteNumber = intent.phone,
+                            timestampMillis = clock.nowEpochMillis(),
+                        )
                     }
                     updateState { copy(lastDialedPhone = intent.phone) }
                     sendEffect(MainEffect.OpenDialer(intent.phone))

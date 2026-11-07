@@ -64,6 +64,12 @@ sealed interface ContactsNavEffect {
 
     /** فتح تطبيق متصل — [scheme] مخطط مغلق (`whatsapp`/`tg`/`sgnl`). */
     data class OpenExternalApp(val scheme: String, val e164: String) : ContactsNavEffect
+
+    /**
+     * بدء رنين الطوارئ (T8-11) — [contactId] لجهة [app.sila.core.model.Category.EMERGENCY]
+     * بعد تحذيرها؛ المضيف يملك بوابة `CALL_PHONE` وتنفيذ استخدام أرحام (فصل الميزات).
+     */
+    data class EmergencyRing(val contactId: Long) : ContactsNavEffect
     data class ShareVCard(val vcardText: String) : ContactsNavEffect
 
     /**
@@ -168,6 +174,9 @@ fun ContactsNavFlow(
 
                         is ContactDetailsEffect.ShareVCard ->
                             onPlatformEffect(ContactsNavEffect.ShareVCard(effect.vcardText))
+
+                        is ContactDetailsEffect.EmergencyRing ->
+                            onPlatformEffect(ContactsNavEffect.EmergencyRing(effect.contactId))
 
                         ContactDetailsEffect.ShowDeleteError ->
                             onPlatformEffect(ContactsNavEffect.ShowError(deleteErrorText))

@@ -5,3 +5,8 @@ PRODUCT_BUNDLE_IDENTIFIER=app.sila.ContactsSila$(TEAM_ID)
 
 CURRENT_PROJECT_VERSION=1
 MARKETING_VERSION=1.0
+
+// T8-13 (D6 · AC-15): مُعرِّف App Group المشترك بين التطبيق وإضافة الودجت — مصدر الحقيقة الوحيد.
+// يُوسَّع وقت البناء داخل ملفَّي Entitlements ومفتاح AppGroupId في Info.plist (القراءة الزمنية
+// عبر Bundle.main/objectForInfoDictionaryKey — لا تثبيت نص في الكود السريع).
+APP_GROUP_ID = group.app.sila.shared

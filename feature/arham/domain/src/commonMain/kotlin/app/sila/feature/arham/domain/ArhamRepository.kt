@@ -10,5 +10,4 @@ import kotlinx.coroutines.flow.Flow
 interface ArhamRepository {
     fun observeArhamContacts(): Flow<List<Contact>>
     suspend fun upsertArhamInfo(contactId: Long, info: ArhamInfo)
-    suspend fun recordContactCall(contactId: Long, timestampMillis: Long)
 }

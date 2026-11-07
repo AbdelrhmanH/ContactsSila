@@ -39,5 +39,33 @@ val MIGRATION_1_2: Migration = object : Migration(1, 2) {
     }
 }
 
+/**
+ * ## MIGRATION_2_3 — T8 (Issue #29): توسعة `call_events` لحقول ADR-0006 + جدول جلسات الطوارئ
+ *
+ * SQLite لا يُغيّر لفوية الأعمدة — التوسعة الفردية غير ممكنة، فالتسلسل المُصادق هو
+ * **إعادة بناء ونسخ** (§I من تقرير بوابة T8-02، بلا أي اختصار هدمي):
+ * 1. تحقق fail-closed من نصوص التعداد الإرثية في `call_events` (قبل أي كتابة — §H.4).
+ * 2. إنشاء `call_events_v3_rebuild` بصورة v3 من [CallEventsV3Ddl] (مصدر وحيد مع الشيم).
+ * 3. نسخ كل الصفوف بتعبيرات §H.2 حرفاً (محفوظ حرفاً + محولات موثقة + NULL للجديد).
+ * 4. إسقاط `call_events` القديم، إعادة تسمية المؤقت، ثم إنشاء فهرس `idx_call_events_ts`
+ *    الوحيد بعد إعادة التسمية.
+ * 5. إنشاء `emergency_ringing_sessions` (قرار D4 المُصادق — §W).
+ *
+ * الذرية: الترحيل يعمل داخل معاملة Room الحصرية (تحقق فعلي بالبايت-كود لـ Room 3.0.3:
+ * `BaseRoomConnectionManager.configureDatabase` يقرأ `user_version` ثم يغلّف مسار
+ * الترحيل بـ `BEGIN EXCLUSIVE TRANSACTION` … `END TRANSACTION` مع `ROLLBACK` عند
+ * الفشل) — أي استثناء يُرجع القاعدة كاملة إلى v2 ولا تُفتح Room. لذلك **لا معاملة
+ * داخلية هنا** (BEGIN متداخل يرمي).
+ *
+ * صفوف الإرث المهاجرة كلها UNANSWERED/UNKNOWN + NOT_REQUIRED + LOW → لا يمكن أبداً
+ * أن تؤهل لتحديث `lastContactedAt` بقاعدة AC-8 (§H.5 — لا يصنع الترحيل دليلاً مؤكداً).
+ * لا يُلمس أي جدول آخر حرفاً — `contacts_fts` على وجه الحصر بلا أي عبارة.
+ */
+val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+    override suspend fun migrate(db: SQLiteConnection) {
+        CallEventsV3Ddl.rebuildCallEventsToV3AndCreateEmergencySessionsTable(db)
+    }
+}
+
 /** كل الترحيلات الرسمية بالترتيب — تُسجَّل على منشئ قاعدة Room وحيداً. */
-val SILA_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2)
+val SILA_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)

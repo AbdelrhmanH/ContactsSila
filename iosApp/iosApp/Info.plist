@@ -20,6 +20,13 @@
 		<string>whatsapp</string>
 		<string>tg</string>
 		<string>sgnl</string>
+		<!-- T8-13 (§L.4 · PLATFORM_PERMISSIONS §7): فحص توفر `tel:` (iPad/بلا شريحة) —
+		     دون التصريح يعيد canOpenURL القيمة false دائماً وتُخفى أزرار الطوارئ خطأً. -->
+		<string>tel</string>
 	</array>
+	<!-- T8-13 (D6): مُعرِّف App Group للناشر (Kotlin) — يُوسَّع من APP_GROUP_ID في Config.xcconfig؛
+	     إضافة الودجت تقرأ مفتاحها المماثل من Info.plist الخاصة بها. -->
+	<key>AppGroupId</key>
+	<string>$(APP_GROUP_ID)</string>
 </dict>
 </plist>
