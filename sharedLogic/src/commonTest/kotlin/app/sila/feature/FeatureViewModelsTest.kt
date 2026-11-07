@@ -21,7 +21,6 @@ import app.sila.feature.settings.presentation.SettingsViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
