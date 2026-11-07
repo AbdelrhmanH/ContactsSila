@@ -9,9 +9,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.AfterClass
 import org.junit.BeforeClass
@@ -54,11 +56,16 @@ class ContactsListPerformanceTest {
         @AfterClass
         @JvmStatic
         fun tearDownClass() {
+            // (Issue #42) حاجز تصريف لطابور Main بعد انحلالات النطاقات المنتظرة (join) —
+            // تدفق وقائي لأي بقايا إلغاء، وليس نوماً يخفي سباقاً.
             repeat(times = 3) {
                 runCatching { mainExecutor.submit(Runnable {}).get() }
                 Thread.sleep(50)
             }
         }
+
+        /** مهلة الانحلال المنتظر — انسداد أعلى من هذا يعني خط أنابيب عالقاً فيُفشل بصوت مسموع. */
+        private const val WIND_DOWN_TIMEOUT_MILLIS = 5_000L
 
         private const val BATCH_SIZE = 5_000
 
@@ -75,8 +82,22 @@ class ContactsListPerformanceTest {
 
     @AfterTest
     fun tearDown() {
-        runCatching { koin.getOrNull<ContactsViewModel>()?.viewModelScope?.cancel() }
+        // (Issue #42) طبقة دفاعية: انحلال منتظر قبل إغلاق الحاوية/قاعدة الأداء القرصية — بدون
+        // join يُخزَّن أي فشل حقيقي أثناء الانحلال عالمياً (ExceptionCollector) ويُسقط على أول
+        // runTest تالٍ (UncaughtExceptionsBeforeTest).
+        runCatching {
+            koin.getOrNull<ContactsViewModel>()?.let { viewModel ->
+                kotlinx.coroutines.runBlocking { awaitViewModelWindDown(viewModel) }
+            }
+        }
         stopKoin()
+    }
+
+    /** (Issue #42) انحلال منتظر لنطاق الـ VM قبل أي إغلاق حاوية/قاعدة — نمط T8 (353cf99). */
+    private suspend fun awaitViewModelWindDown(viewModel: ContactsViewModel) {
+        withTimeout(WIND_DOWN_TIMEOUT_MILLIS) {
+            viewModel.viewModelScope.coroutineContext[Job]!!.cancelAndJoin()
+        }
     }
 
     @Test
@@ -134,6 +155,6 @@ class ContactsListPerformanceTest {
         startKoin { modules(createSilaSharedModule(storageDir.toString())) }
         val viewModel = koin.get<ContactsViewModel>()
         block(viewModel)
-        viewModel.viewModelScope.cancel()
+        awaitViewModelWindDown(viewModel)
     }
 }

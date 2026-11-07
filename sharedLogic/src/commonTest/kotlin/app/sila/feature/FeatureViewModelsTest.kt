@@ -1,5 +1,6 @@
 package app.sila.feature
 
+import androidx.lifecycle.viewModelScope
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.ServiceDao
 import app.sila.core.model.ArhamFrequency
@@ -20,6 +21,10 @@ import app.sila.feature.settings.presentation.SettingsViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.resetMain
@@ -40,6 +45,12 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeatureViewModelsTest {
+
+    /** (Issue #42) نطاقات الـ VM المحلولة تُتتبَّع هنا وتُلغى بالانضمام في tearDown قبل إغلاق
+     * الحاوية — بدون join يظل فشل حقيقي أثناء انحلال جامعي Room/DataStore بلا معالج فيُخزَّن
+     * عالمياً (ExceptionCollector — JVM واحد لكل مهمة testAndroidHostTest) ويُسقط على أول
+     * runTest تالٍ في أي صنف (UncaughtExceptionsBeforeTest). نمط T8 (353cf99) نفسه. */
+    private val resolvedViewModels = mutableListOf<androidx.lifecycle.ViewModel>()
 
     @BeforeTest
     fun setUp() {

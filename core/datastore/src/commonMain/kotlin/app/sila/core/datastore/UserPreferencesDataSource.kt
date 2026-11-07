@@ -14,10 +14,17 @@ import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DefaultTab
 import app.sila.core.model.TopFiveSelection
 import app.sila.core.model.UserPreferences
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
@@ -74,8 +81,10 @@ interface UserPreferencesDataSource {
 }
 
 class SilaPreferencesDataSource(
-    initialPreferences: UserPreferences = UserPreferences(),
-    val storageFilePath: String? = null
+    private val initialPreferences: UserPreferences = UserPreferences(),
+    val storageFilePath: String? = null,
+    /** مُمرَّر من Koin (AppDispatchers.default) — يملك نطاق التدفق الحار أدناه (نطاق مملوك للنطاق المشترك، بلا نطاق عام عالمي). */
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : UserPreferencesDataSource {
 
     private val dataStore: DataStore<Preferences>? = storageFilePath?.let { path ->
@@ -84,49 +93,82 @@ class SilaPreferencesDataSource(
 
     private val _memoryState = MutableStateFlow(initialPreferences)
 
-    override val preferences: Flow<UserPreferences> = dataStore?.data?.map { prefs ->
-        UserPreferences(
-            themeMode = prefs[KEY_THEME_MODE]?.let { runCatching { AppThemeMode.valueOf(it) }.getOrNull() }
-                ?: initialPreferences.themeMode,
-            language = prefs[KEY_LANGUAGE]?.let { runCatching { AppLanguage.valueOf(it) }.getOrNull() }
-                ?: initialPreferences.language,
-            defaultTab = prefs[KEY_DEFAULT_TAB]?.let { runCatching { DefaultTab.valueOf(it) }.getOrNull() }
-                ?: initialPreferences.defaultTab,
-            arhamNotificationsEnabled = prefs[KEY_ARHAM_NOTIFICATIONS] ?: initialPreferences.arhamNotificationsEnabled,
-            quietHoursStartHour = prefs[KEY_QUIET_START] ?: initialPreferences.quietHoursStartHour,
-            quietHoursEndHour = prefs[KEY_QUIET_END] ?: initialPreferences.quietHoursEndHour,
-            arhamNotificationHour = prefs[KEY_ARHAM_NOTIFICATION_HOUR] ?: initialPreferences.arhamNotificationHour,
-            arhamNotificationMinute = prefs[KEY_ARHAM_NOTIFICATION_MINUTE] ?: initialPreferences.arhamNotificationMinute,
-            arhamOccasionDayBeforeEnabled = prefs[KEY_ARHAM_OCCASION_DAY_BEFORE] ?: initialPreferences.arhamOccasionDayBeforeEnabled,
-            confettiEnabled = prefs[KEY_CONFETTI] ?: initialPreferences.confettiEnabled,
-            searchRadiusKm = prefs[KEY_SEARCH_RADIUS] ?: initialPreferences.searchRadiusKm,
-            autoUpdatePhonebookServices = prefs[KEY_AUTO_UPDATE_SERVICES] ?: initialPreferences.autoUpdatePhonebookServices,
-            smartFilterEnabled = prefs[KEY_SMART_FILTER] ?: initialPreferences.smartFilterEnabled,
-            onboardingCompleted = prefs[KEY_ONBOARDING_COMPLETED] ?: initialPreferences.onboardingCompleted,
-            isGuest = prefs[KEY_IS_GUEST] ?: initialPreferences.isGuest,
-            onboardingResumeStep = prefs[KEY_ONBOARDING_RESUME_STEP] ?: initialPreferences.onboardingResumeStep,
-            onboardingContactsPermission =
-                prefs[KEY_ONBOARDING_CONTACTS_PERMISSION] ?: initialPreferences.onboardingContactsPermission,
-            onboardingTopFiveSelections =
-                prefs[KEY_ONBOARDING_TOP_FIVE]?.let { raw ->
-                    runCatching {
-                        json.decodeFromString(ListSerializer(TopFiveSelection.serializer()), raw)
-                    }.getOrNull()
-                } ?: initialPreferences.onboardingTopFiveSelections,
-            topFiveMaterialized = prefs[KEY_TOP_FIVE_MATERIALIZED] ?: initialPreferences.topFiveMaterialized,
-            celebratedArhamTransitions =
-                prefs[KEY_CELEBRATED_TRANSITIONS]?.let { raw ->
-                    runCatching {
-                        json.decodeFromString(MapSerializer(Long.serializer(), Long.serializer()), raw)
-                    }.getOrNull()
-                } ?: initialPreferences.celebratedArhamTransitions,
-            dismissedSuggestionIds = prefs[KEY_DISMISSED_SUGGESTIONS] ?: initialPreferences.dismissedSuggestionIds,
-            swipeStartAction = prefs[KEY_SWIPE_START]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
-                ?: initialPreferences.swipeStartAction,
-            swipeEndAction = prefs[KEY_SWIPE_END]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
-                ?: initialPreferences.swipeEndAction
-        )
-    } ?: _memoryState.asStateFlow()
+    /**
+     * تخزين مؤقت حار لتدفق DataStore القرصي (Issue #34) — مجموعة واحدة مملوكة لكل مصدر بيانات.
+     *
+     * لماذا حار (Eagerly)؟ تدفق `dataStore.data` بارد، وكل مجموعة جديدة تقرأ الحالة بلا قفل
+     * (`readState`) — إن تزامنت قراءتها مع نافذة كتابة ([incrementAndGetVersion ← كتابة القرص ←
+     * tryUpdate]) فستحصل على محتوى قديم مختوماً بالإصدار الجديد، فيُسقط حارس `dropWhile` الداخلي
+     * تحديث الكتابة **نهائياً** لتلك المجموعة (يظهر عند المستهلك كفقدان الإصدار الثاني وما بعده).
+     * مع نطاق مشترك يُعاد جمع التدفق عند كل حقبة اشتراك — لذا فإن الطريق الوحيد لإغلاق السباق
+     * هو مجموعة واحدة أبداً لا تُعاد، تُحدَّث قيمتها عبر StateFlow داخلي يوزّع كل تحديث حتمياً.
+     *
+     * النطاق مملوك لمثيل المصدر ويبقى حياً مدى عمر العملية — نفس النمط الداخلي لمكتبة DataStore
+     * نفسها (CoroutineScope(ioDispatcher + SupervisorJob()) بلا إلغاء)، ولا يستخدم النطاق العام
+     * العالمي إطلاقاً. البديل في الذاكرة أدناه لا يمسّه هذا التغيير إطلاقاً.
+     *
+     * دلالة الفشل (مراجعة 4ff0e1b): مع Eagerly لا يوجد جامع يلتقط استثناء مجموعة المشاركة
+     * الوحيدة (ملف تالف مثلاً) — بلا معالج لينهار فشل نادر عند الإقلاع حتى بلا مستهلكين؛
+     * المعالج هنا يسجل بلا PII ويترك التدفق ميتاً بقيمته الأخيرة — لا كتم لأخطاء الكتابة
+     * (تظل تُرمى على المستدعي عبر `edit`) ولا التفاف واسع.
+     */
+    private val hotDiskPreferences: Flow<UserPreferences>? = dataStore?.let { dataStore ->
+        dataStore.data
+            .map { prefs -> toUserPreferences(prefs) }
+            .shareIn(
+                scope = CoroutineScope(
+                    SupervisorJob() + defaultDispatcher + CoroutineExceptionHandler { _, throwable ->
+                        println("SilaPreferencesDataSource: hot preferences collection failed (no PII): ${throwable::class.simpleName}")
+                    }
+                ),
+                started = SharingStarted.Eagerly,
+                replay = 1
+            )
+    }
+
+    override val preferences: Flow<UserPreferences> = hotDiskPreferences ?: _memoryState.asStateFlow()
+
+    private fun toUserPreferences(prefs: Preferences): UserPreferences = UserPreferences(
+        themeMode = prefs[KEY_THEME_MODE]?.let { runCatching { AppThemeMode.valueOf(it) }.getOrNull() }
+            ?: initialPreferences.themeMode,
+        language = prefs[KEY_LANGUAGE]?.let { runCatching { AppLanguage.valueOf(it) }.getOrNull() }
+            ?: initialPreferences.language,
+        defaultTab = prefs[KEY_DEFAULT_TAB]?.let { runCatching { DefaultTab.valueOf(it) }.getOrNull() }
+            ?: initialPreferences.defaultTab,
+        arhamNotificationsEnabled = prefs[KEY_ARHAM_NOTIFICATIONS] ?: initialPreferences.arhamNotificationsEnabled,
+        quietHoursStartHour = prefs[KEY_QUIET_START] ?: initialPreferences.quietHoursStartHour,
+        quietHoursEndHour = prefs[KEY_QUIET_END] ?: initialPreferences.quietHoursEndHour,
+        arhamNotificationHour = prefs[KEY_ARHAM_NOTIFICATION_HOUR] ?: initialPreferences.arhamNotificationHour,
+        arhamNotificationMinute = prefs[KEY_ARHAM_NOTIFICATION_MINUTE] ?: initialPreferences.arhamNotificationMinute,
+        arhamOccasionDayBeforeEnabled = prefs[KEY_ARHAM_OCCASION_DAY_BEFORE] ?: initialPreferences.arhamOccasionDayBeforeEnabled,
+        confettiEnabled = prefs[KEY_CONFETTI] ?: initialPreferences.confettiEnabled,
+        searchRadiusKm = prefs[KEY_SEARCH_RADIUS] ?: initialPreferences.searchRadiusKm,
+        autoUpdatePhonebookServices = prefs[KEY_AUTO_UPDATE_SERVICES] ?: initialPreferences.autoUpdatePhonebookServices,
+        smartFilterEnabled = prefs[KEY_SMART_FILTER] ?: initialPreferences.smartFilterEnabled,
+        onboardingCompleted = prefs[KEY_ONBOARDING_COMPLETED] ?: initialPreferences.onboardingCompleted,
+        isGuest = prefs[KEY_IS_GUEST] ?: initialPreferences.isGuest,
+        onboardingResumeStep = prefs[KEY_ONBOARDING_RESUME_STEP] ?: initialPreferences.onboardingResumeStep,
+        onboardingContactsPermission =
+            prefs[KEY_ONBOARDING_CONTACTS_PERMISSION] ?: initialPreferences.onboardingContactsPermission,
+        onboardingTopFiveSelections =
+            prefs[KEY_ONBOARDING_TOP_FIVE]?.let { raw ->
+                runCatching {
+                    json.decodeFromString(ListSerializer(TopFiveSelection.serializer()), raw)
+                }.getOrNull()
+            } ?: initialPreferences.onboardingTopFiveSelections,
+        topFiveMaterialized = prefs[KEY_TOP_FIVE_MATERIALIZED] ?: initialPreferences.topFiveMaterialized,
+        celebratedArhamTransitions =
+            prefs[KEY_CELEBRATED_TRANSITIONS]?.let { raw ->
+                runCatching {
+                    json.decodeFromString(MapSerializer(Long.serializer(), Long.serializer()), raw)
+                }.getOrNull()
+            } ?: initialPreferences.celebratedArhamTransitions,
+        dismissedSuggestionIds = prefs[KEY_DISMISSED_SUGGESTIONS] ?: initialPreferences.dismissedSuggestionIds,
+        swipeStartAction = prefs[KEY_SWIPE_START]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
+            ?: initialPreferences.swipeStartAction,
+        swipeEndAction = prefs[KEY_SWIPE_END]?.let { runCatching { ContactSwipeAction.valueOf(it) }.getOrNull() }
+            ?: initialPreferences.swipeEndAction
+    )
 
     override suspend fun setThemeMode(mode: AppThemeMode) {
         dataStore?.edit { it[KEY_THEME_MODE] = mode.name }

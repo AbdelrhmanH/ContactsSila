@@ -184,9 +184,14 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single { RetentionCleanupCoordinator(cleanup = get(), clock = get()) }
 
     // Core DataStore (Preferences Persistence Singleton)
+    // Issue #34: مُمرِّر الـ default يُحقن من AppDispatchers (لا قيم ثابتة في الإنتاج —
+    // CODING_GUIDELINES) ليمتلك نطاق التدفق الحار داخل مصدر البيانات.
     single<UserPreferencesDataSource> {
         val prefsPath = storageDirPath?.let { "$it/${SilaPreferencesDataSource.DATASTORE_FILE_NAME}" }
-        SilaPreferencesDataSource(storageFilePath = prefsPath)
+        SilaPreferencesDataSource(
+            storageFilePath = prefsPath,
+            defaultDispatcher = get<AppDispatchers>().default
+        )
     }
 
     // :feature:contacts (Domain UseCases + Data Repository + Presentation ViewModel)
