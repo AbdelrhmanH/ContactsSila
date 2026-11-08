@@ -28,11 +28,14 @@ import app.sila.core.database.entity.ContactCustomFieldEntity
 import app.sila.core.database.entity.ContactDateEntity
 import app.sila.core.database.entity.ContactEmailEntity
 import app.sila.core.database.entity.ContactEntity
+import app.sila.core.database.entity.ContactMergeSnapshotEntity
 import app.sila.core.database.entity.ContactPhoneEntity
 import app.sila.core.database.entity.ContactWebsiteEntity
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.database.entity.DisputeLogEntity
+import app.sila.core.database.entity.DuplicateDismissalEntity
 import app.sila.core.database.entity.EmergencyRingingSessionEntity
+import app.sila.core.database.entity.SmartFilterFeedbackEntity
 import app.sila.core.database.entity.toContactEntity
 import app.sila.core.database.entity.toCallEvent
 import app.sila.core.database.entity.toCallEventEntity
@@ -492,6 +495,313 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
             contactsState.update { current -> current.filterNot { it.id == contactId } }
         }
     }
+
+    // ===== T7: الدمج والتراجع (Issue #28 — ADR-0004/spec 04 §أ) =====
+
+    /** خطاف حقن فشل داخل معاملة الدمج قبل COMMIT — اختبار التراجع الذرّي حصراً (نمط materializationFaultHook). */
+    internal var mergeFaultHook: (() -> Throwable)? = null
+
+    /** خطاف حقن فشل داخل معاملة الاسترجاع قبل COMMIT — اختبار idempotency القفل حصراً. */
+    internal var restoreFaultHook: (() -> Throwable)? = null
+
+    /**
+     * دمج Room كامل داخل **معاملة واحدة** (عهد الواجهة — الكاش بعد COMMIT حصراً):
+     * 1. لقطة ما-قبل-الدمج (ACTIVE) تُكتب أولاً — الحمولة JSON معتمة يملكها طبقة الميزة.
+     * 2. صف الناجي الكامل + أبناؤه + أرحامه (الهوية المهاجرة بعد التجميع المنصوي داخل
+     *    [mergedContact] — agy F2c) عبر [writeContactToSqlite] (upsert بمعرّف).
+     * 3. إعادة توجيه أحداث المكالمات الممتصة إلى الناجي (القائمة مرتّبة من طبقة الميزة).
+     * 4. قبور دمج الممتصين: `systemDeletedAt` (نفس عمود القبر ودلالته — القبر يُخفي من
+     *    القائمة والفهرس، ويُحفظ الصفُّ والأبناء للاسترجاع) + إسقاط صفوف FTS (القبور لا تُفهرس).
+     * يعيد معرّف صف اللقطة (مفتاح التراجع خلال الجلسة).
+     */
+    suspend fun mergeContactsInRoom(
+        survivorId: Long,
+        mergedContact: Contact,
+        absorbedIds: List<Long>,
+        snapshotGroupId: String,
+        snapshotPayloadJson: String,
+        snapshotExpiresAt: Long,
+        rePointedCallLogIds: List<String>,
+        nowMillis: Long,
+    ): Long = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            val snapshotId = inWriteTransaction { conn ->
+                conn.usePrepared(
+                    """
+                    INSERT INTO contact_merge_snapshots (groupId, payloadJson, contactCount, createdAt, status, restoredAt, expiresAt)
+                    VALUES (?, ?, ?, ?, 'ACTIVE', NULL, ?)
+                    """.trimIndent()
+                ) { stmt ->
+                    stmt.bindText(1, snapshotGroupId)
+                    stmt.bindText(2, snapshotPayloadJson)
+                    stmt.bindLong(3, (absorbedIds.size + 1).toLong())
+                    stmt.bindLong(4, nowMillis)
+                    stmt.bindLong(5, snapshotExpiresAt)
+                    stmt.step()
+                }
+                var snapshotId = 0L
+                conn.usePrepared("SELECT last_insert_rowid()") { stmt ->
+                    stmt.step()
+                    snapshotId = stmt.getLong(0)
+                }
+
+                writeContactToSqlite(conn, mergedContact)
+
+                for (callLogId in rePointedCallLogIds) {
+                    conn.usePrepared("UPDATE call_events SET contactId = ? WHERE callLogId = ?") { stmt ->
+                        stmt.bindLong(1, survivorId)
+                        stmt.bindText(2, callLogId)
+                        stmt.step()
+                    }
+                }
+                // روابط القرابة التي كانت تشير إلى ممتصٍ صارت تشير إلى الناجي
+                for (absorbedId in absorbedIds) {
+                    conn.usePrepared("UPDATE arham SET parentContactId = ? WHERE parentContactId = ?") { stmt ->
+                        stmt.bindLong(1, survivorId)
+                        stmt.bindLong(2, absorbedId)
+                        stmt.step()
+                    }
+                }
+                for (absorbedId in absorbedIds) {
+                    conn.usePrepared("UPDATE contacts SET systemDeletedAt = ? WHERE id = ?") { stmt ->
+                        stmt.bindLong(1, nowMillis)
+                        stmt.bindLong(2, absorbedId)
+                        stmt.step()
+                    }
+                    conn.usePrepared("DELETE FROM contacts_fts WHERE docid = ?") { stmt ->
+                        stmt.bindLong(1, absorbedId)
+                        stmt.step()
+                    }
+                }
+                mergeFaultHook?.invoke()?.let { throw it }
+                snapshotId
+            }
+            contactsState.update { current ->
+                val withoutAbsorbed = current.filterNot { it.id in absorbedIds.toSet() }
+                withoutAbsorbed.map { if (it.id == survivorId) mergedContact else it }
+            }
+            snapshotId
+        }
+    }
+
+    /**
+     * استرجاع ما-قبل-الدمج من لقطة نشطة — **قفل لمرة-واحدة**: الصف ACTIVE فقط يُسترجع
+     * (فليب RESTORED داخل المعاملة نفسها)؛ النداء الثاني يُرفض `false` بلا أي كتابة.
+     * الحمولة تُفكّ داخل المعاملة عبر [decodePayload] (فكّ معتم يملكه مستهلكو الواجهة —
+     * عقد `contacts_sync_checkpoints` نفسه) فتبقى الذرية كاملة: استرجاع الأعضاء بأصفارهم
+     * الأصلية (إحياء القبور ثم إعادة كتابة كل صف بمعرّفه عبر [writeContactToSqlite]) +
+     * إعادة توجيه أحداث المكالمات وروابط القرابة بالاتجاه المعاكس + إعادة فهرسة FTS.
+     */
+    suspend fun <P> undoMergeFromSnapshot(
+        snapshotId: Long,
+        nowMillis: Long,
+        decodePayload: (String) -> P,
+        absorbedIdsOf: (P) -> List<Long>,
+        membersOf: (P) -> List<Contact>,
+        callEventRepointsOf: (P) -> List<Pair<String, Long>>,
+        parentLinkRepointsOf: (P) -> List<Pair<Long, Long>>,
+    ): Boolean = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            val restored = inWriteTransaction { conn ->
+                var status: String? = null
+                var payload: String? = null
+                conn.usePrepared("SELECT status, payloadJson FROM contact_merge_snapshots WHERE id = ?") { stmt ->
+                    stmt.bindLong(1, snapshotId)
+                    if (stmt.step()) {
+                        status = stmt.getText(0)
+                        payload = stmt.getText(1)
+                    }
+                }
+                if (status != ContactMergeSnapshotEntity.STATUS_ACTIVE || payload == null) {
+                    return@inWriteTransaction false
+                }
+                conn.usePrepared(
+                    "UPDATE contact_merge_snapshots SET status = 'RESTORED', restoredAt = ? WHERE id = ?"
+                ) { stmt ->
+                    stmt.bindLong(1, nowMillis)
+                    stmt.bindLong(2, snapshotId)
+                    stmt.step()
+                }
+
+                val decoded = decodePayload(payload!!)
+                val members = membersOf(decoded)
+                val absorbed = absorbedIdsOf(decoded)
+
+                for ((callLogId, oldContactId) in callEventRepointsOf(decoded)) {
+                    conn.usePrepared("UPDATE call_events SET contactId = ? WHERE callLogId = ?") { stmt ->
+                        stmt.bindLong(1, oldContactId)
+                        stmt.bindText(2, callLogId)
+                        stmt.step()
+                    }
+                }
+                for ((childContactId, oldParentId) in parentLinkRepointsOf(decoded)) {
+                    conn.usePrepared("UPDATE arham SET parentContactId = ? WHERE contactId = ?") { stmt ->
+                        stmt.bindLong(1, oldParentId)
+                        stmt.bindLong(2, childContactId)
+                        stmt.step()
+                    }
+                }
+                // إحياء الممتصين (قبور الدمج) قبل إعادة كتابتهم بأصفارهم — writeContactToSqlite
+                // يكتب systemDeletedAt = NULL حرفاً (النطاق بلا قبر عمداً) فيُحيي الصف وإلا أبناءه.
+                for (absorbedId in absorbed) {
+                    conn.usePrepared("UPDATE contacts SET systemDeletedAt = NULL WHERE id = ?") { stmt ->
+                        stmt.bindLong(1, absorbedId)
+                        stmt.step()
+                    }
+                }
+                for (member in members) {
+                    writeContactToSqlite(conn, member)
+                }
+                restoreFaultHook?.invoke()?.let { throw it }
+                true
+            }
+            if (restored) {
+                // الكاش بعد COMMIT حصراً: إعادة القراءة الكاملة (الاسترجاع يمسّ صفاً وصفوفاً متعددة)
+                contactsState.value = loadContactsFromRoom()
+            }
+            restored
+        }
+    }
+
+    // ——— استبعاد أزواج المكررات (duplicate_dismissals — T7) ———
+
+    private val duplicateDismissalKeysState = MutableStateFlow<Set<String>>(emptySet())
+
+    /** مفاتيح الأزواج/الثنائيات المرفوضة («ليست مكررات») — تُبنى منها حواف الكشف المستبعدة. */
+    fun observeDuplicateDismissalKeys(): Flow<Set<String>> {
+        return duplicateDismissalKeysState
+    }
+
+    /** تحميل مفتاح الاستبعاد من القرص (استدعاء تهيئة واحد — نفس انضباط كاش جهات الاتصال). */
+    suspend fun loadDuplicateDismissalKeys(): Set<String> = withContext(dispatchers.io) {
+        val keys = mutableSetOf<String>()
+        room.useReaderConnection { reader ->
+            reader.usePrepared("SELECT groupKey FROM duplicate_dismissals") { stmt ->
+                while (stmt.step()) keys += stmt.getText(0)
+            }
+        }
+        duplicateDismissalKeysState.value = keys
+        keys
+    }
+
+    /** تسجيل «ليست مكررات» لثنائية — idempotent (`WHERE NOT EXISTS`). */
+    suspend fun dismissDuplicatePair(groupKey: String, reason: String, nowMillis: Long): Unit = withContext(dispatchers.io) {
+        inWriteTransaction { conn ->
+            conn.usePrepared(
+                "INSERT INTO duplicate_dismissals (groupKey, reason, createdAt) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM duplicate_dismissals WHERE groupKey = ?)"
+            ) { stmt ->
+                stmt.bindText(1, groupKey)
+                stmt.bindText(2, reason)
+                stmt.bindLong(3, nowMillis)
+                stmt.bindText(4, groupKey)
+                stmt.step()
+            }
+        }
+        duplicateDismissalKeysState.update { it + groupKey }
+    }
+
+    // ——— التعلّم المحلي للفلترة الذكية (smart_filter_feedback — T7) ———
+
+    private val smartFilterFeedbackState = MutableStateFlow<List<SmartFilterFeedbackEntity>>(emptyList())
+
+    fun observeSmartFilterFeedback(): Flow<List<SmartFilterFeedbackEntity>> = smartFilterFeedbackState
+
+    suspend fun loadSmartFilterFeedback(): List<SmartFilterFeedbackEntity> = withContext(dispatchers.io) {
+        val rows = mutableListOf<SmartFilterFeedbackEntity>()
+        room.useReaderConnection { reader ->
+            reader.usePrepared("SELECT token, suggestedCategory, acceptedCount, rejectedCount FROM smart_filter_feedback") { stmt ->
+                while (stmt.step()) {
+                    rows += SmartFilterFeedbackEntity(
+                        token = stmt.getText(0),
+                        suggestedCategory = stmt.getText(1),
+                        acceptedCount = stmt.getLong(2)!!.toInt(),
+                        rejectedCount = stmt.getLong(3)!!.toInt(),
+                    )
+                }
+            }
+        }
+        smartFilterFeedbackState.value = rows
+        rows
+    }
+
+    /** قبول/رفض (token→category): upsert عدّادين داخل معاملة — «الرفع يزيد والرفض يقلل الوزن» (spec 04 §ب). */
+    suspend fun recordSmartFilterFeedback(token: String, suggestedCategory: String, accepted: Boolean): Unit = withContext(dispatchers.io) {
+        inWriteTransaction { conn ->
+            conn.usePrepared(
+                """
+                INSERT INTO smart_filter_feedback (token, suggestedCategory, acceptedCount, rejectedCount)
+                VALUES (?, ?, ?, 0)
+                ON CONFLICT(token, suggestedCategory) DO UPDATE SET
+                    acceptedCount = acceptedCount + excluded.acceptedCount
+                """.trimIndent()
+            ) { stmt ->
+                stmt.bindText(1, token)
+                stmt.bindText(2, suggestedCategory)
+                stmt.bindLong(3, if (accepted) 1L else 0L)
+                stmt.step()
+            }
+            if (!accepted) {
+                conn.usePrepared(
+                    "UPDATE smart_filter_feedback SET rejectedCount = rejectedCount + 1 WHERE token = ? AND suggestedCategory = ?"
+                ) { stmt ->
+                    stmt.bindText(1, token)
+                    stmt.bindText(2, suggestedCategory)
+                    stmt.step()
+                }
+            }
+        }
+        loadSmartFilterFeedback()
+    }
+
+    // ——— اللقطات: مسح ما بعد الجلسة (منسّق sharedLogic يستهلكه مع الكاتب المنصوي) ———
+
+    /** اللقطات النشطة التي انقضت جلستها (expiresAt/createdAt أقدم من الحد) — مرشّحة للمسح المؤجل. */
+    suspend fun activeMergeSnapshotsForSweep(olderThan: Long): List<ContactMergeSnapshotEntity> = withContext(dispatchers.io) {
+        val rows = mutableListOf<ContactMergeSnapshotEntity>()
+        room.useReaderConnection { reader ->
+            reader.usePrepared(
+                "SELECT id, groupId, payloadJson, contactCount, createdAt, status, restoredAt, expiresAt FROM contact_merge_snapshots WHERE status = 'ACTIVE' AND createdAt <= ?"
+            ) { stmt ->
+                stmt.bindLong(1, olderThan)
+                while (stmt.step()) {
+                    rows += ContactMergeSnapshotEntity(
+                        id = stmt.getLong(0)!!,
+                        groupId = stmt.getText(1),
+                        payloadJson = stmt.getText(2),
+                        contactCount = stmt.getLong(3)!!.toInt(),
+                        createdAt = stmt.getLong(4)!!,
+                        status = stmt.getText(5),
+                        restoredAt = if (stmt.isNull(6)) null else stmt.getLong(6),
+                        expiresAt = stmt.getLong(7)!!,
+                    )
+                }
+            }
+        }
+        rows
+    }
+
+    /** ختم لقطة EXPIRED بعد اكتمال مسحها المنصوي — داخل معاملة الكاتب. */
+    suspend fun markMergeSnapshotExpired(snapshotId: Long): Unit = withContext(dispatchers.io) {
+        inWriteTransaction { conn ->
+            conn.usePrepared("UPDATE contact_merge_snapshots SET status = 'EXPIRED' WHERE id = ?") { stmt ->
+                stmt.bindLong(1, snapshotId)
+                stmt.step()
+            }
+        }
+    }
+
+    /** حذف صفوف اللقطات المنقضية (RESTORED/EXPIRED) — ركوب دورة الاحتفاظ القائمة (agy F1). */
+    suspend fun purgeMergeSnapshotsOlderThan(olderThan: Long): Unit = withContext(dispatchers.io) {
+        inWriteTransaction { conn ->
+            conn.usePrepared(
+                "DELETE FROM contact_merge_snapshots WHERE status != 'ACTIVE' AND createdAt <= ?"
+            ) { stmt ->
+                stmt.bindLong(1, olderThan)
+                stmt.step()
+            }
+        }
+    }
+
 
     // ===== البحث والعمليات الجماعية (Issue #24 · T3) =====
 
@@ -1836,6 +2146,7 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
                    sendToVoicemail, isBlocked, notes, linkedServiceCloudId, excludeFromSmartFilter,
                    normalizedName, createdAt, updatedAt, systemDeletedAt
             FROM contacts WHERE systemContactId = ?
+            ORDER BY (systemDeletedAt IS NULL) DESC, id ASC
             """.trimIndent()
         ) { stmt ->
             stmt.bindText(1, systemContactId)
