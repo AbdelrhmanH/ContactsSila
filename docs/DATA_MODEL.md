@@ -54,21 +54,32 @@ erDiagram
 | createdAt, updatedAt | Long | |
 | systemDeletedAt | Long? | **مُنفَّذ في المرحلة 1 (v2 — Issue #23)** ([ADR-0010](adr/0010-incremental-contacts-sync.md)) — تعليم حذف ناعم يُخفى من القائمة ويُنظَّف بعد 30 يوماً؛ تكتبه المزامنة حصراً (حذف مؤكد من المنصة/مصالحة كاملة) ولا تكتبه إبطال الصلاحية ولا `.limited` أبداً |
 
-> **حالة تنفيذ المخطط (v2):** أعمدة `contacts` أعلاه كلها مُنفَّذة في المخطط الفعلي،
-> مع ترقية v1→v2 عبر `ALTER TABLE ADD COLUMN` (بلا إعادة بناء ولا فقدان بيانات) وفهرس
-> بحث FTS مُعاد تعبئته idempotently للصفوف القديمة. جداول `contact_emails` /
-> `contact_addresses` / `contact_dates` / `contact_custom_fields` / `contact_websites` /
-> `contact_tags` **غير مخزّنة بعد** (قيد مخطط مخفَّض — القيم تُسقَط عند المزامنة وتُوثَّق
-> هنا عند إضافتها).
+> **حالة تنفيذ المخطط (v2 ثم v4 — تصحيح توثيقي 2026-11-08):** أعمدة `contacts` أعلاه كلها
+> مُنفَّذة في المخطط الفعلي، مع ترقية v1→v2 عبر `ALTER TABLE ADD COLUMN` (بلا إعادة بناء ولا
+> فقدان بيانات) وفهرس بحث FTS مُعاد تعبئته idempotently للصفوف القديمة. **جداول الحقول
+> القياسية الخمسة موجودة فعلاً منذ v2** (`contact_emails` / `contact_addresses` /
+> `contact_dates` / `contact_custom_fields` / `contact_websites` — انظر ADR-0012 §2)، وسطر
+> «غير مخزّنة بعد» أدناه كان قديماً مقابل ADR-0012 ويُصحَّح هنا. `contact_tags` يبقى تصميماً
+> مستقبلياً غير مخزّن (القيم في `contacts.tags` كنص مفصول).
 
 ### الجداول الفرعية
-جدول فرعي فعلي واحد فقط: **contact_phones** (الأعمدة الفيزيائية):
-`id (PK autoincrement), contactId (Index), raw, e164 (Index), type (افتراضي 'MOBILE'), isPrimary (افتراضي 0)`.
+جداول فرعية فعلية: **contact_phones** + خمسة جداول حقول قياسية (v2 — ADR-0012):
+`contact_phones`: `id (PK autoincrement), contactId (Index), raw, e164 (Index), type (افتراضي 'MOBILE'), isPrimary (افتراضي 0)` —
+مع عمودَي **`label`/`sortOrder`** (v2 — تسمية صِلَة-فقط للهاتف وترتيبه، تُكتب في `EntityMappers`).
 
-> لا حقول `label`/`preferredSimSlot` فيزيائياً — قيم الـ Domain النظيفة تُسقَط عند الكتابة
-> (`EntityMappers`). بقية جداول التصميم المستقبلي (contact_emails/addresses/dates/
-> custom_fields/websites/tags/job_titles) **غير مخزّنة بعد** (قيد مخطط مخفَّض — القيم
-> تُسقَط عند المزامنة وتُوثَّق هنا عند إضافتها).
+> `preferredSimSlot` لا يوجد فيزيائياً (تصميم مستقبلي). بقية جداول التصميم المستقبلي
+> (contact_tags/job_titles) **غير مخزّنة بعد** (القيم تُسقَط عند المزامنة وتُوثَّق هنا عند
+> إضافتها).
+
+### جداول الدمج والفلترة الذكية (v4 — T7 · Issue #28 · ADR-0013)
+تُنشأ عبر `MergeTablesDdl` (مصدر DDL وحيد يستهلكه `MIGRATION_3_4` وشيم اعتماد القواعد
+القديمة — ADR-0011)، ومحتوى اللقطات JSON معتم داخله بلا أي PII خارج الجهاز:
+
+| الجدول | الغرض | الأعمدة المفتاحية |
+|---|---|---|
+| `contact_merge_snapshots` | لقطة ما-قبل-الدمج للتراجع خلال جلسة الشاشة | `id` PK، `groupId`، `payloadJson`، `status` (`ACTIVE`/`RESTORED`/`EXPIRED` — قفل لمرة-واحدة)، `expiresAt` + فهرسان |
+| `duplicate_dismissals` | «ليست مكررات» لكل ثنائية بمفتاحها الثابت | `groupKey` (مفهرس)، `reason`، `createdAt` |
+| `smart_filter_feedback` | تعلّم محلي token→category | PK مركّب `(token, suggestedCategory)`، `acceptedCount`/`rejectedCount` |
 
 ### contacts_fts (FTS4)
 `displayName, nickname, company, department, notes, normalizedName` — **جدول FTS4 مستقل** بـ `docid = contacts.id`
