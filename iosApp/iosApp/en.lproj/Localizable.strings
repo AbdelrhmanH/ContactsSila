@@ -508,6 +508,17 @@
 "settings_backup_error_not_configured" = "Backup service is not configured in this state.";
 "settings_backup_error_generic" = "The operation failed — try again, and if it keeps failing retry with a different backup.";
 "settings_restore_done" = "Restore completed ✓\nMatched categories: %ld (unmatched: %ld)\nMatched kinship: %ld (unmatched: %ld)";
+"settings_restore_result_title" = "Restore Results";
+"settings_restore_result_counts" = "Matched categories: %ld (unmatched: %ld)\nMatched kinship: %ld (unmatched: %ld)";
+"settings_restore_unmatched_remaining" = "Entries not matched to any contact: %ld — manual linking available:";
+"settings_manually_linked_count" = "Manually linked: %ld";
+"settings_link_manual_button" = "Link manually";
+"settings_link_dialog_title" = "Link \"%@\" to a contact";
+"settings_link_search_hint" = "Search by name or number (min 2 chars)";
+"settings_link_no_candidates" = "No matching contacts";
+"settings_link_failed_label" = "Link failed — target contact not found";
+"settings_link_all_done" = "All unmatched entries linked ✓";
+"action_done" = "Done";
 "settings_section_about" = "About";
 "settings_app_version" = "Sila · Version 1.0.0";
 "settings_offline_first_notice" = "Fully offline-first application respecting your privacy 100%.";

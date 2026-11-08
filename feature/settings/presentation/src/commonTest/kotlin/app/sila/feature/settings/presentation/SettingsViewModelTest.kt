@@ -5,10 +5,13 @@ import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.Category
+import app.sila.core.model.Contact
+import app.sila.core.model.ContactName
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DashboardPeriod
 import app.sila.core.model.DefaultTab
 import app.sila.core.model.NameOrder
+import app.sila.core.model.Phone
 import app.sila.core.model.UserPreferences
 import app.sila.feature.settings.domain.BackupCryptoEngine
 import app.sila.feature.settings.domain.BackupDecryptionException
@@ -25,6 +28,7 @@ import app.sila.feature.settings.domain.SetLanguageUseCase
 import app.sila.feature.settings.domain.SetSmartFilterUseCase
 import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
+import app.sila.feature.settings.domain.UnmatchedBackupEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -110,7 +114,7 @@ class SettingsViewModelTest {
             payload: BackupPayload,
             mode: RestoreMode,
             restorePreferences: Boolean
-        ): RestoreResult = RestoreResult(
+        ): RestoreResult = restoreResultOverride ?: RestoreResult(
             matchedCategories = 3,
             unmatchedCategories = 0,
             matchedArham = 2,
@@ -118,6 +122,28 @@ class SettingsViewModelTest {
             restoredPreferences = restorePreferences,
             unmatchedEntries = emptyList()
         )
+
+        // S1-15 (تذكرة #62): مسارات الربط اليدوي قابلة للتهيئة لكل اختبار
+        var restoreResultOverride: RestoreResult? = null
+        var linkCandidates: List<Contact> = emptyList()
+        var lastLinkQuery: String? = null
+        var linkOutcome: Boolean = true
+        var lastLinkEntry: UnmatchedBackupEntry? = null
+        var lastLinkTargetId: Long? = null
+
+        override suspend fun searchLinkCandidates(query: String): List<Contact> {
+            lastLinkQuery = query
+            return linkCandidates
+        }
+
+        override suspend fun linkUnmatchedEntry(
+            entry: UnmatchedBackupEntry,
+            targetContactId: Long
+        ): Boolean {
+            lastLinkEntry = entry
+            lastLinkTargetId = targetContactId
+            return linkOutcome
+        }
     }
 
     private class TestCryptoEngine : BackupCryptoEngine {
@@ -265,6 +291,122 @@ class SettingsViewModelTest {
         assertNotNull(vm.state.value.restoreResult)
         assertEquals(3, vm.state.value.restoreResult?.matchedCategories)
         assertTrue(effects.any { it is SettingsEffect.BackupRestored })
+    }
+
+    @Test
+    fun restoreWithUnmatchedEntries_opensResultDialog_andManualLinkRemovesEntry() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val unmatched = UnmatchedBackupEntry(
+            lookupKey = "old_key",
+            displayName = "منى",
+            category = Category.FAMILY,
+            arhamRelation = null
+        )
+        repo.restoreResultOverride = RestoreResult(
+            matchedCategories = 2,
+            unmatchedCategories = 1,
+            matchedArham = 0,
+            unmatchedArham = 0,
+            restoredPreferences = false,
+            unmatchedEntries = listOf(unmatched)
+        )
+        val candidate = Contact(
+            id = 5,
+            systemContactId = "sys_5",
+            name = ContactName(displayName = "سعاد عبد الرحمن"),
+            phones = listOf(Phone(raw = "0100", e164 = "+201000000000"))
+        )
+        repo.linkCandidates = listOf(candidate)
+        val crypto = TestCryptoEngine()
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = crypto,
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        val cipher = crypto.encrypt("payload".encodeToByteArray(), "pw")
+        vm.onIntent(SettingsIntent.PreviewBackupFile(cipher, "pw"))
+        settle()
+        vm.onIntent(
+            SettingsIntent.ConfirmRestore(
+                cipherBytes = cipher,
+                password = "pw",
+                mode = RestoreMode.MERGE,
+                restorePreferences = false
+            )
+        )
+        settle()
+
+        // الحوار يُفتح تلقائياً عند وجود سجلات غير مطابقة (S1-15)
+        assertTrue(vm.state.value.showRestoreResultDialog)
+        assertEquals(listOf(unmatched), vm.state.value.unmatchedRemaining)
+
+        // فتح الربط اليدوي لسجل
+        vm.onIntent(SettingsIntent.OpenLinkEntry(unmatched))
+        settle()
+        assertEquals(unmatched, vm.state.value.linkEntry)
+
+        // استعلام قصير (< 2) لا يستهلك البحث الأساساً
+        vm.onIntent(SettingsIntent.SetLinkQuery("س"))
+        settle()
+        assertEquals(0, vm.state.value.linkCandidates.size)
+        assertEquals(null, repo.lastLinkQuery)
+
+        // بحث فعلي مفوَّض للمستودع
+        vm.onIntent(SettingsIntent.SetLinkQuery("سعاد"))
+        settle()
+        assertEquals("سعاد", repo.lastLinkQuery)
+        assertEquals(listOf(candidate), vm.state.value.linkCandidates)
+
+        // ربط السجل بجهة موجودة: إزالة من القائمة وفتح الباب للسجل التالي
+        vm.onIntent(SettingsIntent.LinkUnmatchedEntry(5))
+        settle()
+        assertTrue(vm.state.value.unmatchedRemaining.isEmpty())
+        assertEquals(1, vm.state.value.unmatchedLinkedCount)
+        assertEquals(null, vm.state.value.linkEntry)
+        assertFalse(vm.state.value.linkFailed)
+        assertEquals(unmatched, repo.lastLinkEntry)
+        assertEquals(5L, repo.lastLinkTargetId)
+
+        // إغلاق حوار النتيجة يمسح كل حالة الربط
+        vm.onIntent(SettingsIntent.DismissRestoreResultDialog)
+        settle()
+        assertFalse(vm.state.value.showRestoreResultDialog)
+        assertEquals(0, vm.state.value.unmatchedLinkedCount)
+    }
+
+    @Test
+    fun linkUnmatchedEntry_failedRepository_marksLinkFailedAndKeepsEntrySelection() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val unmatched = UnmatchedBackupEntry(
+            lookupKey = "old_key",
+            displayName = "منى",
+            category = Category.WORK,
+            arhamRelation = null
+        )
+        val vm = SettingsViewModel(
+            repository = repo,
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.OpenLinkEntry(unmatched))
+        settle()
+        assertEquals(unmatched, vm.state.value.linkEntry)
+
+        repo.linkOutcome = false
+        vm.onIntent(SettingsIntent.LinkUnmatchedEntry(99))
+        settle()
+
+        assertTrue(vm.state.value.linkFailed)
+        assertEquals(unmatched, vm.state.value.linkEntry)
+        assertEquals(0, vm.state.value.unmatchedLinkedCount)
+        assertEquals(99L, repo.lastLinkTargetId)
     }
 
     @Test

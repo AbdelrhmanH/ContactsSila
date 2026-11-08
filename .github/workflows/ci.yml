@@ -44,6 +44,8 @@ jobs:
           :feature:arham:data:testAndroidHostTest
           :feature:services:data:testAndroidHostTest
           :feature:settings:data:testAndroidHostTest
+          :feature:settings:domain:testAndroidHostTest
+          :feature:settings:presentation:testAndroidHostTest
           :sharedLogic:testAndroidHostTest
           :androidApp:testDebugUnitTest
           --console=plain

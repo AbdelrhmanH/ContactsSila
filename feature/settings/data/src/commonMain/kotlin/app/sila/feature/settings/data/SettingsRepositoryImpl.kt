@@ -6,8 +6,10 @@ import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
+import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.ArhamInfo
 import app.sila.core.model.Category
+import app.sila.core.model.Contact
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DashboardPeriod
 import app.sila.core.model.DefaultTab
@@ -302,5 +304,46 @@ class SettingsRepositoryImpl(
             restoredPreferences = restorePreferences,
             unmatchedEntries = unmatchedMap.values.toList()
         )
+    }
+
+    /**
+     * S1-15 (تذكرة #62): بحث مرشّحي الربط اليدوي — قراءة Room حصراً عبر عقد DAO.
+     * استعلام أقصر من حرفين لا يستهلكها (قائمة غير عملية على كامل الدفتر).
+     */
+    override suspend fun searchLinkCandidates(query: String): List<Contact> {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return emptyList()
+        return requireContactsDao().searchContacts(trimmed).first()
+    }
+
+    /**
+     * S1-15 (تذكرة #62): تطبيق إدخال غير مطابق على جهة اختيارها المستخدم يدوياً —
+     * التصنيف عبر `updateCategory` وصلة الرحم عبر `upsertArhamInfo` بطبقة العلاقة
+     * وتكرار `OCCASIONS` المحايد. الفشل معلوم قيمياً (false) لا صمتاً: غياب جهة
+     * الهدف أو سجل بلا تصنيف وبلا صلة رحم يعيدان false.
+     */
+    override suspend fun linkUnmatchedEntry(
+        entry: UnmatchedBackupEntry,
+        targetContactId: Long
+    ): Boolean {
+        val dao = requireContactsDao()
+        val target = dao.getContactById(targetContactId) ?: return false
+
+        var applied = false
+        entry.category?.let { category ->
+            dao.updateCategory(target.id, category)
+            applied = true
+        }
+        entry.arhamRelation?.let { relation ->
+            requireArhamDao().upsertArhamInfo(
+                contactId = target.id,
+                info = ArhamInfo(
+                    relation = relation,
+                    frequency = ArhamFrequency.OCCASIONS
+                )
+            )
+            applied = true
+        }
+        return applied
     }
 }

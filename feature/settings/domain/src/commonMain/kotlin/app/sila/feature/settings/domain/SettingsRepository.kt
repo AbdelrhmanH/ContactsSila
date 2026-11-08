@@ -4,6 +4,7 @@ import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.Category
+import app.sila.core.model.Contact
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DashboardPeriod
 import app.sila.core.model.DefaultTab
@@ -58,4 +59,23 @@ interface SettingsRepository {
         mode: RestoreMode,
         restorePreferences: Boolean
     ): RestoreResult
+
+    /**
+     * بحث مرشّحي الربط اليدوي لسجلات الاستعادة غير المطابقة (S1-15 — تذكرة #62):
+     * قراءة من Room حصراً (SSOT) عبر بحث FTS/الأرقام؛ استعلام فارغ أو أقصر من حرفين
+     * لا يعيد شيئاً (عرض كامل دفتر العناوين قائمة غير عملية للربط).
+     */
+    suspend fun searchLinkCandidates(query: String): List<Contact>
+
+    /**
+     * يطبّق إدخالاً غير مطابق على جهة اختارها المستخدم يدوياً (S1-15 — تذكرة #62):
+     * التصنيف (إن وجد) وصلة الرحم (إن وجدت) تُطبَّق على جهة الهدف؛ الطبقة تُستنتَج
+     * من العلاقة ذاتها (`Relation.layer`) والتكرار يبدأ `OCCASIONS` (محايد بلا جدولة
+     * مؤكدة بعد الربط اليدوي — يعدّله المستخدم لاحقاً من شاشة الأرحام).
+     * يعيد false عند غياب جهة الهدف (حُذفت)، أو إذا لم يكن في السجل تصنيف ولا صلة رحم.
+     */
+    suspend fun linkUnmatchedEntry(
+        entry: UnmatchedBackupEntry,
+        targetContactId: Long
+    ): Boolean
 }

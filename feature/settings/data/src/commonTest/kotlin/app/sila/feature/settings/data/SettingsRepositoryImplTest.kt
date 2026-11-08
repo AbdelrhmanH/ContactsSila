@@ -24,6 +24,7 @@ import app.sila.feature.settings.domain.BackupPayload
 import app.sila.feature.settings.domain.BackupPreferencesEntry
 import app.sila.feature.settings.domain.BackupTagEntry
 import app.sila.feature.settings.domain.RestoreMode
+import app.sila.feature.settings.domain.UnmatchedBackupEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -74,7 +75,11 @@ class SettingsRepositoryImplTest {
             syncFlow()
         }
 
-        override fun searchContacts(query: String): Flow<List<Contact>> = _flow.asStateFlow()
+        // محاكاة بحث DAO الحقيقي (FTS + أرقام): تصفية بالاسم على ما يعادله من المجموعة
+        override fun searchContacts(query: String): Flow<List<Contact>> = MutableStateFlow(
+            if (query.isBlank()) emptyList()
+            else contactsMap.values.filter { it.name.displayName.contains(query) || it.systemContactId.contains(query) }
+        )
         override suspend fun setFavorite(contactId: Long, isFavorite: Boolean) {}
         override suspend fun updateCategories(contactIds: Collection<Long>, category: Category) {}
         override suspend fun setFavorites(contactIds: Collection<Long>, isFavorite: Boolean) {}
@@ -351,5 +356,104 @@ class SettingsRepositoryImplTest {
         }
 
         assertTrue(result.isFailure, "Missing DAOs must fail fast (silent no-op restore was the defect)")
+    }
+
+    @Test
+    fun searchLinkCandidates_shortQuery_returnsEmptyWithoutConsumingSearch() = runTest {
+        val repository = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = FakeContactDao(listOf(createContact(1, "lookup_1", "سعاد"))),
+            arhamDao = FakeArhamDao()
+        )
+
+        assertEquals(0, repository.searchLinkCandidates("").size)
+        assertEquals(0, repository.searchLinkCandidates(" س ").size)
+        assertEquals(0, repository.searchLinkCandidates("س").size)
+    }
+
+    @Test
+    fun searchLinkCandidates_validQuery_delegatesToContactsDaoSearch() = runTest {
+        val repository = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = FakeContactDao(
+                listOf(
+                    createContact(1, "lookup_1", "سعاد"),
+                    createContact(2, "lookup_2", "أحمد")
+                )
+            ),
+            arhamDao = FakeArhamDao()
+        )
+
+        val candidates = repository.searchLinkCandidates("سع")
+
+        assertEquals(1, candidates.size)
+        assertEquals("سعاد", candidates.first().name.displayName)
+    }
+
+    @Test
+    fun linkUnmatchedEntry_missingTargetContact_returnsFalse() = runTest {
+        val repository = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = FakeContactDao(),
+            arhamDao = FakeArhamDao()
+        )
+        val entry = UnmatchedBackupEntry(
+            lookupKey = "old_key",
+            displayName = "منى",
+            category = Category.FAMILY,
+            arhamRelation = null
+        )
+
+        val linked = repository.linkUnmatchedEntry(entry, targetContactId = 99)
+
+        assertFalse(linked, "Missing target contact must surface as false, not a silent no-op")
+    }
+
+    @Test
+    fun linkUnmatchedEntry_appliesCategoryAndArhamToTargetContact() = runTest {
+        val fakeContactDao = FakeContactDao(listOf(createContact(7, "lookup_7", "سعاد")))
+        val fakeArhamDao = FakeArhamDao()
+        val repository = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = fakeContactDao,
+            arhamDao = fakeArhamDao
+        )
+        val entry = UnmatchedBackupEntry(
+            lookupKey = "old_key",
+            displayName = "منى",
+            category = Category.FAMILY,
+            arhamRelation = Relation.AUNT_MATERNAL
+        )
+
+        val linked = repository.linkUnmatchedEntry(entry, targetContactId = 7)
+
+        assertTrue(linked)
+        assertEquals(Category.FAMILY, fakeContactDao.contactsMap[7]?.category)
+        assertEquals(Relation.AUNT_MATERNAL, fakeArhamDao.arhamMap[7]?.relation)
+        // التكرار المحايد الافتراضي بعد الربط اليدوي (المستخدم يعدّله لاحقاً من شاشة الأرحام)
+        assertEquals(ArhamFrequency.OCCASIONS, fakeArhamDao.arhamMap[7]?.frequency)
+    }
+
+    @Test
+    fun linkUnmatchedEntry_entryWithoutCategoryOrRelation_returnsFalseWithoutWrites() = runTest {
+        val fakeContactDao = FakeContactDao(listOf(createContact(7, "lookup_7", "سعاد")))
+        val fakeArhamDao = FakeArhamDao()
+        val repository = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = fakeContactDao,
+            arhamDao = fakeArhamDao
+        )
+        val entry = UnmatchedBackupEntry(
+            lookupKey = "old_key",
+            displayName = "منى",
+            category = null,
+            arhamRelation = null
+        )
+
+        val linked = repository.linkUnmatchedEntry(entry, targetContactId = 7)
+
+        assertFalse(linked)
+        assertEquals(Category.UNCATEGORIZED, fakeContactDao.contactsMap[7]?.category)
+        assertTrue(fakeArhamDao.arhamMap.isEmpty())
     }
 }

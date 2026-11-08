@@ -9,6 +9,7 @@ import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.Category
+import app.sila.core.model.Contact
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DashboardPeriod
 import app.sila.core.model.DefaultTab
@@ -41,6 +42,7 @@ import app.sila.feature.settings.domain.SetSwipeActionsUseCase
 import app.sila.feature.settings.domain.asBackupErrorKind
 import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
+import app.sila.feature.settings.domain.UnmatchedBackupEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -70,7 +72,15 @@ data class SettingsUiState(
     val showImportPasswordDialog: Boolean = false,
     val showRestorePreviewDialog: Boolean = false,
     val showRingtonePickerCategory: Category? = null,
-    val showRingtoneGuidanceDialog: Boolean = false
+    val showRingtoneGuidanceDialog: Boolean = false,
+    // حالة حوار نتائج الاستعادة والربط اليدوي لسجلات غير مطابقة (S1-15 — تذكرة #62)
+    val showRestoreResultDialog: Boolean = false,
+    val unmatchedRemaining: List<UnmatchedBackupEntry> = emptyList(),
+    val unmatchedLinkedCount: Int = 0,
+    val linkEntry: UnmatchedBackupEntry? = null,
+    val linkCandidates: List<Contact> = emptyList(),
+    val linkQuery: String = "",
+    val linkFailed: Boolean = false
 )
 
 sealed interface SettingsIntent {
@@ -116,6 +126,12 @@ sealed interface SettingsIntent {
         val restorePreferences: Boolean
     ) : SettingsIntent
     data object DismissRestorePreviewDialog : SettingsIntent
+    // حوارات نتائج الاستعادة والربط اليدوي لسجلات غير مطابقة (S1-15 — تذكرة #62)
+    data object DismissRestoreResultDialog : SettingsIntent
+    data class OpenLinkEntry(val entry: UnmatchedBackupEntry) : SettingsIntent
+    data object DismissLinkEntry : SettingsIntent
+    data class SetLinkQuery(val query: String) : SettingsIntent
+    data class LinkUnmatchedEntry(val targetContactId: Long) : SettingsIntent
     data object DismissError : SettingsIntent
 
     // حوارات النغمات
@@ -348,7 +364,12 @@ class SettingsViewModel(
                             isImportingBackup = false,
                             showRestorePreviewDialog = false,
                             restoreResult = result,
-                            importBackupBytes = null
+                            importBackupBytes = null,
+                            // S1-15 (تذكرة #62): سجلات غير مطابقة تُبرز فوراً بعد الاستعادة
+                            // للربط اليدوي بدل بقاءها رقماً صامتاً في الإشعار فقط.
+                            unmatchedRemaining = result.unmatchedEntries,
+                            unmatchedLinkedCount = 0,
+                            showRestoreResultDialog = result.unmatchedEntries.isNotEmpty()
                         )
                     }
                     sendEffect(SettingsEffect.BackupRestored(result))
@@ -359,6 +380,58 @@ class SettingsViewModel(
             }
             is SettingsIntent.DismissRestorePreviewDialog -> _uiState.update {
                 it.copy(showRestorePreviewDialog = false, backupPreview = null, importBackupBytes = null)
+            }
+            // نتائج الاستعادة والربط اليدوي (S1-15 — تذكرة #62)
+            is SettingsIntent.DismissRestoreResultDialog -> _uiState.update {
+                it.copy(
+                    showRestoreResultDialog = false,
+                    unmatchedRemaining = emptyList(),
+                    unmatchedLinkedCount = 0,
+                    linkEntry = null,
+                    linkCandidates = emptyList(),
+                    linkQuery = "",
+                    linkFailed = false
+                )
+            }
+            is SettingsIntent.OpenLinkEntry -> _uiState.update {
+                it.copy(linkEntry = intent.entry, linkCandidates = emptyList(), linkQuery = "", linkFailed = false)
+            }
+            is SettingsIntent.DismissLinkEntry -> _uiState.update {
+                it.copy(linkEntry = null, linkCandidates = emptyList(), linkQuery = "", linkFailed = false)
+            }
+            is SettingsIntent.SetLinkQuery -> viewModelScope.launch {
+                val trimmed = intent.query.trim()
+                // بحث فقط من حرفين فما فوق (القائمة المفتوحة على الدفتر كله غير عملية للربط)
+                val candidates = if (trimmed.length < 2) {
+                    emptyList()
+                } else {
+                    repository?.searchLinkCandidates(trimmed) ?: emptyList()
+                }
+                _uiState.update {
+                    it.copy(linkQuery = intent.query, linkCandidates = candidates, linkFailed = false)
+                }
+            }
+            is SettingsIntent.LinkUnmatchedEntry -> viewModelScope.launch {
+                val entry = _uiState.value.linkEntry
+                if (entry == null || repository == null) {
+                    _uiState.update { it.copy(linkFailed = true) }
+                    return@launch
+                }
+                val linked = repository.linkUnmatchedEntry(entry, intent.targetContactId)
+                if (linked) {
+                    _uiState.update {
+                        it.copy(
+                            unmatchedRemaining = it.unmatchedRemaining.filterNot { remaining -> remaining == entry },
+                            unmatchedLinkedCount = it.unmatchedLinkedCount + 1,
+                            linkEntry = null,
+                            linkCandidates = emptyList(),
+                            linkQuery = "",
+                            linkFailed = false
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(linkFailed = true) }
+                }
             }
             is SettingsIntent.DismissError -> _uiState.update { it.copy(backupErrorKind = null) }
 
