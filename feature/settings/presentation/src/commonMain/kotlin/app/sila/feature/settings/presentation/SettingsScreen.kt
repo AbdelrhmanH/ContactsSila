@@ -789,14 +789,12 @@ fun SettingsContent(
                             }
                         }
                     } else {
-                        TextButton(
-                            onClick = {
-                                onIntent(SettingsIntent.SetCategoryRingtone(category, "content://media/chime.ogg"))
-                            },
+                        // حالة فراغ صادقة: لا نغمات من النظام — لا يُخلق URI غير موجود أبداً
+                        // (مراجع T9 — S1: «نغمة صِلَة الملفقة» كانت تُخزَّن كنغمة عقيمة).
+                        Text(
+                            text = strings.noRingtonesAvailable,
                             modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(if (isArabic) "نغمة صِلَة العائلية" else "Sila Chime")
-                        }
+                        )
                     }
 
                     HorizontalDivider()
@@ -873,6 +871,7 @@ data class SettingsStrings(
     val chooseRingtone: String,
     val ringtoneExplain: String,
     val resetDefault: String,
+    val noRingtonesAvailable: String,
     val sectionBackup: String,
     val localPrivacy: String,
     val localPrivacyValue: String,
@@ -952,6 +951,7 @@ data class SettingsStrings(
             chooseRingtone = "اختر نغمة",
             ringtoneExplain = "سيتم تطبيق هذه النغمة تلقائياً على جهات الاتصال في هذا التصنيف التي ليس لها نغمة فردية.",
             resetDefault = "إعادة تعيين لنغمة النظام الافتراضية",
+            noRingtonesAvailable = "لا توجد نغمات متاحة في هذا الجهاز. أضف نغمات من إعدادات النظام أو استخدم زر إعادة التعيين.",
             sectionBackup = "الخصوصية والنسخ الاحتياطي المشفر",
             localPrivacy = "ماذا نعرف عنك؟ (الخصوصية المحلية)",
             localPrivacyValue = "0 بيانات مرفوعة (محلي 100%)",
@@ -1031,6 +1031,7 @@ data class SettingsStrings(
             chooseRingtone = "Select Ringtone",
             ringtoneExplain = "This ringtone will be assigned to category contacts without individual custom ringtones.",
             resetDefault = "Reset to System Default",
+            noRingtonesAvailable = "No ringtones available on this device. Add tones in system settings or use Reset to System Default.",
             sectionBackup = "Privacy & Encrypted Backup",
             localPrivacy = "What do we know about you?",
             localPrivacyValue = "0 data uploaded (100% offline)",
