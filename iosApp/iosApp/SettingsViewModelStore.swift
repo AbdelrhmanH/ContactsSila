@@ -54,6 +54,7 @@ final class SettingsViewModelStore {
 
     private let viewModel: SettingsViewModel
     private(set) var state: SettingsUiState
+    private(set) var toastMessage: String?
     let effectRouter: any SettingsEffectRouting
 
     init(
@@ -67,6 +68,11 @@ final class SettingsViewModelStore {
 
     func observeState() async {
         for await newState in viewModel.state {
+            if let error = newState.backupErrorMessage, error != lastBackupError {
+                // خطأ النسخ الاحتياطي يظهر للمستخدم كرسالة مرئية لا كطباعة سجل
+                toastMessage = error
+            }
+            lastBackupError = newState.backupErrorMessage
             self.state = newState
         }
     }
@@ -77,22 +83,75 @@ final class SettingsViewModelStore {
             case is SettingsEffectOpenIosContactsApp:
                 effectRouter.openIosContactsApp()
             case let backup as SettingsEffectBackupExported:
-                let data = Self.dataFromKotlinByteArray(backup.bytes)
+                let data = SettingsViewModelStore.dataFromKotlinByteArray(backup.bytes)
                 effectRouter.shareBackupBytes(data)
+            case let restored as SettingsEffectBackupRestored:
+                let message = restoreCompletionMessage(for: restored.result)
+                effectRouter.showMessage(message)
+                toastMessage = message
             case let toast as SettingsEffectShowToast:
                 effectRouter.showMessage(toast.message)
+                toastMessage = toast.message
             default:
                 break
             }
         }
     }
 
-    private static func dataFromKotlinByteArray(_ kba: KotlinByteArray) -> Data {
+    func dismissToast() {
+        toastMessage = nil
+    }
+
+    /// رسالة من طرق العرض نفسها (مثل فشل قراءة ملف النسخة) تُعرض مرئياً.
+    func presentToastMessage(_ message: String) {
+        toastMessage = message
+    }
+
+    private var lastBackupError: String?
+
+    /// رسالة نجاح الاستعادة بصيغة مترجمة من أرقام النتيجة.
+    private func restoreCompletionMessage(for result: RestoreResult) -> String {
+        let strings = SettingsLocalizedStrings(language: state.preferences.language)
+        var message = String(
+            format: strings.restoreDoneFormat,
+            Int(result.matchedCategories),
+            Int(result.unmatchedCategories),
+            Int(result.matchedArham),
+            Int(result.unmatchedArham)
+        )
+        if result.restoredPreferences {
+            message.append("\n" + strings.restorePreferences)
+        }
+        return message
+    }
+
+    // MARK: - تحويل البايتات
+
+    nonisolated static func dataFromKotlinByteArray(_ kba: KotlinByteArray) -> Data {
         let size = Int(kba.size)
         var data = Data(count: size)
         for i in 0..<size {
             data[i] = UInt8(bitPattern: kba.get(index: Int32(i)))
         }
+        return data
+    }
+
+    /// التحويل العكسي: محتوى الملف الحقيقي الذي اختاره المستخدم ← مصفوفة Kotlin
+    /// (كان الإصلاح الضروري: كانت الواجهة ترسل مصفوفة فارغة دائماً — Issue #30).
+    nonisolated static func kotlinByteArray(from data: Data) -> KotlinByteArray {
+        let kba = KotlinByteArray(size: Int32(data.count))
+        for (offset, byte) in data.enumerated() {
+            kba.set(index: Int32(offset), value: Int8(bitPattern: byte))
+        }
+        return kba
+    }
+
+    // MARK: - منطق الاستيراد القابل للاختبار
+
+    /// بيانات الاستيراد مقبولة فقط إذا قُرئ الملف فعلياً ولم يكن فارغاً؛
+    /// لا نرسل أعداد بايتات صفرية للـ ViewModel إطلاقاً.
+    nonisolated static func usableImportedBackupData(_ data: Data?) -> Data? {
+        guard let data, !data.isEmpty else { return nil }
         return data
     }
 

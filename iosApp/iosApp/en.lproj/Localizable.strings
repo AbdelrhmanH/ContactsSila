@@ -491,6 +491,17 @@
 "settings_restore_mode_merge" = "Merge with current data";
 "settings_restore_mode_replace" = "Replace current data";
 "settings_restore_preferences" = "Restore App Preferences";
+"settings_restore_desc" = "Choose your backup file, then enter its password to preview and decrypt:";
+"settings_preview_title" = "Backup Preview";
+"settings_preview_button" = "Preview Backup";
+"settings_preview_counts" = "Categories: %ld\nKinship ties: %ld\nTags: %ld\nCategory ringtones: %ld";
+"settings_restore_mode_title" = "Restore Mode";
+"settings_restore_mode_merge_desc" = "Update categories, kinship and tags without deleting existing data";
+"settings_restore_mode_replace_desc" = "Reset old categories and tags and apply the backup content";
+"settings_start_restore" = "Start Restore";
+"settings_backup_file_read_failed" = "Could not read the selected file";
+"settings_backup_file_empty" = "The selected file is empty or invalid";
+"settings_restore_done" = "Restore completed ✓\nMatched categories: %ld (unmatched: %ld)\nMatched kinship: %ld (unmatched: %ld)";
 "settings_section_about" = "About";
 "settings_app_version" = "Sila · Version 1.0.0";
 "settings_offline_first_notice" = "Fully offline-first application respecting your privacy 100%.";
