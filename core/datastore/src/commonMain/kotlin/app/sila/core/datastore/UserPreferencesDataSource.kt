@@ -289,15 +289,34 @@ class SilaPreferencesDataSource(
     }
 
     override suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long) {
-        val updated = _memoryState.value.celebratedArhamTransitions + (contactId to periodKey)
-        // نمط KEY_ONBOARDING_TOP_FIVE نفسه: JSON نصّي، وفشل الترميز يُسقط المفتاح بلا انهيار.
-        val encoded =
-            runCatching { json.encodeToString(MapSerializer(Long.serializer(), Long.serializer()), updated) }
-        dataStore?.edit { prefs ->
+        val dataStore = this.dataStore
+        if (dataStore == null) {
+            // مسار الذاكرة: المرآة هي الحقيقة الوحيدة فلا خريطة قرصية تُقرأ.
+            val updated = _memoryState.value.celebratedArhamTransitions + (contactId to periodKey)
+            _memoryState.update { it.copy(celebratedArhamTransitions = updated) }
+            return
+        }
+        // القراءة داخل معاملة edit نفسها (نمط dismissSuggestion): في وضع القرص تبدأ مرآة
+        // _memoryState من الافتراضي ولا تُروى من القرص إطلاقاً (التهيئة الحارة تغذي تدفق
+        // `preferences` فقط)، فاحتساب الخريطة منها كان يمحو علامات كل العمليات السابقة
+        // نهائياً بعد أول إعادة تشغيل (Issue #29 — عيب T8 المتابَع). فك الترميز الفاشل
+        // يبدأ من المرآة احتياطاً ثم يُسقط المفتاح كما في النمط الأصلي — بلا كتم للفشل.
+        var merged = _memoryState.value.celebratedArhamTransitions
+        dataStore.edit { prefs ->
+            val persisted = prefs[KEY_CELEBRATED_TRANSITIONS]?.let { raw ->
+                runCatching {
+                    json.decodeFromString(MapSerializer(Long.serializer(), Long.serializer()), raw)
+                }.getOrNull()
+            } ?: _memoryState.value.celebratedArhamTransitions
+            val updated = persisted + (contactId to periodKey)
+            // نمط KEY_ONBOARDING_TOP_FIVE نفسه: JSON نصّي، وفشل الترميز يُسقط المفتاح بلا انهيار.
+            val encoded =
+                runCatching { json.encodeToString(MapSerializer(Long.serializer(), Long.serializer()), updated) }
             encoded.onSuccess { prefs[KEY_CELEBRATED_TRANSITIONS] = it }
                 .onFailure { prefs.remove(KEY_CELEBRATED_TRANSITIONS) }
+            merged = updated
         }
-        _memoryState.update { it.copy(celebratedArhamTransitions = updated) }
+        _memoryState.update { it.copy(celebratedArhamTransitions = merged) }
     }
 
     override suspend fun dismissSuggestion(id: String) {

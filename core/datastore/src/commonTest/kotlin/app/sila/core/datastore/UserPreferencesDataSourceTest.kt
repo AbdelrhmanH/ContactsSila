@@ -50,6 +50,24 @@ class UserPreferencesDataSourceTest {
     }
 
     @Test
+    fun diskBacked_celebratedTransitions_mergeWithPersistedMapOnReopen() = runTest {
+        val filePath = "build/tmp_celebrations_${Random.nextInt(100_000, 999_999)}.preferences_pb"
+        val ds1 = SilaPreferencesDataSource(storageFilePath = filePath)
+        ds1.markArhamTransitionCelebrated(contactId = 42L, periodKey = 202645L)
+
+        // محاكاة إعادة تشغيل العملية: مثيل جديد بنفس الملف تبدأ مرآته الذاكرية من الافتراضي،
+        // فيجب أن يُدمج احتفالها الجديد فوق الخريطة المحفوظة لا أن يمحوها.
+        val ds2 = SilaPreferencesDataSource(storageFilePath = filePath)
+        ds2.markArhamTransitionCelebrated(contactId = 43L, periodKey = 202646L)
+
+        // قراءة حتمية عبر مثيل ثالث فتيح على المسار نفسه (كأنها عملية قارئة لاحقة).
+        val ds3 = SilaPreferencesDataSource(storageFilePath = filePath)
+        val persisted = ds3.preferences.first().celebratedArhamTransitions
+        assertEquals(202645L, persisted[42L], "علامة احتفال العملية السابقة (42) لا تُفقد بعد إعادة التشغيل")
+        assertEquals(202646L, persisted[43L], "احتفال العملية الحالية (43) يُحفظ")
+    }
+
+    @Test
     fun topFiveMarker_defaultsFalse_thenRaisedAndEmitted() = runTest {
         val dataSource = SilaPreferencesDataSource()
 
