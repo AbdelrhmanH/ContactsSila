@@ -107,6 +107,9 @@ data class Contact(
     val ringtoneUri: String? = null,
     val sendToVoicemail: Boolean = false,
     val isBlocked: Boolean = false,
+    /** صِلَة-فقط (T7 — Issue #28): استبعاد من الفلترة الذكية و«لا تسأل عنه». العمود فيزيائي منذ v1 لكن
+     * مسار الكيان↔النطاق كان يهمله ويصفّره عند كل كتابة — أُضيف للنموذج ليُقرأ ويُكتب بولاء. */
+    val excludeFromSmartFilter: Boolean = false,
     val notes: String? = null,
     val account: ContactAccount? = null,
     val arham: ArhamInfo? = null,
