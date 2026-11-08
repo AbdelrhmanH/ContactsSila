@@ -782,6 +782,31 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
 
     // ——— اللقطات: مسح ما بعد الجلسة (منسّق sharedLogic يستهلكه مع الكاتب المنصوي) ———
 
+    /** اللقطة النشطة بالمعرّف (للعرض والتراجع) — بلا قبور. */
+    suspend fun mergeSnapshotById(snapshotId: Long): ContactMergeSnapshotEntity? = withContext(dispatchers.io) {
+        var row: ContactMergeSnapshotEntity? = null
+        room.useReaderConnection { reader ->
+            reader.usePrepared(
+                "SELECT id, groupId, payloadJson, contactCount, createdAt, status, restoredAt, expiresAt FROM contact_merge_snapshots WHERE id = ?"
+            ) { stmt ->
+                stmt.bindLong(1, snapshotId)
+                if (stmt.step()) {
+                    row = ContactMergeSnapshotEntity(
+                        id = stmt.getLong(0)!!,
+                        groupId = stmt.getText(1),
+                        payloadJson = stmt.getText(2),
+                        contactCount = stmt.getLong(3)!!.toInt(),
+                        createdAt = stmt.getLong(4)!!,
+                        status = stmt.getText(5),
+                        restoredAt = if (stmt.isNull(6)) null else stmt.getLong(6),
+                        expiresAt = stmt.getLong(7)!!,
+                    )
+                }
+            }
+        }
+        row
+    }
+
     /** اللقطات النشطة التي انقضت جلستها (expiresAt/createdAt أقدم من الحد) — مرشّحة للمسح المؤجل. */
     suspend fun activeMergeSnapshotsForSweep(olderThan: Long): List<ContactMergeSnapshotEntity> = withContext(dispatchers.io) {
         val rows = mutableListOf<ContactMergeSnapshotEntity>()
