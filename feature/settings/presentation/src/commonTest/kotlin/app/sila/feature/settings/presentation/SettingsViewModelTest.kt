@@ -327,7 +327,9 @@ class SettingsViewModelTest {
         backgroundScope.launch { vm.state.collect {} }
         settle()
 
-        val cipher = crypto.encrypt("payload".encodeToByteArray(), "pw")
+        // تنبيه: نص JSON صالح مطلوب — RestoreBackupUseCase يفكك الـ payload قبل المستودع
+        // (إلا رمى BackupDecryptionException وأخذ مسار الخطأ بلا حوار نتيجة)
+        val cipher = crypto.encrypt("""{"version":1,"exportedAt":"now"}""".encodeToByteArray(), "pw")
         vm.onIntent(SettingsIntent.PreviewBackupFile(cipher, "pw"))
         settle()
         vm.onIntent(
@@ -341,7 +343,7 @@ class SettingsViewModelTest {
         settle()
 
         // الحوار يُفتح تلقائياً عند وجود سجلات غير مطابقة (S1-15)
-        assertTrue(vm.state.value.showRestoreResultDialog)
+        assertTrue(vm.state.value.showRestoreResultDialog, "Restore result dialog must auto-open when unmatched entries exist")
         assertEquals(listOf(unmatched), vm.state.value.unmatchedRemaining)
 
         // فتح الربط اليدوي لسجل
@@ -364,17 +366,17 @@ class SettingsViewModelTest {
         // ربط السجل بجهة موجودة: إزالة من القائمة وفتح الباب للسجل التالي
         vm.onIntent(SettingsIntent.LinkUnmatchedEntry(5))
         settle()
-        assertTrue(vm.state.value.unmatchedRemaining.isEmpty())
+        assertTrue(vm.state.value.unmatchedRemaining.isEmpty(), "Linked entry must be removed from the remaining list")
         assertEquals(1, vm.state.value.unmatchedLinkedCount)
         assertEquals(null, vm.state.value.linkEntry)
-        assertFalse(vm.state.value.linkFailed)
+        assertFalse(vm.state.value.linkFailed, "Successful link must clear the failure flag")
         assertEquals(unmatched, repo.lastLinkEntry)
         assertEquals(5L, repo.lastLinkTargetId)
 
         // إغلاق حوار النتيجة يمسح كل حالة الربط
         vm.onIntent(SettingsIntent.DismissRestoreResultDialog)
         settle()
-        assertFalse(vm.state.value.showRestoreResultDialog)
+        assertFalse(vm.state.value.showRestoreResultDialog, "Dismiss must close the result dialog")
         assertEquals(0, vm.state.value.unmatchedLinkedCount)
     }
 
@@ -403,7 +405,7 @@ class SettingsViewModelTest {
         vm.onIntent(SettingsIntent.LinkUnmatchedEntry(99))
         settle()
 
-        assertTrue(vm.state.value.linkFailed)
+        assertTrue(vm.state.value.linkFailed, "Repository failure must surface as linkFailed, not a silent no-op")
         assertEquals(unmatched, vm.state.value.linkEntry)
         assertEquals(0, vm.state.value.unmatchedLinkedCount)
         assertEquals(99L, repo.lastLinkTargetId)
