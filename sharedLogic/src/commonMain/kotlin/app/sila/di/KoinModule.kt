@@ -49,23 +49,34 @@ import app.sila.feature.arham.domain.UpdateKinshipUseCase
 import app.sila.feature.arham.presentation.ArhamScreeningConsentSource
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.contacts.data.ContactsListPreferencesRepositoryImpl
+import app.sila.feature.contacts.data.ContactsMergeStoreImpl
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.feature.contacts.data.OnboardingRepositoryImpl
 import app.sila.feature.contacts.data.SyncStateSourceAdapter
+import app.sila.feature.contacts.domain.ArhamKinshipLinker
 import app.sila.feature.contacts.domain.ArhamOccasionRecorder
 import app.sila.feature.contacts.domain.BulkCategorizeUseCase
 import app.sila.feature.contacts.domain.BulkSetFavoriteUseCase
 import app.sila.feature.contacts.domain.ContactsListPreferencesRepository
+import app.sila.feature.contacts.domain.ContactsMergeStore
 import app.sila.feature.contacts.domain.ContactsRepository
 import app.sila.feature.contacts.domain.CreateArhamOccasionUseCase
 import app.sila.feature.contacts.domain.DeleteContactUseCase
 import app.sila.feature.contacts.domain.DeleteContactWithUndoUseCase
 import app.sila.feature.contacts.domain.FindDuplicateContactUseCase
 import app.sila.feature.contacts.domain.DeleteContactsUseCase
+import app.sila.feature.contacts.domain.DismissDuplicateGroupUseCase
+import app.sila.feature.contacts.domain.ApplySmartFilterSuggestionsUseCase
+import app.sila.feature.contacts.domain.MergeContactsUseCase
+import app.sila.feature.contacts.domain.UndoMergeUseCase
 import app.sila.feature.contacts.domain.DetectDuplicatesUseCase
 import app.sila.feature.contacts.domain.ObserveCategoryCountsUseCase
 import app.sila.feature.contacts.domain.ObserveContactDetailsUseCase
+import app.sila.feature.contacts.domain.ObserveDuplicateGroupsUseCase
+import app.sila.feature.contacts.domain.ObserveSmartFilterSuggestionsUseCase
+import app.sila.feature.contacts.domain.RecordSmartFilterFeedbackUseCase
+import app.sila.feature.contacts.domain.SetExcludeFromSmartFilterUseCase
 import app.sila.feature.contacts.domain.ObserveContactsPagedUseCase
 import app.sila.feature.contacts.domain.ObserveContactsUseCase
 import app.sila.feature.contacts.domain.ObserveFavoriteContactsUseCase
@@ -86,6 +97,8 @@ import app.sila.feature.contacts.domain.onboarding.SetOnboardingPermissionsResul
 import app.sila.feature.contacts.presentation.ContactDetailsViewModel
 import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
+import app.sila.feature.contacts.presentation.duplicates.DuplicatesReviewViewModel
+import app.sila.feature.contacts.presentation.duplicates.SmartFilterReviewViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
 import app.sila.feature.services.data.ServicesRepositoryImpl
@@ -102,6 +115,7 @@ import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
 import app.sila.feature.settings.presentation.SettingsViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
+import app.sila.maintenance.MergeSweepCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
@@ -129,6 +143,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // كتابة جهات الاتصال إلى المنصة (T6 · Issue #27 · ADR-0012) — actuals per-platform:
     // الكاتب الضيق + معالج الصورة + كاشف التطبيقات المتصلة.
     includes(platformContactsWriterModule)
+
+    // الدمج المنصوي (T7 · Issue #28 · ADR-0013) — actuals per-platform:
+    // AggregationExceptions + إعادة حل المفاتيح (أندرويد)، وحذف/إعادة إنشاء vCard (iOS).
+    includes(platformContactsMergeModule)
 
     // جدولة إشعارات أرحام على المنصة (T8-08 · D2) — actuals per-platform:
     // أندرويد فوق AlarmManager (بلا دقة — D2)، وiOS فارغة حتى T8-12.
@@ -182,6 +200,8 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // F-02: مشغِّل صيانة الاستبقاء (تنظيف 30/90/365 يوماً) — يُطلق من مهيئات المنصات
     // على نطاق عمر التطبيق، مرة واحدة لكل عملية (single-flight — انظر الكلاس).
     single { RetentionCleanupCoordinator(cleanup = get(), clock = get()) }
+    // T7 (Issue #28 · agy F3b): المسح المنصوي المؤجل بعد انقضاء جلسة التراجع — raw-مستوى حصراً.
+    single { MergeSweepCoordinator(mergeStore = get(), mergeWriter = get(), clock = get()) }
 
     // Core DataStore (Preferences Persistence Singleton)
     // Issue #34: مُمرِّر الـ default يُحقن من AppDispatchers (لا قيم ثابتة في الإنتاج —
@@ -206,7 +226,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { ObserveCategoryCountsUseCase(repository = get()) }
     factory { SearchContactsUseCase(repository = get()) }
     factory { ObserveContactsPagedUseCase(repository = get()) }
-    factory { ObserveSuggestionsUseCase(repository = get(), listPreferences = get()) }
+    factory { ObserveSuggestionsUseCase(repository = get(), listPreferences = get(), mergeStore = get(), dispatchers = get()) }
     factory { UpdateContactCategoryUseCase(repository = get()) }
     factory { DeleteContactUseCase(repository = get()) }
     factory { SmartCategorizeContactUseCase() }
@@ -227,6 +247,39 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { DeleteContactWithUndoUseCase(writer = get(), repository = get(), clock = get()) }
     factory { CreateArhamOccasionUseCase(recorder = get()) }
     factory { FindDuplicateContactUseCase(repository = get()) }
+    // T7 (Issue #28): الدمج والتراجع — المنفذان في النطاق، المخزن فوق الواجهة الخارجية،
+    // والكاتب المنصوي expect/actual في موديولات DI المنصات (نمط ADR-0009 §2 — ADR-0013).
+    single<ContactsMergeStore> { ContactsMergeStoreImpl(db = get()) }
+    factory { MergeContactsUseCase(mergeWriter = get(), mergeStore = get(), clock = get()) }
+    factory { UndoMergeUseCase(mergeWriter = get(), mergeStore = get(), clock = get()) }
+    // T7 S8: تيار شاشة المراجعة (مجموعات كاملة غير مقتطعة + رفض الأزواج) وVM شاشتها.
+    factory { ObserveDuplicateGroupsUseCase(repository = get(), mergeStore = get()) }
+    factory { DismissDuplicateGroupUseCase(mergeStore = get(), clock = get()) }
+    factory {
+        DuplicatesReviewViewModel(
+            observeGroups = get(),
+            mergeContacts = get(),
+            undoMerge = get(),
+            dismissGroup = get(),
+        )
+    }
+    // T7 S10 (agy P1#6): جسر القرابة مسجَّل ومُربوط بـ VM المراجعة — الآلية بلا مستدعٍ كانت ميتة.
+    single<ArhamKinshipLinker> { ArhamBridgeKinshipLinker(arhamRepository = get()) }
+    // T7 S9: محرك الفلترة الذكية — القواعد الافتراضية، البوابة والتغذية الراجعة عبر
+    // المنافذ، وVM شاشة المراجعة (تطبيق مؤكد + «لا تسألني مجدداً» + عرض أرحام).
+    factory { ObserveSmartFilterSuggestionsUseCase(repository = get(), listPreferences = get(), mergeStore = get(), dispatchers = get()) }
+    factory { ApplySmartFilterSuggestionsUseCase(repository = get(), mergeStore = get()) }
+    factory { RecordSmartFilterFeedbackUseCase(mergeStore = get()) }
+    factory { SetExcludeFromSmartFilterUseCase(repository = get()) }
+    factory {
+        SmartFilterReviewViewModel(
+            observeSuggestions = get(),
+            applySuggestions = get(),
+            recordFeedback = get(),
+            setExclude = get(),
+            kinshipLinker = get(),
+        )
+    }
     // T6 — ViewModels التفاصيل/التحرير (معرفات تُمرَّر من التنقل عبر parametersOf).
     factory { (contactId: Long) ->
         ContactDetailsViewModel(

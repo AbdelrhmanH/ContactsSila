@@ -55,6 +55,7 @@ fun ContactEntity.toDomain(
     ringtoneUri = customRingtoneUri,
     sendToVoicemail = sendToVoicemail,
     isBlocked = isBlocked,
+    excludeFromSmartFilter = excludeFromSmartFilter,
     notes = notes,
     account = if (accountType != null || accountName != null) {
         ContactAccount(accountType = accountType, accountName = accountName)
@@ -113,7 +114,7 @@ fun Contact.toContactEntity(): ContactEntity {
         isBlocked = isBlocked,
         notes = notes,
         linkedServiceCloudId = linkedService?.cloudId,
-        excludeFromSmartFilter = false,
+        excludeFromSmartFilter = excludeFromSmartFilter,
         normalizedName = normName,
         createdAt = createdAt,
         updatedAt = updatedAt

@@ -532,7 +532,7 @@ class T8MigrationTest {
             db.closeConnection()
         }
 
-        assertEquals(3, userVersionOfFile(tempDbPath), "Room ختم الإصدار 3 (إعادة تشغيله الذكية على شكل v3 كانت عبوراً صامتاً)")
+        assertEquals(SILA_ROOM_VERSION, userVersionOfFile(tempDbPath), "Room ختم الإصدار الحالي — فتحه الناتج v3 يمر عبر MIGRATION_3_4 (T7) تلقائياً بعد إعادة تشغيله الذكية على شكل v3 كانت عبوراً صامتاً أيام v3")
 
         BundledSQLiteDriver().open(tempDbPath).use { conn ->
             assertEquals(2L, countRows(conn, "call_events"), "لا صف ضاع عبر المسار المزدوج (يدوي ثم فتح Room)")
@@ -651,7 +651,7 @@ class T8MigrationTest {
             db.closeConnection()
         }
 
-        assertEquals(3, userVersionOfFile(tempDbPath), "الفتح الإنتاجي رحّل 2→3 وختم الإصدار")
+        assertEquals(SILA_ROOM_VERSION, userVersionOfFile(tempDbPath), "الفتح الإنتاجي رحّل 2→3→4 (سلسلة MIGRATION_2_3 ثم MIGRATION_3_4 لجداول الدمج — T7) وختم الإصدار الحالي")
 
         BundledSQLiteDriver().open(tempDbPath).use { conn ->
             assertEquals(
@@ -667,7 +667,7 @@ class T8MigrationTest {
     // ===== شيم الاعتماد (§J+): إصدار-صفر بشكل v2 → §H.2 عبر الشيم → Room يختم 3 =====
 
     @Test
-    fun adoption_v2ShapedZeroVersion_callEventsMigratedPerH2_andRoomStampsV3() = runTest {
+    fun adoption_v2ShapedZeroVersion_callEventsMigratedPerH2_andRoomStampsCurrentVersion() = runTest {
         val tempDbPath = PlatformFileOps.tempTestDbPath("tmp_test_t802_adopt_${Random.nextLong(100_000, 999_999)}.db")
         LegacySchemaFixtures.createLegacyDatabase(tempDbPath, LegacyFixtureLevel.L2_OR_L3) { conn ->
             seedLegacyCallEvent(conn, "log_out", "+201000000001", "OUT", 45, 1000L, "CALL_LOG")
@@ -681,7 +681,7 @@ class T8MigrationTest {
             db.closeConnection()
         }
 
-        assertEquals(3, userVersionOfFile(tempDbPath), "الشيم أوصل الشكل v3 ثم Room ختمت إصدارها الحالي")
+        assertEquals(SILA_ROOM_VERSION, userVersionOfFile(tempDbPath), "الشيم أوصل الشكل الحالي كاملاً (v3 + جداول الدمج الثلاثة — T7) ثم Room ختمت إصدارها الحالي")
 
         BundledSQLiteDriver().open(tempDbPath).use { conn ->
             assertEquals(

@@ -126,6 +126,8 @@ fun App(
                         contactsStrings = contactsStrings,
                         detailsStrings = rememberContactDetailsStrings(),
                         editStrings = rememberContactEditStrings(),
+                        duplicatesStrings = rememberDuplicatesReviewStrings(),
+                        smartFilterStrings = rememberSmartFilterReviewStrings(),
                         navController = contactsNavController,
                         onPlatformEffect = onContactsNavEffect
                     )

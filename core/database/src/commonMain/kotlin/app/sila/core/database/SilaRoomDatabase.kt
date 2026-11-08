@@ -21,12 +21,15 @@ import app.sila.core.database.entity.ContactCustomFieldEntity
 import app.sila.core.database.entity.ContactDateEntity
 import app.sila.core.database.entity.ContactEmailEntity
 import app.sila.core.database.entity.ContactEntity
+import app.sila.core.database.entity.ContactMergeSnapshotEntity
 import app.sila.core.database.entity.ContactPhoneEntity
 import app.sila.core.database.entity.ContactsSyncCheckpointEntity
 import app.sila.core.database.entity.ContactWebsiteEntity
 import app.sila.core.database.entity.DisputeLogEntity
+import app.sila.core.database.entity.DuplicateDismissalEntity
 import app.sila.core.database.entity.EmergencyRingingSessionEntity
 import app.sila.core.database.entity.ServiceEntity
+import app.sila.core.database.entity.SmartFilterFeedbackEntity
 
 /**
  * إصدار مخطط Room الحالي — مصدر الحقيقة الوحيد للإصدار: يُستهلك في `@Database`
@@ -35,8 +38,13 @@ import app.sila.core.database.entity.ServiceEntity
  *
  * v3 (T8-02 · Issue #29): توسعة `call_events` لحقول ADR-0006 السبعة عشر (إعادة بناء
  * ونسخ عبر [MIGRATION_2_3]) + جدول جلسات الاتصال الطارئ (قرار D4 المُصادق — §W).
+ *
+ * v4 (T7 · Issue #28): جداول الدمج الثلاثة عبر [MIGRATION_3_4] بمصدر DDL وحيد
+ * [MergeTablesDdl] (نفس نمط الشيم المزدوج) — `contact_merge_snapshots` (لقطات ما-قبل-الدمج
+ * القفلية في Room — ADR-0004)، `duplicate_dismissals` (استبعاد أزواج «ليست مكررات» —
+ * محجوز للميزة في ADR-0012 §9)، و`smart_filter_feedback` (التعلّم المحلي — spec 04 §ب).
  */
-const val SILA_ROOM_VERSION: Int = 3
+const val SILA_ROOM_VERSION: Int = 4
 
 /**
  * قاعدة بيانات Room 3 KMP المركزية لتطبيق صِلَة — **صاحبة المخطط الوحيدة**
@@ -84,6 +92,9 @@ const val SILA_ROOM_VERSION: Int = 3
         ArhamInboxEntity::class,
         DisputeLogEntity::class,
         ContactsSyncCheckpointEntity::class,
+        ContactMergeSnapshotEntity::class,
+        DuplicateDismissalEntity::class,
+        SmartFilterFeedbackEntity::class,
     ],
 )
 @ColumnTypeConverters(SilaTypeConverters::class)

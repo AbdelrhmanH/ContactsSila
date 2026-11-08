@@ -9,6 +9,12 @@ import SharedLogic
 enum ContactsRoute: Hashable {
     case details(Int64)
     case edit(Int64?)
+
+    /// شاشة مراجعة المكررات (T7 — Issue #28).
+    case duplicatesReview
+
+    /// شاشة مراجعة الفلترة الذكية (T7 — Issue #28).
+    case smartFilterReview
 }
 
 struct ContentView: View {
@@ -135,6 +141,12 @@ struct ContentView: View {
                 language: store.state.preferences.language,
                 onOpenContact: { contactId in
                     contactsPath.append(.details(contactId))
+                },
+                onOpenDuplicatesReview: {
+                    contactsPath.append(.duplicatesReview)
+                },
+                onOpenSmartFilterReview: {
+                    contactsPath.append(.smartFilterReview)
                 }
             )
             .navigationDestination(for: ContactsRoute.self) { route in
@@ -149,6 +161,19 @@ struct ContentView: View {
                 case .edit(let contactId):
                     ContactEditScreen(
                         contactId: contactId,
+                        language: store.state.preferences.language,
+                        onBack: { popContactsPath() }
+                    )
+                case .duplicatesReview:
+                    DuplicatesReviewScreen(
+                        language: store.state.preferences.language,
+                        onBack: { popContactsPath() },
+                        onOpenMember: { memberId in
+                            contactsPath.append(.details(memberId))
+                        }
+                    )
+                case .smartFilterReview:
+                    SmartFilterReviewScreen(
                         language: store.state.preferences.language,
                         onBack: { popContactsPath() }
                     )

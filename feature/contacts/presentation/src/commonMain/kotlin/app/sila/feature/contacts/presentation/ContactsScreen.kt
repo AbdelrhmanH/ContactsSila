@@ -75,6 +75,8 @@ fun ContactsScreen(
     strings: ContactsStrings,
     modifier: Modifier = Modifier,
     onOpenContact: (Long) -> Unit = {},
+    onOpenDuplicatesReview: () -> Unit = {},
+    onOpenSmartFilterReview: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     ContactsContent(
@@ -82,7 +84,9 @@ fun ContactsScreen(
         strings = strings,
         onIntent = viewModel::onIntent,
         modifier = modifier,
-        onOpenContact = onOpenContact
+        onOpenContact = onOpenContact,
+        onOpenDuplicatesReview = onOpenDuplicatesReview,
+        onOpenSmartFilterReview = onOpenSmartFilterReview
     )
 }
 
@@ -94,6 +98,8 @@ fun ContactsContent(
     onIntent: (ContactsIntent) -> Unit,
     modifier: Modifier = Modifier,
     onOpenContact: (Long) -> Unit = {},
+    onOpenDuplicatesReview: () -> Unit = {},
+    onOpenSmartFilterReview: () -> Unit = {},
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showCategorizeMenu by remember { mutableStateOf(false) }
@@ -127,7 +133,13 @@ fun ContactsContent(
                 FavoritesRow(state = state, strings = strings, onIntent = onIntent)
                 SearchField(state = state, strings = strings, onIntent = onIntent)
                 CategoryChipsRow(state = state, strings = strings, onIntent = onIntent)
-                SuggestionCards(state = state, strings = strings, onIntent = onIntent)
+                SuggestionCards(
+                    state = state,
+                    strings = strings,
+                    onIntent = onIntent,
+                    onOpenDuplicatesReview = onOpenDuplicatesReview,
+                    onOpenSmartFilterReview = onOpenSmartFilterReview
+                )
                 ContactsListArea(state = state, strings = strings, onIntent = onIntent, onOpenContact = onOpenContact)
             }
         }
@@ -287,7 +299,13 @@ private fun CategoryChipsRow(state: ContactsUiState, strings: ContactsStrings, o
 // ===== بطاقات الاقتراح القابلة للإغلاق =====
 
 @Composable
-private fun SuggestionCards(state: ContactsUiState, strings: ContactsStrings, onIntent: (ContactsIntent) -> Unit) {
+private fun SuggestionCards(
+    state: ContactsUiState,
+    strings: ContactsStrings,
+    onIntent: (ContactsIntent) -> Unit,
+    onOpenDuplicatesReview: () -> Unit = {},
+    onOpenSmartFilterReview: () -> Unit = {}
+) {
     if (state.suggestions.isEmpty()) return
 
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -297,10 +315,12 @@ private fun SuggestionCards(state: ContactsUiState, strings: ContactsStrings, on
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
                 onClick = {
-                    // "راجعها": بطاقة الفلترة الذكية تنقلك لتصنيف غير المصنّف؛
-                    // بطاقة المكررات تنتظر شاشات الدمج (T7) — بلا فعل الآن (موثق في PR).
-                    if (card.kind == SuggestionCard.Kind.SMART_FILTER) {
-                        onIntent(ContactsIntent.SelectCategory(Category.UNCATEGORIZED))
+                    // "راجعها": بطاقتا T7 تفتحان شاشتي المراجعة الخاصتين بهما
+                    // (المكررات → الدمج، الفلترة الذكية → التصنيف المؤكد).
+                    if (card.kind == SuggestionCard.Kind.DUPLICATES) {
+                        onOpenDuplicatesReview()
+                    } else {
+                        onOpenSmartFilterReview()
                     }
                 }
             ) {

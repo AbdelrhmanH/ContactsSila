@@ -19,6 +19,9 @@ class ContactsListPreferencesRepositoryImpl(
     override val dismissedSuggestionIds: Flow<Set<String>> =
         dataSource.preferences.map { it.dismissedSuggestionIds }
 
+    override val smartFilterEnabled: Flow<Boolean> =
+        dataSource.preferences.map { it.smartFilterEnabled }
+
     override val swipeActions: Flow<SwipeActionConfig> =
         dataSource.preferences.map { SwipeActionConfig(start = it.swipeStartAction, end = it.swipeEndAction) }
 

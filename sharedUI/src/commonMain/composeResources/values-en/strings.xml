@@ -403,4 +403,52 @@
     <string name="contacts_emergency_ring_button">🚨 Emergency ring</string>
     <string name="contacts_emergency_warning_title">Start emergency ringing?</string>
     <string name="contacts_emergency_warning_body">A repeated automatic call will be placed to this number until it is answered, stopped, or 10 attempts are reached (limit: 3 sessions per 24 hours).</string>
+
+    <!-- Duplicates review — T7 (Issue #28 · spec 04 §أ) -->
+    <string name="dup_screen_title">Review duplicates</string>
+    <string name="dup_back_description">Back</string>
+    <string name="dup_loading">Searching for duplicates…</string>
+    <string name="dup_empty_title">No likely duplicates</string>
+    <string name="dup_empty_message">Nothing looks duplicated right now. We\'ll surface anything new.</string>
+    <string name="dup_confidence_high">Confirmed match</string>
+    <string name="dup_confidence_medium">Likely match</string>
+    <string name="dup_confidence_low">Suggestion</string>
+    <string name="dup_reason_same_phone">Same number: %s</string>
+    <string name="dup_reason_same_email">Same email: %s</string>
+    <string name="dup_reason_same_name">Same name: %s</string>
+    <string name="dup_reason_similar_name">Similar names: %s</string>
+    <string name="dup_preview_title">After merging</string>
+    <string name="dup_preview_summary">Numbers after merge: %d · Emails: %d</string>
+    <string name="dup_preview_notes_merged">Different notes will be joined with a separator</string>
+    <string name="dup_ringtone_conflict">Different ringtones — the kept contact\'s ringtone stays after merging</string>
+    <string name="dup_merge_button">Merge</string>
+    <string name="dup_not_duplicates_button">Not duplicates</string>
+    <string name="dup_merge_all_confirmed">Merge all confirmed (%d)</string>
+    <string name="dup_undo_message">Merged — you can undo now</string>
+    <string name="dup_call_member">Call contact</string>
+    <string name="dup_open_member_description">Open contact details</string>
+    <string name="dup_error_merge">Some groups couldn\'t be merged. Try again shortly.</string>
+    <string name="dup_error_undo">Couldn\'t undo. The contacts are still merged.</string>
+
+    <!-- Smart filter review — T7 (Issue #28 · spec 04 §ب) -->
+    <string name="sf_screen_title">Review smart filter</string>
+    <string name="sf_back_description">Back</string>
+    <string name="sf_loading">Preparing…</string>
+    <string name="sf_empty_title">No categorization suggestions</string>
+    <string name="sf_empty_message">Nothing looks ready for smart categorization right now.</string>
+    <string name="sf_confidence_high">Strong match</string>
+    <string name="sf_confidence_medium">Likely</string>
+    <string name="sf_confidence_low">Weak</string>
+    <string name="sf_evidence_label">Evidence: %s</string>
+    <string name="sf_group_count">%d contacts</string>
+    <string name="sf_select_all">Select all</string>
+    <string name="sf_unselect_all">Unselect all</string>
+    <string name="sf_apply_selected">Apply selected (%d)</string>
+    <string name="sf_not_this_category">Not this category</string>
+    <string name="sf_never_ask">Don\'t ask again</string>
+    <string name="sf_error_apply">Couldn\'t apply the categories. Try again.</string>
+    <string name="sf_error_not_found">We can\'t find that contact anymore — refresh the list.</string>
+    <string name="sf_error_arham_link">Some contacts couldn\'t be linked to Arham. Finish from the Arham screen.</string>
+    <string name="sf_arham_offer_title">Add %d contacts categorized as family to Arham with their default frequency?</string>
+    <string name="sf_arham_offer_accept">Add to Arham</string>
 </resources>

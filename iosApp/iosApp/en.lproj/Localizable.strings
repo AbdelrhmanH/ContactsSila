@@ -391,3 +391,51 @@
 "arham_screening_consent_action" = "Grant role";
 "arham_screening_consent_dismiss" = "Dismiss";
 "arham_action_copy_number" = "Copy number";
+
+// Duplicates review — T7 (Issue #28)
+"dup_screen_title" = "Review duplicates";
+"dup_back_description" = "Back";
+"dup_loading" = "Searching for duplicates…";
+"dup_empty_title" = "No likely duplicates";
+"dup_empty_message" = "Nothing looks duplicated right now. We'll surface anything new.";
+"dup_confidence_high" = "Confirmed match";
+"dup_confidence_medium" = "Likely match";
+"dup_confidence_low" = "Suggestion";
+"dup_reason_same_phone" = "Same number: %s";
+"dup_reason_same_email" = "Same email: %s";
+"dup_reason_same_name" = "Same name: %s";
+"dup_reason_similar_name" = "Similar names: %s";
+"dup_preview_title" = "After merging";
+"dup_preview_summary" = "Numbers after merge: %d · Emails: %d";
+"dup_preview_notes_merged" = "Different notes will be joined with a separator";
+"dup_ringtone_conflict" = "Different ringtones — the kept contact's ringtone stays after merging";
+"dup_merge_button" = "Merge";
+"dup_not_duplicates_button" = "Not duplicates";
+"dup_merge_all_confirmed" = "Merge all confirmed (%d)";
+"dup_undo_message" = "Merged — you can undo now";
+"dup_call_member" = "Call contact";
+"dup_open_member_description" = "Open contact details";
+"dup_error_merge" = "Some groups couldn't be merged. Try again shortly.";
+"dup_error_undo" = "Couldn't undo. The contacts are still merged.";
+
+// Smart filter review — T7 (Issue #28)
+"sf_screen_title" = "Review smart filter";
+"sf_back_description" = "Back";
+"sf_loading" = "Preparing…";
+"sf_empty_title" = "No categorization suggestions";
+"sf_empty_message" = "Nothing looks ready for smart categorization right now.";
+"sf_confidence_high" = "Strong match";
+"sf_confidence_medium" = "Likely";
+"sf_confidence_low" = "Weak";
+"sf_evidence_label" = "Evidence: %s";
+"sf_group_count" = "%d contacts";
+"sf_select_all" = "Select all";
+"sf_unselect_all" = "Unselect all";
+"sf_apply_selected" = "Apply selected (%d)";
+"sf_not_this_category" = "Not this category";
+"sf_never_ask" = "Don't ask again";
+"sf_error_apply" = "Couldn't apply the categories. Try again.";
+"sf_error_not_found" = "We can't find that contact anymore — refresh the list.";
+"sf_error_arham_link" = "Some contacts couldn't be linked to Arham. Finish from the Arham screen.";
+"sf_arham_offer_title" = "Add %d contacts categorized as family to Arham with their default frequency?";
+"sf_arham_offer_accept" = "Add to Arham";

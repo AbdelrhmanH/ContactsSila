@@ -165,12 +165,25 @@ class ContactsViewModel(
     private val countsFlow = accountFilterFlow
         .flatMapLatest { account -> observeCategoryCounts(account) }
 
+    /**
+     * بطاقات الاقتراح عبر stateIn بقيمة ابتدائية فارغة (T7 — agy F6/الأداء): تقييم
+     * كشف المكررات + قواعد الفلترة الذكية على دفتر كبير حقيقي مكلف، وحجب **أول إطار**
+ * عليه كان يكسر ميزانية T3 (<500ms لـ 5000 جهة). البطاقات تصل بإصدار لاحق سريع
+     * والعقد مرئي للمستخدم كما كان.
+     */
+    private val suggestionsFlow = observeSuggestions()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList(),
+        )
+
     override val state: StateFlow<ContactsUiState> = combine(
         combine(
             listFlow,
             observeFavorites(),
             countsFlow,
-            observeSuggestions()
+            suggestionsFlow
         ) { list, favorites, counts, suggestions ->
             CombinedStreams(list, favorites, counts, suggestions)
         },

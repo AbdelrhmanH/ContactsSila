@@ -67,5 +67,22 @@ val MIGRATION_2_3: Migration = object : Migration(2, 3) {
     }
 }
 
+/**
+ * ## MIGRATION_3_4 — T7 (Issue #28): جداول الدمج الثلاثة
+ *
+ * **غير هدمي حصراً**: `CREATE TABLE IF NOT EXISTS` من [MergeTablesDdl] (مصدر وحيد مع الشيم
+ * — نفس عهد `StandardFieldTablesDdl`/`CallEventsV3Ddl`) — بلا إسقاطات ولا نسخ بيانات،
+ * وFTS غير مُماس إطلاقاً. الجداول فارغة عند الترحيل بالتعريف (قيد مخطط مخفَّض سابق —
+ * DATA_MODEL §1 وسمها «تُضاف مع كيانات Room وترحيلات عند تنفيذ ميزاتها» وهذا ترحيلها).
+ *
+ * الذرية: نفس عهد [MIGRATION_2_3] — Room يغلّف الترحيل بمعاملة حصرية، فلا معاملة داخلية.
+ */
+val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        MergeTablesDdl.CREATE_TABLE_STATEMENTS.forEach { connection.executeSQL(it) }
+        MergeTablesDdl.CREATE_INDEX_STATEMENTS.forEach { connection.executeSQL(it) }
+    }
+}
+
 /** كل الترحيلات الرسمية بالترتيب — تُسجَّل على منشئ قاعدة Room وحيداً. */
-val SILA_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+val SILA_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)

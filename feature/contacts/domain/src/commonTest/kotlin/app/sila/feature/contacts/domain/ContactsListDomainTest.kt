@@ -22,6 +22,13 @@ import kotlin.test.assertTrue
  */
 class ContactsListDomainTest {
 
+    /** مزوّد مضيف اختبارات — تنفيذ فوري حتمي (بلا خيوط حقيقية تُفسد الزمن الافتراضي). */
+    private val unconfinedDispatchers = object : app.sila.core.common.AppDispatchers {
+        override val main = kotlinx.coroutines.Dispatchers.Unconfined
+        override val io = kotlinx.coroutines.Dispatchers.Unconfined
+        override val default = kotlinx.coroutines.Dispatchers.Unconfined
+    }
+
     // ===== مصانع الاختبار =====
 
     private fun contact(
@@ -31,6 +38,7 @@ class ContactsListDomainTest {
         category: Category = Category.UNCATEGORIZED,
         isFavorite: Boolean = false,
         accountType: String? = null,
+        excluded: Boolean = false,
     ): Contact = Contact(
         id = id,
         systemContactId = systemContactId,
@@ -39,6 +47,7 @@ class ContactsListDomainTest {
         category = category,
         isFavorite = isFavorite,
         account = accountType?.let { ContactAccount(accountType = it, accountName = "acc") },
+        excludeFromSmartFilter = excluded,
         normalizedName = displayName
     )
 
@@ -94,13 +103,45 @@ class ContactsListDomainTest {
     /** تفضيلات مزيفة لاستبعاد الاقتراحات. */
     private class FakeListPreferences(initialDismissed: Set<String> = emptySet()) : ContactsListPreferencesRepository {
         val dismissed = MutableStateFlow(initialDismissed)
+        val smartFilter = MutableStateFlow(true)
         override val dismissedSuggestionIds: Flow<Set<String>> = dismissed
         override suspend fun dismissSuggestion(id: String) {
             dismissed.value = dismissed.value + id
         }
+        override val smartFilterEnabled: Flow<Boolean> = smartFilter
         override val swipeActions: Flow<SwipeActionConfig> =
             MutableStateFlow(SwipeActionConfig(ContactSwipeAction.CALL, ContactSwipeAction.MESSAGE))
         override suspend fun setSwipeActions(config: SwipeActionConfig) {}
+    }
+
+    /** مخزن دمج مزيف للاستخدامات الجديدة (T7) — بلا سلوك في اختبارات البطاقات. */
+    private class FakeSuggestionStore : ContactsMergeStore {
+        val feedback = MutableStateFlow(emptyList<SmartFilterWeight>())
+        override suspend fun mergeInRoom(
+            survivorId: Long,
+            mergedContact: Contact,
+            absorbedIds: List<Long>,
+            groupId: String,
+            expiresAt: Long,
+            nowMillis: Long,
+            buildContent: (DiscoveredReferences) -> MergeSnapshotContent,
+        ): MergeRoomCommit = error("not used here")
+
+        override suspend fun undoInRoom(
+            snapshotId: Long,
+            nowMillis: Long,
+            remap: (MergeSnapshotContent) -> MergeSnapshotContent,
+        ): UndoRoomOutcome = error("not used here")
+
+        override suspend fun snapshotContent(snapshotId: Long): MergeSnapshotContent? = null
+        override suspend fun activeSnapshotsForSweep(olderThan: Long): List<SweepableSnapshot> = emptyList()
+        override suspend fun markSnapshotExpired(snapshotId: Long) = Unit
+        override suspend fun purgeSnapshotsOlderThan(olderThan: Long) = Unit
+        val dismissedPairKeysFlow = MutableStateFlow(emptySet<String>())
+        override fun observeDismissedPairKeys(): Flow<Set<String>> = dismissedPairKeysFlow
+        override suspend fun dismissPair(groupKey: String, reason: String, nowMillis: Long) = Unit
+        override fun observeFeedback(): Flow<List<SmartFilterWeight>> = feedback
+        override suspend fun recordFeedback(token: String, category: Category, accepted: Boolean) = Unit
     }
 
     // ===== فلتر الحساب =====
@@ -184,13 +225,42 @@ class ContactsListDomainTest {
                 contact(11, displayName = "جهة عادية5")
             )
         )
-        val useCase = ObserveSuggestionsUseCase(repo, FakeListPreferences())
+        val useCase = ObserveSuggestionsUseCase(repo, FakeListPreferences(), FakeSuggestionStore(), unconfinedDispatchers)
 
         val cards = useCase().first()
         val duplicateCards = cards.filter { it.kind == SuggestionCard.Kind.DUPLICATES }
         assertEquals(3, duplicateCards.size, "سقف بطاقات المكررات = 3")
-        assertEquals(1, cards.count { it.kind == SuggestionCard.Kind.SMART_FILTER })
-        assertEquals(5, cards.first { it.kind == SuggestionCard.Kind.SMART_FILTER }.count)
+        assertEquals(
+            0,
+            cards.count { it.kind == SuggestionCard.Kind.SMART_FILTER },
+            "agy F6: بلا مطابقة قاعدة فعلية — لا بطاقة (العدّ الخام كان يفتح شاشة فارغة)",
+        )
+    }
+
+    @Test
+    fun observeSuggestions_smartFilterCard_countsRuleMatchesOnly_andGatesOnPreference() = runTest {
+        val repo = FakeContactsRepository(
+            listOf(
+                contact(1, displayName = "دكتور أحمد"), // مطابقة قاموس → SERVICES
+                contact(2, displayName = "جهة بلا دليل"), // UNCATEGORIZED بلا مطابقة — لا تُعدّ
+                contact(3, displayName = "خوي خالد"), // مطابقة قاموس → FAMILY
+                contact(4, displayName = "مستثناة دكتور", excluded = true), // «لا تسألني» — خارج العدّ
+            )
+        )
+        val prefs = FakeListPreferences()
+        val useCase = ObserveSuggestionsUseCase(repo, prefs, FakeSuggestionStore(), unconfinedDispatchers)
+
+        val cards = useCase().first()
+        val smartCard = cards.first { it.kind == SuggestionCard.Kind.SMART_FILTER }
+        assertEquals(2, smartCard.count, "عدّ مطابقات القواعد حصراً — المستثناة وغير المطابقة خارج العدّ")
+        assertEquals(listOf(1L, 3L), smartCard.contactIds, "هوية البطاقة من المطابِقات أنفسهنّ")
+
+        // البوابة مطفأة → لا بطاقة إطلاقاً
+        prefs.smartFilter.value = false
+        assertTrue(
+            useCase().first().none { it.kind == SuggestionCard.Kind.SMART_FILTER },
+            "بوابة smartFilterEnabled (agy F6)",
+        )
     }
 
     @Test
@@ -202,7 +272,7 @@ class ContactsListDomainTest {
             )
         )
         val prefs = FakeListPreferences()
-        val useCase = ObserveSuggestionsUseCase(repo, prefs)
+        val useCase = ObserveSuggestionsUseCase(repo, prefs, FakeSuggestionStore(), unconfinedDispatchers)
 
         val before = useCase().first()
         val duplicateCard = before.first { it.kind == SuggestionCard.Kind.DUPLICATES }
@@ -224,6 +294,24 @@ class ContactsListDomainTest {
     }
 
     @Test
+    fun observeSuggestions_dismissedPairs_hidesDuplicateCard() = runTest {
+        val a = contact(1, displayName = "أحمد إبراهيم")
+        val b = contact(2, displayName = "احمد ابراهيم")
+        val repo = FakeContactsRepository(listOf(a, b))
+        val store = FakeSuggestionStore()
+        val useCase = ObserveSuggestionsUseCase(repo, FakeListPreferences(), store, unconfinedDispatchers)
+
+        val before = useCase().first()
+        assertTrue(before.any { it.kind == SuggestionCard.Kind.DUPLICATES })
+
+        val pairKey = stableSuggestionId(SuggestionCard.Kind.DUPLICATES, listOf("sys1", "sys2"))
+        store.dismissedPairKeysFlow.value = setOf(pairKey)
+
+        val after = useCase().first()
+        assertTrue(after.none { it.kind == SuggestionCard.Kind.DUPLICATES }, "استبعاد الزوج المرفوض يخفي بطاقة الدخول أيضاً (agy P2#5)")
+    }
+
+    @Test
     fun observeSuggestions_noCards_whenNoDuplicatesAndAllCategorized() = runTest {
         val repo = FakeContactsRepository(
             listOf(
@@ -231,7 +319,7 @@ class ContactsListDomainTest {
                 contact(2, displayName = "منى", category = Category.WORK)
             )
         )
-        val cards = ObserveSuggestionsUseCase(repo, FakeListPreferences())().first()
+        val cards = ObserveSuggestionsUseCase(repo, FakeListPreferences(), FakeSuggestionStore(), unconfinedDispatchers)().first()
         assertTrue(cards.isEmpty())
     }
 

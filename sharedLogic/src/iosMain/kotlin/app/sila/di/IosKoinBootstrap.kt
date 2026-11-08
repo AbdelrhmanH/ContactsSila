@@ -14,12 +14,15 @@ import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.feature.contacts.presentation.ContactDetailsViewModel
 import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
+import app.sila.feature.contacts.presentation.duplicates.DuplicatesReviewViewModel
+import app.sila.feature.contacts.presentation.duplicates.SmartFilterReviewViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
 import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.main.MainViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
+import app.sila.maintenance.MergeSweepCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
@@ -299,6 +302,7 @@ object IosKoinBootstrap {
         if (cleanupLaunched) return
         cleanupLaunched = true
         koin.get<RetentionCleanupCoordinator>().launchIn(engineScope)
+        koin.get<MergeSweepCoordinator>().launchIn(engineScope)
     }
 
     /**
@@ -550,6 +554,14 @@ object IosKoinBootstrap {
      */
     fun getContactEditViewModel(contactId: Long?): ContactEditViewModel =
         ensureStarted().get { parametersOf(contactId) }
+
+    /** يسترجع [DuplicatesReviewViewModel] لشاشة مراجعة المكررات (T7 · Issue #28). */
+    fun getDuplicatesReviewViewModel(): DuplicatesReviewViewModel =
+        ensureStarted().get()
+
+    /** يسترجع [SmartFilterReviewViewModel] لشاشة مراجعة الفلترة الذكية (T7 · Issue #28). */
+    fun getSmartFilterReviewViewModel(): SmartFilterReviewViewModel =
+        ensureStarted().get()
 
     /**
      * T8-13 (D6): يُعيد ناشر لقطة الودجت لعملية التطبيق — تُستخدم من Swift لضبط مُشغِّل

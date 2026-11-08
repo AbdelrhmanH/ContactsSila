@@ -12,6 +12,7 @@ import app.sila.di.ensureKoinStarted
 import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.maintenance.ArhamMaterializationCoordinator
+import app.sila.maintenance.MergeSweepCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +80,7 @@ class SilaApplication : Application() {
         if (cleanupStarted) return
         cleanupStarted = true
         koin.get<RetentionCleanupCoordinator>().launchIn(applicationScope)
+        koin.get<MergeSweepCoordinator>().launchIn(applicationScope)
     }
 
     /**

@@ -37,6 +37,15 @@
 | تجسيد أهم 5 | Top-Five materialization | `MaterializeTopFiveUseCase` · `TopFiveMaterializationDao` | نقل اختيارات تهيئة الضيف إلى أرحام بمعاملة واحدة idempotent، بعلامة إنجاز لمرة واحدة (raise-only) ومشغّل إقلاع single-fire |
 | لقطة الودجت | Widget snapshot | `arham-widget-snapshot.json` (App Group) | الناشر يكتب اللقطة من Room حصراً؛ الودجت (Glance/WidgetKit) يقرأها ولا يكتب أبداً (D6 — AC-15) |
 | صلة القرابة | Relation | `Relation` | أب، عم، خال… |
+| لقطة الدمج | Merge snapshot | `ContactMergeSnapshotEntity` · `contact_merge_snapshots` | ما-قبل-الدمج كاملاً (أعضاء + vCards الممتصين + المراجع) داخل صف Room — أساس التراجع خلال جلسة الشاشة والمسح المؤجل ([ADR-0013](docs/adr/0013-merge-write-path.md)) |
+| جلسة التراجع | Undo session | `SESSION_SNAPSHOT_EXPIRY_MILLIS` | نافذة التراجع عن الدمج = زيارة شاشة المراجعة حصراً (24 ساعة حد مطلق للمسح)؛ مغادرة الشاشة تنهيها |
+| المسح المؤجل | Deferred sweep | `MergeSweepCoordinator` · `sweepAbsorbedRawContacts` | «حدّث واحداً واحذف الباقي» بعد انقضاء الجلسة — حذف raw-مستوى حصراً بمعرفات مسجَّلة في اللقطة (لا حذف LOOKUP_URI الكلي) |
+| فاصل دمج الملاحظات | Notes separator | `MergePlanner.NOTES_SEPARATOR` | «
+—
+» يفصل ملاحظات الممتصين عن الناجي عند الدمج — موثق ومعروض في المعاينة |
+| رفض الأزواج | Pair dismissal | `duplicate_dismissals` · `dismissPair` | استبعاد ثنائية مكررة نهائياً بمفتاحها الثابت — الكشف القادم لا يُنشئ حافةً لها، والدليل الجديد عبر جهة ثالثة يبقى مشروعاً |
+| التغذية الراجعة للفلترة | Smart-filter feedback | `smart_filter_feedback` · `SmartFilterWeight` | تعلّم محلي token→category: الرفض المسيطر يُنزل درجة ثقة الاقتراح (لا يُحدد مسبقاً) والقبول يثبّته |
+| القاموس المضمّن | Embedded dictionary | `SmartFilterDictionary` | مصطلحات تصنيف عربية متعددة اللهجات بصيغة ما-بعد-التطبيع حصراً — بلا Remote Config (قرار #28) |
 | طبقة القرابة | Kinship layer | `KinshipLayer` | أصول / فروع / حواشٍ |
 | شجرة العائلة | Family tree | `FamilyTreeScreen` | عرض هرمي للأقارب |
 | أوقات الهدوء | Quiet hours | `quietHours` | فترة بلا إشعارات |
