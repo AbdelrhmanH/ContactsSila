@@ -31,6 +31,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":feature:settings:domain"))
             implementation(project(":core:datastore"))
+            implementation(project(":core:database"))
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

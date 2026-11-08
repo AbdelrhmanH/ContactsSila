@@ -31,6 +31,7 @@ kotlin {
         commonMain.dependencies {
             api(project(":core:common"))
             api(project(":core:model"))
+            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
