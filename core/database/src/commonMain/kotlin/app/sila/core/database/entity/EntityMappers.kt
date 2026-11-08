@@ -26,7 +26,8 @@ import app.sila.core.model.Service
  */
 fun ContactEntity.toDomain(
     phones: List<ContactPhoneEntity>,
-    arham: ArhamEntity?
+    arham: ArhamEntity?,
+    tags: List<String> = emptyList()
 ): Contact = Contact(
     id = id,
     systemContactId = systemContactId,
@@ -57,6 +58,7 @@ fun ContactEntity.toDomain(
     isBlocked = isBlocked,
     excludeFromSmartFilter = excludeFromSmartFilter,
     notes = notes,
+    tags = tags,
     account = if (accountType != null || accountName != null) {
         ContactAccount(accountType = accountType, accountName = accountName)
     } else {

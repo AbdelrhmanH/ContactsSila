@@ -16,6 +16,18 @@ enum class AppLanguage(val code: String, val isRtl: Boolean) {
 }
 
 @Serializable
+enum class AppDigits {
+    ARABIC,
+    HINDI
+}
+
+@Serializable
+enum class NameOrder {
+    FIRST_LAST,
+    LAST_FIRST
+}
+
+@Serializable
 enum class DefaultTab {
     CONTACTS,
     SERVICES,
@@ -23,33 +35,48 @@ enum class DefaultTab {
 }
 
 /**
- * أفعال السحب في قائمة جهات الاتصال (Issue #24 — "يمين=اتصال، يسار=رسالة، قابل للتغيير").
+ * أفعال السحب في قائمة جهات الاتصال (Issue #24 / Issue #30 — "يمين=اتصال، يسار=رسالة، قابل للتغيير أو تعطيل").
  * دلالة البداية/النهاية منطقية (Start/End) فينعكس الاتجاه فعلياً في RTL تلقائياً.
  */
 @Serializable
 enum class ContactSwipeAction {
     CALL,
-    MESSAGE
+    MESSAGE,
+    NONE
 }
 
 @Serializable
 data class UserPreferences(
-    val themeMode: AppThemeMode = AppThemeMode.LIGHT,
+    val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val language: AppLanguage = AppLanguage.ARABIC,
+    val digits: AppDigits = AppDigits.ARABIC,
+    val nameOrder: NameOrder = NameOrder.FIRST_LAST,
     val defaultTab: DefaultTab = DefaultTab.CONTACTS,
+    val visibleAccounts: Set<String> = emptySet(),
+    val defaultSimSlot: Int? = null,
     val arhamNotificationsEnabled: Boolean = true,
-    val quietHoursStartHour: Int = 23,
+    val quietHoursStartHour: Int = 22,
     val quietHoursEndHour: Int = 8,
-    /** ساعة التذكير اليومي المفضلة بالتوقيت المحلي (§M «الوقت المفضل» — T8-08؛ الافتراضي 20:00). */
-    val arhamNotificationHour: Int = 20,
+    /** ساعة التذكير اليومي المفضلة بالتوقيت المحلي (§M «الوقت المفضل» — T8-08؛ الافتراضي 19:00). */
+    val arhamNotificationHour: Int = 19,
     /** دقيقة التذكير اليومي المفضلة بالتوقيت المحلي (§M «الوقت المفضل» — T8-08). */
     val arhamNotificationMinute: Int = 0,
+    val arhamMaxPerDay: Int = 1,
     /** تنبيه اليوم السابق للمناسبة (§M «اختيارياً» — T8-08 يمرِّر الراية؛ الافتراضي معطل). */
     val arhamOccasionDayBeforeEnabled: Boolean = false,
+    val dashboardPeriod: DashboardPeriod = DashboardPeriod.WEEK,
     val confettiEnabled: Boolean = true,
+    val autoTrackingEnabled: Boolean = true,
+    val defaultCity: String? = null,
     val searchRadiusKm: Int = 5,
+    val quickRatingEnabled: Boolean = true,
     val autoUpdatePhonebookServices: Boolean = false,
     val smartFilterEnabled: Boolean = true,
+    val duplicateScanEnabled: Boolean = true,
+    val postCallCategorizeEnabled: Boolean = true,
+    val crashReportsEnabled: Boolean = true,
+    val interestTags: Set<String> = emptySet(),
+    val categoryRingtones: Map<Category, String> = emptyMap(),
     val onboardingCompleted: Boolean = false,
     /** المرحلة 1 ضيف فقط (لا حساب ولا OTP) — Issue #26 / #20. */
     val isGuest: Boolean = true,

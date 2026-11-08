@@ -64,6 +64,7 @@ class ArhamCallEventRepositoryImplTest {
             kotlinx.coroutines.flow.flowOf(emptyList())
 
         override suspend fun upsertArhamInfo(contactId: Long, info: ArhamInfo) = Unit
+        override suspend fun deleteArhamInfo(contactId: Long) = Unit
 
         override fun observePendingCallEvents(): Flow<List<CallEvent>> =
             kotlinx.coroutines.flow.flowOf(emptyList())

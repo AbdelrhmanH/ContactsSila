@@ -14,6 +14,9 @@ import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DefaultTab
 import app.sila.core.model.ImportantDate
 import app.sila.core.model.Relation
+import app.sila.core.model.AppDigits
+import app.sila.core.model.DashboardPeriod
+import app.sila.core.model.NameOrder
 import app.sila.core.model.TopFiveSelection
 import app.sila.core.model.UserPreferences
 import app.sila.feature.arham.domain.ArhamRepository
@@ -66,6 +69,21 @@ internal class FakeUserPreferencesDataSource(
     override suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long) = Unit
     override suspend fun dismissSuggestion(id: String) = Unit
     override suspend fun setSwipeActions(start: ContactSwipeAction, end: ContactSwipeAction) = Unit
+    override suspend fun setDigits(digits: AppDigits) = Unit
+    override suspend fun setNameOrder(order: NameOrder) = Unit
+    override suspend fun setVisibleAccounts(accounts: Set<String>) = Unit
+    override suspend fun setDefaultSimSlot(slot: Int?) = Unit
+    override suspend fun setArhamMaxPerDay(max: Int) = Unit
+    override suspend fun setDashboardPeriod(period: DashboardPeriod) = Unit
+    override suspend fun setAutoTrackingEnabled(enabled: Boolean) = Unit
+    override suspend fun setDefaultCity(city: String?) = Unit
+    override suspend fun setQuickRatingEnabled(enabled: Boolean) = Unit
+    override suspend fun setDuplicateScanEnabled(enabled: Boolean) = Unit
+    override suspend fun setPostCallCategorizeEnabled(enabled: Boolean) = Unit
+    override suspend fun setCrashReportsEnabled(enabled: Boolean) = Unit
+    override suspend fun setInterestTags(tags: Set<String>) = Unit
+    override suspend fun setCategoryRingtone(category: Category, uri: String?) = Unit
+    override suspend fun setCategoryRingtones(ringtones: Map<Category, String>) = Unit
 }
 
 /**

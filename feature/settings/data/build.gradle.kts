@@ -8,7 +8,7 @@ plugins {
 
 /**
  * موديول طبقة البيانات لميزة الإعدادات (:feature:settings:data)
- * 🔒 ينفذ عقود :feature:settings:domain ويعتمد على :core:datastore فقط.
+ * 🔒 ينفذ عقود :feature:settings:domain ويعتمد على :core:datastore و :core:database.
  */
 kotlin {
     iosArm64()
@@ -31,6 +31,13 @@ kotlin {
         commonMain.dependencies {
             api(project(":feature:settings:domain"))
             implementation(project(":core:datastore"))
+            implementation(project(":core:database"))
+            implementation(libs.kotlinx.datetime)
+        }
+        androidMain.dependencies {
+            implementation(libs.androidx.core.ktx)
+            implementation(libs.androidx.work.runtime.ktx)
+            implementation(libs.koin.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

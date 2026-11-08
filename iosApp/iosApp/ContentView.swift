@@ -27,6 +27,11 @@ struct ContentView: View {
     /// مخزن شاشة أرحام المشترك (T8-14 — §L.1) — النمط نفسه؛ الحالة ملكية Kotlin حصراً.
     var arhamStore: ArhamViewModelStore
 
+    /// مخزن شاشة الإعدادات المشترك (T9 — Issue #30).
+    var settingsStore: SettingsViewModelStore
+
+    @State private var isSettingsSheetPresented = false
+
     /// مكدس التبويب — حالة عرض أصلية (SwiftUI)؛ التنقل يبث من آثار الـ VM حصراً.
     @State private var contactsPath: [ContactsRoute] = []
 
@@ -90,6 +95,9 @@ struct ContentView: View {
             Button(localized("smart_add_qr")) {}
             Button(localized("action_cancel"), role: .cancel) {}
         }
+        .sheet(isPresented: $isSettingsSheetPresented) {
+            SettingsView(store: settingsStore, language: store.state.preferences.language, onDismiss: { isSettingsSheetPresented = false })
+        }
         .task {
             await store.observeState()
         }
@@ -149,6 +157,16 @@ struct ContentView: View {
                     contactsPath.append(.smartFilterReview)
                 }
             )
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        isSettingsSheetPresented = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundColor(Color.emeraldSila)
+                    }
+                }
+            }
             .navigationDestination(for: ContactsRoute.self) { route in
                 switch route {
                 case .details(let contactId):
@@ -265,6 +283,7 @@ struct ContentView: View {
     ContentView(
         store: MainViewModelStore(),
         contactsStore: ContactsViewModelStore(),
-        arhamStore: ArhamViewModelStore()
+        arhamStore: ArhamViewModelStore(),
+        settingsStore: SettingsViewModelStore()
     )
 }

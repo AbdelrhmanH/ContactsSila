@@ -292,6 +292,7 @@ class ContactsViewModel(
     /** الرقم الافتراضي: الأساسي ثم الوحيد؛ إن تعددت ⇒ منتقي أرقام (معيار قبول Issue #24). */
     private fun resolveCall(contactId: Long, smsAction: ContactSwipeAction?) {
         val action = smsAction ?: ContactSwipeAction.CALL
+        if (action == ContactSwipeAction.NONE) return
         val latest = latestState()
         val contact = latest.contacts.find { it.id == contactId }
             ?: latest.favorites.find { it.id == contactId }
@@ -321,7 +322,8 @@ class ContactsViewModel(
     private fun dispatchResolved(contactId: Long, e164: String, smsAction: ContactSwipeAction?) {
         when (smsAction) {
             ContactSwipeAction.MESSAGE -> onIntent(ContactsIntent.Message(contactId, e164))
-            else -> onIntent(ContactsIntent.CallNumber(contactId, e164))
+            ContactSwipeAction.CALL -> onIntent(ContactsIntent.CallNumber(contactId, e164))
+            ContactSwipeAction.NONE, null -> Unit
         }
     }
 
