@@ -225,7 +225,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { ObserveCategoryCountsUseCase(repository = get()) }
     factory { SearchContactsUseCase(repository = get()) }
     factory { ObserveContactsPagedUseCase(repository = get()) }
-    factory { ObserveSuggestionsUseCase(repository = get(), listPreferences = get()) }
+    factory { ObserveSuggestionsUseCase(repository = get(), listPreferences = get(), mergeStore = get(), dispatchers = get()) }
     factory { UpdateContactCategoryUseCase(repository = get()) }
     factory { DeleteContactUseCase(repository = get()) }
     factory { SmartCategorizeContactUseCase() }
@@ -264,7 +264,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     }
     // T7 S9: محرك الفلترة الذكية — القواعد الافتراضية، البوابة والتغذية الراجعة عبر
     // المنافذ، وVM شاشة المراجعة (تطبيق مؤكد + «لا تسألني مجدداً»).
-    factory { ObserveSmartFilterSuggestionsUseCase(repository = get(), listPreferences = get(), mergeStore = get()) }
+    factory { ObserveSmartFilterSuggestionsUseCase(repository = get(), listPreferences = get(), mergeStore = get(), dispatchers = get()) }
     factory { ApplySmartFilterSuggestionsUseCase(repository = get(), mergeStore = get()) }
     factory { RecordSmartFilterFeedbackUseCase(mergeStore = get()) }
     factory { SetExcludeFromSmartFilterUseCase(repository = get()) }

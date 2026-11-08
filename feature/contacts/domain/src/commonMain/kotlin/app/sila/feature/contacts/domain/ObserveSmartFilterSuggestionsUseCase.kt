@@ -1,16 +1,15 @@
 package app.sila.feature.contacts.domain
 
-import app.sila.core.common.ArabicTextNormalizer
-import app.sila.core.common.ArabicTokenizer
+import app.sila.core.common.AppDispatchers
 import app.sila.core.common.AppResult
 import app.sila.core.common.DataError
-import app.sila.core.common.PhoneNormalizer
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 
 /**
  * مرشّحات الفلترة الذكية للمراجعة (T7 · Issue #28 — spec 04 §ب؛ agy F6): جهات
@@ -30,7 +29,8 @@ class ObserveSmartFilterSuggestionsUseCase(
     private val repository: ContactsRepository,
     private val listPreferences: ContactsListPreferencesRepository,
     private val mergeStore: ContactsMergeStore,
-    private val rules: List<ContactCategorizationRule> = SmartCategorizeContactUseCase.defaultRules(),
+    private val dispatchers: AppDispatchers,
+    private val engine: SmartFilterRuleEngine = SmartFilterRuleEngine(),
 ) {
 
     operator fun invoke(): Flow<List<SmartFilterCategoryGroup>> = combine(
@@ -40,7 +40,9 @@ class ObserveSmartFilterSuggestionsUseCase(
     ) { contacts, enabled, feedback ->
         if (!enabled) return@combine emptyList()
         buildGroups(contacts, feedback.associateBy { it.token to it.category })
-    }.distinctUntilChanged()
+    }
+        .flowOn(dispatchers.default) // تقييم القواعد على دفعات كبيرة خارج Main (عرف الأداء)
+        .distinctUntilChanged()
 
     private fun buildGroups(
         contacts: List<Contact>,
@@ -48,7 +50,7 @@ class ObserveSmartFilterSuggestionsUseCase(
     ): List<SmartFilterCategoryGroup> {
         val items = contacts.asSequence()
             .filter { it.category == Category.UNCATEGORIZED && !it.excludeFromSmartFilter }
-            .mapNotNull { contact -> evaluate(contact, feedbackByKey) }
+            .mapNotNull { contact -> engine.evaluate(contact, feedbackByKey) }
             .toList()
 
         return items
@@ -62,40 +64,6 @@ class ObserveSmartFilterSuggestionsUseCase(
                 )
             }
             .sortedBy { group -> DISPLAY_ORDER.indexOf(group.category).let { if (it < 0) Int.MAX_VALUE else it } }
-    }
-
-    private fun evaluate(
-        contact: Contact,
-        feedbackByKey: Map<Pair<String, Category>, SmartFilterWeight>,
-    ): SmartFilterItem? {
-        val candidate = SmartFilterCandidate(
-            contactId = contact.id,
-            nameTokens = ArabicTokenizer.split(ArabicTextNormalizer.normalize(contact.name.displayName)),
-            e164Phone = contact.phones.firstOrNull { it.isPrimary }?.e164?.takeIf { it.isNotBlank() }
-                ?: contact.phones.firstOrNull()?.raw?.let { PhoneNormalizer.normalizeToE164(it) },
-            hasCompany = !contact.organization?.company.isNullOrBlank(),
-        )
-        val best = rules.mapNotNull { it.evaluateSuggestion(candidate) }
-            .minByOrNull { it.confidence.ordinal } // HIGH أدنى ترتيباً — الأعلى ثقةً يفوز
-            ?: return null
-        // التغذية الراجعة تُنزل درجة واحدة حين يكون الرفض مسيطراً على (token,category)
-        val weight = feedbackByKey[best.matchedToken to best.category]
-        val adjustedConfidence = if (weight?.isRejectedDominant == true) best.confidence.downgrade() else best.confidence
-        return SmartFilterItem(
-            contactId = contact.id,
-            displayName = contact.name.displayName,
-            category = best.category,
-            confidence = adjustedConfidence,
-            matchedToken = best.matchedToken,
-            professionId = best.professionId,
-            relationCandidate = best.relationCandidate,
-        )
-    }
-
-    private fun SmartFilterConfidence.downgrade(): SmartFilterConfidence = when (this) {
-        SmartFilterConfidence.HIGH -> SmartFilterConfidence.MEDIUM
-        SmartFilterConfidence.MEDIUM -> SmartFilterConfidence.LOW
-        SmartFilterConfidence.LOW -> SmartFilterConfidence.LOW
     }
 
     private companion object {

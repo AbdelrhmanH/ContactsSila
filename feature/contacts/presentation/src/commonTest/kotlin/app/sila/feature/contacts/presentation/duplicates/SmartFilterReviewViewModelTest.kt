@@ -49,6 +49,13 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class SmartFilterReviewViewModelTest {
 
+    /** مزوّد مضيف اختبارات — تنفيذ فوري حتمي (بلا خيوط حقيقية تُفسد الزمن الافتراضي). */
+    private val unconfinedDispatchers = object : app.sila.core.common.AppDispatchers {
+        override val main = kotlinx.coroutines.Dispatchers.Unconfined
+        override val io = kotlinx.coroutines.Dispatchers.Unconfined
+        override val default = kotlinx.coroutines.Dispatchers.Unconfined
+    }
+
     private val dispatcher = StandardTestDispatcher()
 
     @BeforeTest
@@ -155,7 +162,7 @@ class SmartFilterReviewViewModelTest {
         repository: FakeContactsRepository,
         store: FakeMergeStore,
     ): SmartFilterReviewViewModel = SmartFilterReviewViewModel(
-        observeSuggestions = ObserveSmartFilterSuggestionsUseCase(repository, FakePreferences(), store),
+        observeSuggestions = ObserveSmartFilterSuggestionsUseCase(repository, FakePreferences(), store, unconfinedDispatchers),
         applySuggestions = ApplySmartFilterSuggestionsUseCase(repository, store),
         recordFeedback = RecordSmartFilterFeedbackUseCase(store),
         setExclude = SetExcludeFromSmartFilterUseCase(repository),
@@ -291,7 +298,7 @@ class SmartFilterReviewViewModelTest {
         val store = FakeMergeStore()
         // كتابة تصنيفات مكسورة — الفشل أثر صادق
         val brokenVm = SmartFilterReviewViewModel(
-            observeSuggestions = ObserveSmartFilterSuggestionsUseCase(repo, FakePreferences(), store),
+            observeSuggestions = ObserveSmartFilterSuggestionsUseCase(repo, FakePreferences(), store, unconfinedDispatchers),
             applySuggestions = ApplySmartFilterSuggestionsUseCase(
                 object : ContactsRepository by repo {
                     override suspend fun updateCategories(contactIds: Collection<Long>, category: Category) {

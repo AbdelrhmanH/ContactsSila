@@ -26,6 +26,13 @@ import kotlin.test.assertTrue
  */
 class SmartFilterSuggestionsTest {
 
+    /** مزوّد مضيف اختبارات — تنفيذ فوري حتمي (بلا خيوط حقيقية تُفسد الزمن الافتراضي). */
+    private val unconfinedDispatchers = object : app.sila.core.common.AppDispatchers {
+        override val main = kotlinx.coroutines.Dispatchers.Unconfined
+        override val io = kotlinx.coroutines.Dispatchers.Unconfined
+        override val default = kotlinx.coroutines.Dispatchers.Unconfined
+    }
+
     private class FixedClock : AppClock {
         override fun now(): kotlinx.datetime.Instant = kotlinx.datetime.Instant.fromEpochMilliseconds(1_000L)
         override fun nowEpochMillis(): Long = 1_000L
@@ -140,6 +147,7 @@ class SmartFilterSuggestionsTest {
             FakeContactsRepository(listOf(contact(1, "دكتور أحمد"))),
             FakePreferences(initialSmartFilterEnabled = false),
             FakeMergeStore(),
+            unconfinedDispatchers,
         )
         assertTrue(useCase().first().isEmpty(), "البوابة مطفأة — لا تقييم ولا اقتراح (agy F6)")
     }
@@ -156,6 +164,7 @@ class SmartFilterSuggestionsTest {
             ),
             FakePreferences(),
             FakeMergeStore(),
+            unconfinedDispatchers,
         )
         val groups = useCase().first()
         assertEquals(1, groups.size)
@@ -175,6 +184,7 @@ class SmartFilterSuggestionsTest {
             ),
             FakePreferences(),
             FakeMergeStore(),
+            unconfinedDispatchers,
         )
         val groups = useCase().first()
         assertEquals(
@@ -195,6 +205,7 @@ class SmartFilterSuggestionsTest {
             FakeContactsRepository(listOf(contact(1, "دكتور أحمد", e164 = "+201011111111"))),
             FakePreferences(),
             store,
+            unconfinedDispatchers,
         )
         val item = useCase().first().single().items.single()
         assertEquals(SmartFilterConfidence.MEDIUM, item.confidence, "الرفض المسيطر يُنزل درجة — لا تحديد مسبق")
