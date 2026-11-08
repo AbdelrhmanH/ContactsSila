@@ -122,7 +122,7 @@ tasks.register("checkArchitectureBoundaries") {
                     violations.joinToString("\n") { " - $it" }
             )
         } else {
-            println("✅ All Clean Architecture & Privacy Boundaries verified across 19 modules (0 violations).")
+            println("✅ All Clean Architecture & Privacy Boundaries verified across 20 modules (0 violations).")
         }
     }
 }
