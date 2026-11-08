@@ -23,31 +23,32 @@
 ## المرحلة 1 — MVP محلي (بدون سيرفر) ✅ (مكتملة ومدمجة بالكامل في main)
 **الهدف:** المستخدم يستغني عن تطبيق الأسماء الافتراضي.
 
-### Onboarding (ضيف) — [01](features/01-onboarding-profile.md) (T5 · Issue #25 · PR #26)
+### Onboarding (ضيف) — [01](features/01-onboarding-profile.md) (T5 · Issue #26 · PR #33)
 - [x] شاشات الترحيب + شرح الصلاحيات → [01](features/01-onboarding-profile.md)
 - [x] اختيار أهم 5 أشخاص
 
 ### جهات الاتصال — [02](features/02-contacts-list.md) (T1-T4)
-- [x] `ContactsPlatformSource` (Android Contacts Provider / iOS CNContactStore) (T1 · Issue #21 · PR #18)
-- [x] مزامنة تزايدية مع Room + مراقبة التغييرات (T2 · Issue #23 · PR #20)
-- [x] القائمة + Paging + فهرس أبجدي (T3 · Issue #24 · PR #24)
+- [x] `ContactsPlatformSource` (Android Contacts Provider / iOS CNContactStore) (T1 · Issue #22 · PR #32)
+- [x] مزامنة تزايدية مع Room + مراقبة التغييرات (T2 · Issue #23 · PR #35)
+- [x] القائمة بقراءة مجزأة مخصصة + فهرس أبجدي (T3 · Issue #24 · PR #36)
 - [x] Chips مع العدادات (T3)
 - [x] صف المفضلة (T3)
 - [x] البحث FTS (T3)
 - [x] Smart FAB + Sheet (T3)
 - [x] التحديد المتعدد + السحب (T3)
-- [x] واجهة iOS الأصلية وتكامل SwiftUI مع SKIE (T4 · Issue #22 · PR #22)
+- [x] واجهة iOS الأصلية وتكامل SwiftUI مع SKIE (T4 · Issue #25 · PR #39)
 
-### التفاصيل والتعديل — [03](features/03-contact-details-edit.md) (T6 · Issue #27 · PR #27)
+### التفاصيل والتعديل — [03](features/03-contact-details-edit.md) (T6 · Issue #27 · PR #40)
 - [x] صفحة التفاصيل (Calling Card، Connected Apps، Recent History)
 - [x] قائمة "المزيد": مفضلة، مشاركة vCard/QR، اختصار، نقل حساب، بريد صوتي، حظر، حذف + Undo
 - [x] صفحة الإضافة/التعديل بكل الحقول + Expand
 - [x] الصورة (كاميرا/معرض/قص)
-- [x] Shared Element transition
+- [ ] Shared Element transition — *غير منفذ (لم يُقس ولم يُنفذ)؛ مؤجل مع النشر المرحلي*
 
 ### التنظيم — [04](features/04-duplicates-smart-filter.md) (T7 · Issue #28 · PR #50)
 - [x] كشف المكررات + شاشة المراجعة + الدمج + التراجع
-- [x] الفلترة الذكية + شاشة المراجعة + التصنيف التدريجي بعد المكالمة
+- [x] الفلترة الذكية + شاشة المراجعة
+- [ ] التصنيف التدريجي بعد المكالمة — *مستبعد من نطاق المرحلة 1 صراحةً (قرار #16)*
 
 ### أرحام — [06](features/06-arham-family-tree.md) (T8 · Issue #29 · PR #41 · PR #49)
 - [x] Kinship Setup Sheet
