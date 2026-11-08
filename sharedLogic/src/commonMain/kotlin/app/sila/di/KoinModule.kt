@@ -107,10 +107,25 @@ import app.sila.feature.services.domain.ObserveServicesDirectoryUseCase
 import app.sila.feature.services.domain.ServicesRepository
 import app.sila.feature.services.presentation.ServicesViewModel
 import app.sila.feature.settings.data.SettingsRepositoryImpl
+import app.sila.feature.settings.domain.ExportBackupUseCase
+import app.sila.feature.settings.domain.GetEffectiveRingtoneUseCase
+import app.sila.feature.settings.domain.ObserveCategoryRingtonesUseCase
 import app.sila.feature.settings.domain.ObserveUserPreferencesUseCase
+import app.sila.feature.settings.domain.PreviewBackupUseCase
+import app.sila.feature.settings.domain.RestoreBackupUseCase
+import app.sila.feature.settings.domain.SetArhamNotificationTimeUseCase
 import app.sila.feature.settings.domain.SetArhamNotificationsUseCase
+import app.sila.feature.settings.domain.SetAutoTrackingEnabledUseCase
+import app.sila.feature.settings.domain.SetCategoryRingtoneUseCase
+import app.sila.feature.settings.domain.SetCrashReportsUseCase
+import app.sila.feature.settings.domain.SetDashboardPeriodUseCase
+import app.sila.feature.settings.domain.SetDigitsUseCase
+import app.sila.feature.settings.domain.SetDuplicateScanUseCase
 import app.sila.feature.settings.domain.SetLanguageUseCase
+import app.sila.feature.settings.domain.SetNameOrderUseCase
+import app.sila.feature.settings.domain.SetQuietHoursUseCase
 import app.sila.feature.settings.domain.SetSmartFilterUseCase
+import app.sila.feature.settings.domain.SetSwipeActionsUseCase
 import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
 import app.sila.feature.settings.presentation.SettingsViewModel
@@ -163,6 +178,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // انعاش ودجت أرحام (T8-10 · D3) — actuals per-platform: أندرويد فوق Glance+WorkManager،
     // وiOS فارغة (WidgetKit مسؤولية T8-13).
     includes(platformArhamWidgetModule)
+
+    // إعدادات المنصة وتشفير النسخ والنغمات (T9 · Issue #30 · ADR-0014) — actuals per-platform:
+    // BackupCryptoEngine + PlatformRingtoneSource.
+    includes(platformSettingsModule)
 
     // قاعدة Room KMP الوحيدة (PR B · ADR-0011): [LocalSilaDatabase] هي واجهة الوصول
     // الموحّدة — تنفّذ واجهات DAO الخمس مباشرة (كتابات مركّبة بـ SQL خام داخل معاملات
@@ -466,19 +485,45 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single { ServicesViewModel(observeServicesDirectory = get()) }
 
     // :feature:settings (Domain UseCases + Data Repository + Presentation ViewModel)
-    single<SettingsRepository> { SettingsRepositoryImpl(dataSource = get()) }
+    single<SettingsRepository> {
+        SettingsRepositoryImpl(
+            dataSource = get(),
+            contactDao = get(),
+            arhamDao = get(),
+        )
+    }
     factory { ObserveUserPreferencesUseCase(repository = get()) }
     factory { SetThemeModeUseCase(repository = get()) }
     factory { SetLanguageUseCase(repository = get()) }
     factory { SetArhamNotificationsUseCase(repository = get()) }
     factory { SetSmartFilterUseCase(repository = get()) }
+    factory { SetDigitsUseCase(repository = get()) }
+    factory { SetNameOrderUseCase(repository = get()) }
+    factory { SetSwipeActionsUseCase(repository = get()) }
+    factory { SetQuietHoursUseCase(repository = get()) }
+    factory { SetArhamNotificationTimeUseCase(repository = get()) }
+    factory { SetDashboardPeriodUseCase(repository = get()) }
+    factory { SetAutoTrackingEnabledUseCase(repository = get()) }
+    factory { SetDuplicateScanUseCase(repository = get()) }
+    factory { SetCrashReportsUseCase(repository = get()) }
+    factory { ObserveCategoryRingtonesUseCase(repository = get()) }
+    factory { SetCategoryRingtoneUseCase(repository = get(), platformRingtoneSource = get()) }
+    factory { GetEffectiveRingtoneUseCase(repository = get(), platformRingtoneSource = get()) }
+    factory { ExportBackupUseCase(repository = get(), cryptoEngine = get()) }
+    factory { PreviewBackupUseCase(cryptoEngine = get()) }
+    factory { RestoreBackupUseCase(repository = get(), cryptoEngine = get()) }
     single {
         SettingsViewModel(
             observePreferences = get(),
             setThemeMode = get(),
             setLanguage = get(),
             setArhamNotifications = get(),
-            setSmartFilter = get()
+            setSmartFilter = get(),
+            repository = get(),
+            exportBackup = get(),
+            previewBackup = get(),
+            restoreBackup = get(),
+            setCategoryRingtoneUseCase = get(),
         )
     }
 

@@ -21,6 +21,7 @@ import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
 import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.main.MainViewModel
+import app.sila.feature.settings.presentation.SettingsViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.MergeSweepCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
@@ -560,6 +561,10 @@ object IosKoinBootstrap {
         ensureStarted().get()
 
     /** يسترجع [SmartFilterReviewViewModel] لشاشة مراجعة الفلترة الذكية (T7 · Issue #28). */
+    /** يسترجع [SettingsViewModel] لشاشة الإعدادات والتفضيلات (T9 · Issue #30). */
+    fun getSettingsViewModel(): SettingsViewModel =
+        ensureStarted().get()
+
     fun getSmartFilterReviewViewModel(): SmartFilterReviewViewModel =
         ensureStarted().get()
 

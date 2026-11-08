@@ -15,6 +15,12 @@ import app.sila.feature.arham.domain.EmergencyRingingController
 import app.sila.feature.arham.presentation.ArhamScreeningConsentSource
 import app.sila.feature.contacts.data.IosContactsPlatformSource
 import app.sila.feature.contacts.domain.ContactsPlatformSource
+import app.sila.feature.settings.data.IosBackupCryptoEngine
+import app.sila.feature.settings.domain.BackupCryptoEngine
+import app.sila.feature.settings.domain.PlatformRingtoneSource
+import app.sila.feature.settings.domain.SettingsRepository
+import app.sila.feature.settings.presentation.SettingsViewModel
+import app.sila.settings.ringtone.IosRingtoneSource
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import kotlin.test.AfterTest
@@ -114,6 +120,32 @@ class KoinWiringSmokeTest {
                 app.koin.get<IosArhamWidgetSnapshotPublisher>(),
                 "The listener alias must be the same publisher instance the bootstrap registers.",
             )
+        } finally {
+            app.close()
+        }
+    }
+
+    /**
+     * T9 (Issue #30): عقود إعدادات المنصة تُحلّ من الرسم المشترك نفسه:
+     * - [BackupCryptoEngine] يحلّ إلى [IosBackupCryptoEngine].
+     * - [PlatformRingtoneSource] يحلّ إلى [IosRingtoneSource].
+     * - [SettingsRepository] و [SettingsViewModel] يُحلان بنجاح.
+     */
+    @Test
+    fun sharedModule_resolvesSettingsPlatformContracts() {
+        val app = startKoin { modules(createSilaSharedModule(storageDirPath = null)) }
+        try {
+            val crypto = app.koin.get<BackupCryptoEngine>()
+            assertTrue(crypto is IosBackupCryptoEngine, "BackupCryptoEngine must resolve to IosBackupCryptoEngine.")
+
+            val ringtoneSource = app.koin.get<PlatformRingtoneSource>()
+            assertTrue(ringtoneSource is IosRingtoneSource, "PlatformRingtoneSource must resolve to IosRingtoneSource.")
+
+            val repository = app.koin.get<SettingsRepository>()
+            assertTrue(repository != null, "SettingsRepository must resolve.")
+
+            val viewModel = app.koin.get<SettingsViewModel>()
+            assertTrue(viewModel != null, "SettingsViewModel must resolve.")
         } finally {
             app.close()
         }
