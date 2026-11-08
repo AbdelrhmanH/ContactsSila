@@ -127,7 +127,7 @@ final class SettingsViewModelStore {
 
     // MARK: - تحويل البايتات
 
-    static func dataFromKotlinByteArray(_ kba: KotlinByteArray) -> Data {
+    nonisolated static func dataFromKotlinByteArray(_ kba: KotlinByteArray) -> Data {
         let size = Int(kba.size)
         var data = Data(count: size)
         for i in 0..<size {
@@ -138,7 +138,7 @@ final class SettingsViewModelStore {
 
     /// التحويل العكسي: محتوى الملف الحقيقي الذي اختاره المستخدم ← مصفوفة Kotlin
     /// (كان الإصلاح الضروري: كانت الواجهة ترسل مصفوفة فارغة دائماً — Issue #30).
-    static func kotlinByteArray(from data: Data) -> KotlinByteArray {
+    nonisolated static func kotlinByteArray(from data: Data) -> KotlinByteArray {
         let kba = KotlinByteArray(size: Int32(data.count))
         for (offset, byte) in data.enumerated() {
             kba.set(index: Int32(offset), value: Int8(bitPattern: byte))
@@ -150,7 +150,7 @@ final class SettingsViewModelStore {
 
     /// بيانات الاستيراد مقبولة فقط إذا قُرئ الملف فعلياً ولم يكن فارغاً؛
     /// لا نرسل أعداد بايتات صفرية للـ ViewModel إطلاقاً.
-    static func usableImportedBackupData(_ data: Data?) -> Data? {
+    nonisolated static func usableImportedBackupData(_ data: Data?) -> Data? {
         guard let data, !data.isEmpty else { return nil }
         return data
     }
