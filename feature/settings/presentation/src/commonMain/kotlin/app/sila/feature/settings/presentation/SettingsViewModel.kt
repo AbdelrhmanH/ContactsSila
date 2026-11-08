@@ -63,6 +63,8 @@ data class SettingsUiState(
     val backupPreview: BackupPreview? = null,
     val restoreResult: RestoreResult? = null,
     val backupErrorKind: BackupErrorKind? = null,
+    /** بايتات نسخة مختارة من ملف الجهاز (SAF/مضيف Android) عبر نية SetImportBackupBytes — يُتبنّى ضمن سقف 16MB ويُمسح عند إغلاق أو إتمام مسار الاستعادة. */
+    val importBackupBytes: ByteArray? = null,
     // حالات الحوارات
     val showExportPasswordDialog: Boolean = false,
     val showImportPasswordDialog: Boolean = false,
@@ -104,6 +106,8 @@ sealed interface SettingsIntent {
     data class ExportBackup(val password: String) : SettingsIntent
     data object ShowImportDialog : SettingsIntent
     data object DismissImportDialog : SettingsIntent
+    /** بايتات ملف نسخة مختارة من الجهاز (مضيف Android عبر SAF) — الفارغة أو الفائقة السقف لا تُتبنّى. */
+    data class SetImportBackupBytes(val bytes: ByteArray?) : SettingsIntent
     data class PreviewBackupFile(val cipherBytes: ByteArray, val password: String) : SettingsIntent
     data class ConfirmRestore(
         val cipherBytes: ByteArray,
@@ -300,7 +304,18 @@ class SettingsViewModel(
             is SettingsIntent.ShowImportDialog -> _uiState.update {
                 it.copy(showImportPasswordDialog = true, backupErrorKind = null)
             }
-            is SettingsIntent.DismissImportDialog -> _uiState.update { it.copy(showImportPasswordDialog = false) }
+            is SettingsIntent.DismissImportDialog -> _uiState.update {
+                it.copy(showImportPasswordDialog = false, importBackupBytes = null)
+            }
+            // المضيف يسبق بسقف القراءة؛ الـ ViewModel يفحص السقف كحماية ثانية (فارغ/فائق ⇒ لا تبنّي).
+            is SettingsIntent.SetImportBackupBytes -> _uiState.update {
+                val bytes = intent.bytes
+                if (bytes == null || bytes.isEmpty() || bytes.size > MAX_IMPORT_BACKUP_BYTES) {
+                    it.copy(importBackupBytes = null)
+                } else {
+                    it.copy(importBackupBytes = bytes, backupErrorKind = null)
+                }
+            }
             is SettingsIntent.PreviewBackupFile -> viewModelScope.launch {
                 _uiState.update { it.copy(isImportingBackup = true, backupErrorKind = null) }
                 try {
@@ -332,7 +347,8 @@ class SettingsViewModel(
                         it.copy(
                             isImportingBackup = false,
                             showRestorePreviewDialog = false,
-                            restoreResult = result
+                            restoreResult = result,
+                            importBackupBytes = null
                         )
                     }
                     sendEffect(SettingsEffect.BackupRestored(result))
@@ -342,7 +358,7 @@ class SettingsViewModel(
                 }
             }
             is SettingsIntent.DismissRestorePreviewDialog -> _uiState.update {
-                it.copy(showRestorePreviewDialog = false, backupPreview = null)
+                it.copy(showRestorePreviewDialog = false, backupPreview = null, importBackupBytes = null)
             }
             is SettingsIntent.DismissError -> _uiState.update { it.copy(backupErrorKind = null) }
 
@@ -352,5 +368,10 @@ class SettingsViewModel(
             is SettingsIntent.ShowRingtoneGuidance -> _uiState.update { it.copy(showRingtoneGuidanceDialog = true) }
             is SettingsIntent.DismissRingtoneGuidance -> _uiState.update { it.copy(showRingtoneGuidanceDialog = false) }
         }
+    }
+
+    companion object {
+        /** سقف بايتات ملف استيراد النسخة (16MB) — يوافق حد المضيف في AndroidApp تفادياً لتضخّم الذاكرة. */
+        const val MAX_IMPORT_BACKUP_BYTES = 16 * 1024 * 1024
     }
 }

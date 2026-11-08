@@ -26,7 +26,7 @@ final class DefaultSettingsEffectRouter: SettingsEffectRouting {
     }
 
     func shareBackupBytes(_ bytes: Data) {
-        let tempUrl = FileManager.default.temporaryDirectory.appendingPathComponent("sila_backup.sila")
+        let tempUrl = FileManager.default.temporaryDirectory.appendingPathComponent("sila_backup.sila.backup")
         do {
             try bytes.write(to: tempUrl)
             let activityVc = UIActivityViewController(activityItems: [tempUrl], applicationActivities: nil)

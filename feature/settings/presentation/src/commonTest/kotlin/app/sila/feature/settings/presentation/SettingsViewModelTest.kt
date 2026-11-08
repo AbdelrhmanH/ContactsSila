@@ -41,6 +41,7 @@ import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -306,6 +307,47 @@ class SettingsViewModelTest {
         settle()
 
         assertEquals(BackupErrorKind.BLANK_PASSWORD, vm.state.value.backupErrorKind)
+    }
+
+    @Test
+    fun setImportBackupBytes_adoptsCappedNonEmptyBytes_andClearsOnDismissImport() = runTest(testDispatcher) {
+        val vm = SettingsViewModel(
+            repository = TestSettingsRepository(),
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        val bytes = byteArrayOf(1, 2, 3)
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(bytes))
+        settle()
+        assertContentEquals(bytes, vm.state.value.importBackupBytes)
+
+        vm.onIntent(SettingsIntent.DismissImportDialog)
+        settle()
+        assertEquals(null, vm.state.value.importBackupBytes)
+    }
+
+    @Test
+    fun setImportBackupBytes_rejectsOversizeAndEmptyAsNoAdoption() = runTest(testDispatcher) {
+        val vm = SettingsViewModel(
+            repository = TestSettingsRepository(),
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(ByteArray(SettingsViewModel.MAX_IMPORT_BACKUP_BYTES + 1)))
+        settle()
+        assertEquals(null, vm.state.value.importBackupBytes)
+
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(byteArrayOf()))
+        settle()
+        assertEquals(null, vm.state.value.importBackupBytes)
     }
 
     @Test

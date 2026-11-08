@@ -73,7 +73,11 @@ import app.sila.feature.settings.domain.RestoreMode
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** حفظ بايتات التصدير في ملف يختاره المستخدم (مضيف Android/SAF) — null يعني بلا حفظ متاح على هذه المنصة. */
+    onPersistBackup: ((ByteArray) -> Unit)? = null,
+    /** طلب اختيار ملف نسخة للاستيراد من الجهاز — null يعني بلا منتقي ملف على هذه المنصة. */
+    onPickBackupFile: (() -> Unit)? = null
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val isArabic = state.preferences.language == AppLanguage.ARABIC
@@ -89,6 +93,7 @@ fun SettingsScreen(
                 is SettingsEffect.BackupExported -> {
                     lastExportedBytes = effect.bytes
                     restoreBytesBuffer = effect.bytes
+                    onPersistBackup?.invoke(effect.bytes)
                     snackbarHostState.showSnackbar(
                         if (isArabic) "تم تصدير النسخة الاحتياطية بنجاح (${effect.bytes.size} بايت)"
                         else "Backup exported successfully (${effect.bytes.size} bytes)"
@@ -117,7 +122,9 @@ fun SettingsScreen(
         snackbarHostState = snackbarHostState,
         lastExportedBytes = lastExportedBytes,
         restoreBytesBuffer = restoreBytesBuffer,
-        onUpdateRestoreBytes = { restoreBytesBuffer = it }
+        onUpdateRestoreBytes = { restoreBytesBuffer = it },
+        onPersistBackup = onPersistBackup,
+        onPickBackupFile = onPickBackupFile
     )
 }
 
@@ -131,7 +138,11 @@ fun SettingsDialog(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     lastExportedBytes: ByteArray? = null,
     restoreBytesBuffer: ByteArray? = null,
-    onUpdateRestoreBytes: (ByteArray?) -> Unit = {}
+    onUpdateRestoreBytes: (ByteArray?) -> Unit = {},
+    /** حفظ بايتات التصدير في ملف يختاره المستخدم (مضيف Android/SAF) — يُمرَّر من SettingsScreen. */
+    onPersistBackup: ((ByteArray) -> Unit)? = null,
+    /** طلب اختيار ملف نسخة للاستيراد من الجهاز — يُمرَّر من SettingsScreen. */
+    onPickBackupFile: (() -> Unit)? = null
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -174,6 +185,8 @@ fun SettingsDialog(
                     lastExportedBytes = lastExportedBytes,
                     restoreBytesBuffer = restoreBytesBuffer,
                     onUpdateRestoreBytes = onUpdateRestoreBytes,
+                    onPersistBackup = onPersistBackup,
+                    onPickBackupFile = onPickBackupFile,
                     modifier = Modifier.padding(paddingValues)
                 )
             }
@@ -192,6 +205,8 @@ fun SettingsContent(
     lastExportedBytes: ByteArray? = null,
     restoreBytesBuffer: ByteArray? = null,
     onUpdateRestoreBytes: (ByteArray?) -> Unit = {},
+    onPersistBackup: ((ByteArray) -> Unit)? = null,
+    onPickBackupFile: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -603,6 +618,7 @@ fun SettingsContent(
 
     // حوار استيراد النسخة الاحتياطية ومعاينتها
     if (state.showImportPasswordDialog) {
+        val loadedBytes = state.importBackupBytes ?: restoreBytesBuffer ?: lastExportedBytes
         AlertDialog(
             onDismissRequest = { onIntent(SettingsIntent.DismissImportDialog) },
             title = { Text(strings.restoreDialogTitle) },
@@ -610,9 +626,9 @@ fun SettingsContent(
                 Column {
                     Text(strings.restoreDialogDesc)
                     Spacer(modifier = Modifier.height(SilaDimens.Space8))
-                    if (restoreBytesBuffer != null) {
+                    if (loadedBytes != null) {
                         Text(
-                            text = if (isArabic) "✓ تم تحميل بيانات النسخة (${restoreBytesBuffer.size} بايت)" else "✓ Backup data loaded (${restoreBytesBuffer.size} bytes)",
+                            text = if (isArabic) "✓ تم تحميل بيانات النسخة (${loadedBytes.size} بايت)" else "✓ Backup data loaded (${loadedBytes.size} bytes)",
                             color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -624,6 +640,11 @@ fun SettingsContent(
                             style = MaterialTheme.typography.bodySmall
                         )
                         Spacer(modifier = Modifier.height(SilaDimens.Space4))
+                    }
+                    if (onPickBackupFile != null) {
+                        TextButton(onClick = { onPickBackupFile?.invoke() }) {
+                            Text(strings.chooseBackupFile)
+                        }
                     }
                     OutlinedTextField(
                         value = restorePasswordInput,
@@ -642,12 +663,11 @@ fun SettingsContent(
             confirmButton = {
                 Button(
                     onClick = {
-                        val bytesToPreview = restoreBytesBuffer ?: lastExportedBytes
-                        if (restorePasswordInput.isNotBlank() && bytesToPreview != null) {
-                            onIntent(SettingsIntent.PreviewBackupFile(bytesToPreview, restorePasswordInput))
+                        if (restorePasswordInput.isNotBlank() && loadedBytes != null) {
+                            onIntent(SettingsIntent.PreviewBackupFile(loadedBytes, restorePasswordInput))
                         }
                     },
-                    enabled = restorePasswordInput.isNotBlank() && (restoreBytesBuffer != null || lastExportedBytes != null) && !state.isImportingBackup
+                    enabled = restorePasswordInput.isNotBlank() && loadedBytes != null && !state.isImportingBackup
                 ) {
                     Text(if (state.isImportingBackup) strings.verifying else strings.previewButton)
                 }
@@ -885,6 +905,9 @@ data class SettingsStrings(
     val backupErrorDecryptionFailed: String,
     val backupErrorNotConfigured: String,
     val backupErrorGeneric: String,
+    val chooseBackupFile: String,
+    val importFileTooLarge: String,
+    val backupSaveFailed: String,
     val sectionBackup: String,
     val localPrivacy: String,
     val localPrivacyValue: String,
@@ -969,6 +992,9 @@ data class SettingsStrings(
             backupErrorDecryptionFailed = "تعذر فك التشفير — تأكد من كلمة المرور وأن الملف نسخة صِلَة غير تالفة.",
             backupErrorNotConfigured = "خدمة النسخ الاحتياطي غير مهيأة في هذه الحالة.",
             backupErrorGeneric = "فشلت العملية — حاول مجدداً، وإذا تكرر ذلك أعد المحاولة بنسخة أخرى.",
+            chooseBackupFile = "اختيار ملف نسخة من الجهاز",
+            importFileTooLarge = "الملف أكبر من الحد الأقصى للنسخة (16MB) — اختر نسخة أصغر.",
+            backupSaveFailed = "تعذر حفظ الملف — تحقق من المسار وحاول مرة أخرى.",
             sectionBackup = "الخصوصية والنسخ الاحتياطي المشفر",
             localPrivacy = "ماذا نعرف عنك؟ (الخصوصية المحلية)",
             localPrivacyValue = "0 بيانات مرفوعة (محلي 100%)",
@@ -1053,6 +1079,9 @@ data class SettingsStrings(
             backupErrorDecryptionFailed = "Decryption failed — check the password and that the file is an intact Sila backup.",
             backupErrorNotConfigured = "Backup service is not configured in this state.",
             backupErrorGeneric = "The operation failed — try again, and if it keeps failing retry with a different backup.",
+            chooseBackupFile = "Choose backup file from device",
+            importFileTooLarge = "File exceeds the backup size limit (16MB) — choose a smaller backup.",
+            backupSaveFailed = "Couldn't save the file — check the location and try again.",
             sectionBackup = "Privacy & Encrypted Backup",
             localPrivacy = "What do we know about you?",
             localPrivacyValue = "0 data uploaded (100% offline)",

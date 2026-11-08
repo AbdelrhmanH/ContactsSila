@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.sila.core.designsystem.SilaTheme
+import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.ContactSwipeAction
 import app.sila.arham.screening.ScreeningRoleController
@@ -50,7 +51,11 @@ import app.sila.feature.contacts.presentation.onboarding.OnboardingEffect
 import app.sila.feature.contacts.presentation.onboarding.OnboardingIntent
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
+import app.sila.feature.settings.presentation.SettingsIntent
+import app.sila.feature.settings.presentation.SettingsStrings
+import app.sila.feature.settings.presentation.SettingsViewModel
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -119,6 +124,54 @@ fun SilaAndroidApp() {
                     }
                 }
                 callback(bytes)
+            }
+        }
+    }
+
+    // T9-fix (S1-8) — حفظ النسخة المشفرة في ملف يختاره المستخدم (SAF CreateDocument) واختيار ملف نسخة للاستيراد
+    // (SAF OpenDocument بحد 16MB)؛ الشاشة تُسند الأثر فقط والنتيجة تعود للـ ViewModel عبر النية المزروعة.
+    val settingsStrings = remember(mainState.preferences.language) {
+        if (mainState.preferences.language == AppLanguage.ARABIC) SettingsStrings.arabic() else SettingsStrings.english()
+    }
+    var pendingBackupSaveBytes by remember { mutableStateOf<ByteArray?>(null) }
+
+    val saveBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        val bytes = pendingBackupSaveBytes
+        pendingBackupSaveBytes = null
+        if (uri != null && bytes != null) {
+            scope.launch {
+                val saved = try {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { stream ->
+                            stream.write(bytes)
+                            true
+                        } ?: false
+                    }
+                } catch (fileErr: IOException) {
+                    false
+                } catch (fileErr: SecurityException) {
+                    false
+                }
+                if (!saved) context.toast(settingsStrings.backupSaveFailed)
+            }
+        }
+    }
+
+    val pickBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val bytes = withContext(Dispatchers.IO) {
+                    context.readBackupBytesCapped(uri, SettingsViewModel.MAX_IMPORT_BACKUP_BYTES)
+                }
+                if (bytes != null) {
+                    koin.get<SettingsViewModel>().onIntent(SettingsIntent.SetImportBackupBytes(bytes))
+                } else {
+                    context.toast(settingsStrings.importFileTooLarge)
+                }
             }
         }
     }
@@ -310,8 +363,28 @@ fun SilaAndroidApp() {
     App(
         onContactsNavEffect = onContactsNavEffect,
         onArhamRequestScreeningRole = onArhamRequestScreeningRole,
+        onPersistBackup = { bytes ->
+            pendingBackupSaveBytes = bytes
+            saveBackupLauncher.launch("sila_backup.sila")
+        },
+        onPickBackupFile = {
+            pickBackupLauncher.launch(arrayOf("*/*"))
+        },
     )
 }
+
+/** قراءة ملف النسخة المختار بحد أقصى [limit] بايت — null تعني تجاوز الحد (يُبلَّغ مترجَماً). */
+private fun Context.readBackupBytesCapped(uri: Uri, limit: Int): ByteArray? =
+    contentResolver.openInputStream(uri)?.use { source ->
+        val buffer = ByteArray(limit + 1)
+        var total = 0
+        while (total <= limit) {
+            val read = source.read(buffer, total, buffer.size - total)
+            if (read == -1) break
+            total += read
+        }
+        if (total > limit) null else buffer.copyOf(total)
+    }
 
 /** رسالة قصيرة للغلاف — نصها من موارد الترجمة (مُحلولة في التركيب). */
 private fun Context.toast(message: String) {
