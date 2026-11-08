@@ -77,7 +77,7 @@ final class SettingsViewModelStore {
             case is SettingsEffectOpenIosContactsApp:
                 effectRouter.openIosContactsApp()
             case let backup as SettingsEffectBackupExported:
-                let data = Data(backup.bytes.map { UInt8(bitPattern: $0) })
+                let data = Self.dataFromKotlinByteArray(backup.bytes)
                 effectRouter.shareBackupBytes(data)
             case let toast as SettingsEffectShowToast:
                 effectRouter.showMessage(toast.message)
@@ -85,6 +85,15 @@ final class SettingsViewModelStore {
                 break
             }
         }
+    }
+
+    private static func dataFromKotlinByteArray(_ kba: KotlinByteArray) -> Data {
+        let size = Int(kba.size)
+        var data = Data(count: size)
+        for i in 0..<size {
+            data[i] = UInt8(bitPattern: kba.get(index: Int32(i)))
+        }
+        return data
     }
 
     func send(_ intent: SettingsIntent) {
