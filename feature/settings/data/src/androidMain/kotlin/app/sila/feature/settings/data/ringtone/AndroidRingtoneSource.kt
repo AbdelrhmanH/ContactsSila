@@ -1,4 +1,4 @@
-package app.sila.settings.ringtone
+package app.sila.feature.settings.data.ringtone
 
 import android.content.Context
 import android.content.Intent
@@ -14,7 +14,7 @@ import app.sila.feature.settings.domain.RingtoneItem
 /**
  * تنفيذ مصدر نغمات الرنين لنظام أندرويد (PRD §11 و 07-ringtones-preferences.md).
  * يدير نغمات النظام، وملفات الصوت المخصصة عبر PersistableUriPermission،
- * وتطبيق نغمات التصنيف عبر WorkManager.
+ * وتطبيق نغمات التصنيف عبر WorkManager، مع إغلاق آمن وموثوق للمؤشرات (Cursor safety).
  */
 class AndroidRingtoneSource(
     private val context: Context
@@ -40,13 +40,17 @@ class AndroidRingtoneSource(
             setType(RingtoneManager.TYPE_RINGTONE)
         }
         val cursor = ringtoneManager.cursor ?: return emptyList()
-        val items = mutableListOf<RingtoneItem>()
-        while (cursor.moveToNext()) {
-            val title = cursor.getString(RingtoneManager.TITLE_COLUMN_INDEX)
-            val uri = ringtoneManager.getRingtoneUri(cursor.position).toString()
-            items += RingtoneItem(title = title, uri = uri)
+        return cursor.use { c ->
+            val items = mutableListOf<RingtoneItem>()
+            while (c.moveToNext()) {
+                val title = c.getString(RingtoneManager.TITLE_COLUMN_INDEX) ?: ""
+                val uri = ringtoneManager.getRingtoneUri(c.position)?.toString() ?: ""
+                if (uri.isNotEmpty()) {
+                    items += RingtoneItem(title = title, uri = uri)
+                }
+            }
+            items
         }
-        return items
     }
 
     fun takePersistableUriPermission(uri: Uri) {

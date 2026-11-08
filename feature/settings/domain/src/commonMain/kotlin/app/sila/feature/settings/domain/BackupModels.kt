@@ -36,7 +36,7 @@ data class BackupTagEntry(
 
 @Serializable
 data class BackupPreferencesEntry(
-    val themeMode: AppThemeMode = AppThemeMode.LIGHT,
+    val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val language: AppLanguage = AppLanguage.ARABIC,
     val digits: AppDigits = AppDigits.ARABIC,
     val nameOrder: NameOrder = NameOrder.FIRST_LAST,
@@ -44,9 +44,9 @@ data class BackupPreferencesEntry(
     val visibleAccounts: Set<String> = emptySet(),
     val defaultSimSlot: Int? = null,
     val arhamNotificationsEnabled: Boolean = true,
-    val quietHoursStartHour: Int = 23,
+    val quietHoursStartHour: Int = 22,
     val quietHoursEndHour: Int = 8,
-    val arhamNotificationHour: Int = 20,
+    val arhamNotificationHour: Int = 19,
     val arhamNotificationMinute: Int = 0,
     val arhamMaxPerDay: Int = 1,
     val arhamOccasionDayBeforeEnabled: Boolean = false,

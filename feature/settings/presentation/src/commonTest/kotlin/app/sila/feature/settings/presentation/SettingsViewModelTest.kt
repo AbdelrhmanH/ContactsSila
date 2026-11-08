@@ -1,5 +1,6 @@
 package app.sila.feature.settings.presentation
 
+import app.sila.core.common.AppDispatchers
 import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
@@ -47,10 +48,15 @@ import kotlin.test.assertTrue
 class SettingsViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
+    private val testDispatchers = object : AppDispatchers {
+        override val main = testDispatcher
+        override val io = testDispatcher
+        override val default = testDispatcher
+    }
 
     private class TestSettingsRepository : SettingsRepository {
         val prefsFlow = MutableStateFlow(UserPreferences())
-        override val preferences: Flow<UserPreferences> = prefsFlow.asStateFlow()
+        override val preferences: Flow<UserPreferences> get() = prefsFlow.asStateFlow()
 
         override suspend fun setThemeMode(mode: AppThemeMode) { prefsFlow.value = prefsFlow.value.copy(themeMode = mode) }
         override suspend fun setLanguage(language: AppLanguage) { prefsFlow.value = prefsFlow.value.copy(language = language) }
@@ -150,13 +156,14 @@ class SettingsViewModelTest {
             setLanguage = SetLanguageUseCase(repo),
             setArhamNotifications = SetArhamNotificationsUseCase(repo),
             setSmartFilter = SetSmartFilterUseCase(repo),
-            repository = repo
+            repository = repo,
+            dispatchers = testDispatchers
         )
 
         backgroundScope.launch { vm.state.collect {} }
         settle()
 
-        assertEquals(AppThemeMode.LIGHT, vm.state.value.preferences.themeMode)
+        assertEquals(AppThemeMode.SYSTEM, vm.state.value.preferences.themeMode)
         assertEquals(AppLanguage.ARABIC, vm.state.value.preferences.language)
     }
 
@@ -169,7 +176,8 @@ class SettingsViewModelTest {
             setLanguage = SetLanguageUseCase(repo),
             setArhamNotifications = SetArhamNotificationsUseCase(repo),
             setSmartFilter = SetSmartFilterUseCase(repo),
-            repository = repo
+            repository = repo,
+            dispatchers = testDispatchers
         )
 
         backgroundScope.launch { vm.state.collect {} }
@@ -205,7 +213,8 @@ class SettingsViewModelTest {
         val vm = SettingsViewModel(
             repository = repo,
             cryptoEngine = crypto,
-            platformRingtoneSource = TestPlatformRingtoneSource()
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
         )
 
         backgroundScope.launch { vm.state.collect {} }
@@ -253,7 +262,8 @@ class SettingsViewModelTest {
         val repo = TestSettingsRepository()
         val vm = SettingsViewModel(
             repository = repo,
-            platformRingtoneSource = TestPlatformRingtoneSource()
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
         )
 
         backgroundScope.launch { vm.state.collect {} }

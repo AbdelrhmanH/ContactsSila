@@ -2,7 +2,9 @@ package app.sila.feature.settings.presentation
 
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewModelScope
+import app.sila.core.common.AppDispatchers
 import app.sila.core.common.BaseMviViewModel
+import app.sila.core.common.DefaultAppDispatchers
 import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
@@ -22,12 +24,22 @@ import app.sila.feature.settings.domain.RestoreBackupUseCase
 import app.sila.feature.settings.domain.RestoreMode
 import app.sila.feature.settings.domain.RestoreResult
 import app.sila.feature.settings.domain.RingtoneItem
+import app.sila.feature.settings.domain.SetArhamNotificationTimeUseCase
 import app.sila.feature.settings.domain.SetArhamNotificationsUseCase
+import app.sila.feature.settings.domain.SetAutoTrackingEnabledUseCase
 import app.sila.feature.settings.domain.SetCategoryRingtoneUseCase
+import app.sila.feature.settings.domain.SetCrashReportsUseCase
+import app.sila.feature.settings.domain.SetDashboardPeriodUseCase
+import app.sila.feature.settings.domain.SetDigitsUseCase
+import app.sila.feature.settings.domain.SetDuplicateScanUseCase
 import app.sila.feature.settings.domain.SetLanguageUseCase
+import app.sila.feature.settings.domain.SetNameOrderUseCase
+import app.sila.feature.settings.domain.SetQuietHoursUseCase
 import app.sila.feature.settings.domain.SetSmartFilterUseCase
+import app.sila.feature.settings.domain.SetSwipeActionsUseCase
 import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -116,7 +128,7 @@ sealed interface SettingsEffect {
 
 /**
  * ViewModel ميزة الإعدادات والتفضيلات — يطبق مبدأ المسؤولية الواحدة وعكس التبعية (SRP & DIP)
- * ويحول التدفقات التفاعلية إلى StateFlow عبر stateIn(WhileSubscribed(5_000)) (CODING_GUIDELINES.md §1, §8).
+ * ويوظف UseCases متخصصة لكل سلوك، ويحول التدفقات التفاعلية إلى StateFlow (CODING_GUIDELINES.md §1, §8).
  */
 class SettingsViewModel(
     private val observePreferences: ObserveUserPreferencesUseCase,
@@ -124,31 +136,61 @@ class SettingsViewModel(
     private val setLanguage: SetLanguageUseCase,
     private val setArhamNotifications: SetArhamNotificationsUseCase,
     private val setSmartFilter: SetSmartFilterUseCase,
+    private val setDigitsUseCase: SetDigitsUseCase? = null,
+    private val setNameOrderUseCase: SetNameOrderUseCase? = null,
+    private val setSwipeActionsUseCase: SetSwipeActionsUseCase? = null,
+    private val setQuietHoursUseCase: SetQuietHoursUseCase? = null,
+    private val setArhamNotificationTimeUseCase: SetArhamNotificationTimeUseCase? = null,
+    private val setDashboardPeriodUseCase: SetDashboardPeriodUseCase? = null,
+    private val setAutoTrackingEnabledUseCase: SetAutoTrackingEnabledUseCase? = null,
+    private val setDuplicateScanUseCase: SetDuplicateScanUseCase? = null,
+    private val setCrashReportsUseCase: SetCrashReportsUseCase? = null,
     private val repository: SettingsRepository? = null,
     private val exportBackup: ExportBackupUseCase? = null,
     private val previewBackup: PreviewBackupUseCase? = null,
     private val restoreBackup: RestoreBackupUseCase? = null,
-    private val setCategoryRingtoneUseCase: SetCategoryRingtoneUseCase? = null
+    private val setCategoryRingtoneUseCase: SetCategoryRingtoneUseCase? = null,
+    private val platformRingtoneSource: PlatformRingtoneSource? = null,
+    private val dispatchers: AppDispatchers = DefaultAppDispatchers()
 ) : BaseMviViewModel<SettingsUiState, SettingsIntent, SettingsEffect>(SettingsUiState()) {
 
     constructor(
         repository: SettingsRepository,
         cryptoEngine: BackupCryptoEngine? = null,
-        platformRingtoneSource: PlatformRingtoneSource? = null
+        platformRingtoneSource: PlatformRingtoneSource? = null,
+        dispatchers: AppDispatchers = DefaultAppDispatchers()
     ) : this(
         observePreferences = ObserveUserPreferencesUseCase(repository),
         setThemeMode = SetThemeModeUseCase(repository),
         setLanguage = SetLanguageUseCase(repository),
         setArhamNotifications = SetArhamNotificationsUseCase(repository),
         setSmartFilter = SetSmartFilterUseCase(repository),
+        setDigitsUseCase = SetDigitsUseCase(repository),
+        setNameOrderUseCase = SetNameOrderUseCase(repository),
+        setSwipeActionsUseCase = SetSwipeActionsUseCase(repository),
+        setQuietHoursUseCase = SetQuietHoursUseCase(repository),
+        setArhamNotificationTimeUseCase = SetArhamNotificationTimeUseCase(repository),
+        setDashboardPeriodUseCase = SetDashboardPeriodUseCase(repository),
+        setAutoTrackingEnabledUseCase = SetAutoTrackingEnabledUseCase(repository),
+        setDuplicateScanUseCase = SetDuplicateScanUseCase(repository),
+        setCrashReportsUseCase = SetCrashReportsUseCase(repository),
         repository = repository,
-        exportBackup = cryptoEngine?.let { ExportBackupUseCase(repository, it) },
-        previewBackup = cryptoEngine?.let { PreviewBackupUseCase(it) },
-        restoreBackup = cryptoEngine?.let { RestoreBackupUseCase(repository, it) },
-        setCategoryRingtoneUseCase = platformRingtoneSource?.let { SetCategoryRingtoneUseCase(repository, it) }
+        exportBackup = cryptoEngine?.let { ExportBackupUseCase(repository, it, dispatchers = dispatchers) },
+        previewBackup = cryptoEngine?.let { PreviewBackupUseCase(it, dispatchers = dispatchers) },
+        restoreBackup = cryptoEngine?.let { RestoreBackupUseCase(repository, it, dispatchers = dispatchers) },
+        setCategoryRingtoneUseCase = platformRingtoneSource?.let { SetCategoryRingtoneUseCase(repository, it) },
+        platformRingtoneSource = platformRingtoneSource,
+        dispatchers = dispatchers
     )
 
     private val _uiState = MutableStateFlow(SettingsUiState())
+
+    init {
+        val ringtones = platformRingtoneSource?.getAvailableRingtones() ?: emptyList()
+        if (ringtones.isNotEmpty()) {
+            _uiState.update { it.copy(availableRingtones = ringtones) }
+        }
+    }
 
     override val state: StateFlow<SettingsUiState> = combine(
         observePreferences(),
@@ -168,22 +210,34 @@ class SettingsViewModel(
         when (intent) {
             is SettingsIntent.SetThemeMode -> viewModelScope.launch { setThemeMode(intent.mode) }
             is SettingsIntent.SetLanguage -> viewModelScope.launch { setLanguage(intent.language) }
-            is SettingsIntent.SetDigits -> viewModelScope.launch { repository?.setDigits(intent.digits) }
-            is SettingsIntent.SetNameOrder -> viewModelScope.launch { repository?.setNameOrder(intent.order) }
+            is SettingsIntent.SetDigits -> viewModelScope.launch {
+                setDigitsUseCase?.invoke(intent.digits) ?: repository?.setDigits(intent.digits)
+            }
+            is SettingsIntent.SetNameOrder -> viewModelScope.launch {
+                setNameOrderUseCase?.invoke(intent.order) ?: repository?.setNameOrder(intent.order)
+            }
             is SettingsIntent.SetDefaultTab -> viewModelScope.launch { repository?.setDefaultTab(intent.tab) }
             is SettingsIntent.SetVisibleAccounts -> viewModelScope.launch { repository?.setVisibleAccounts(intent.accounts) }
             is SettingsIntent.SetDefaultSimSlot -> viewModelScope.launch { repository?.setDefaultSimSlot(intent.slot) }
             is SettingsIntent.SetArhamNotifications -> viewModelScope.launch { setArhamNotifications(intent.enabled) }
             is SettingsIntent.SetArhamNotificationTime -> viewModelScope.launch {
-                repository?.setArhamNotificationTime(intent.hour, intent.minute)
+                setArhamNotificationTimeUseCase?.invoke(intent.hour, intent.minute)
+                    ?: repository?.setArhamNotificationTime(intent.hour, intent.minute)
             }
             is SettingsIntent.SetArhamMaxPerDay -> viewModelScope.launch { repository?.setArhamMaxPerDay(intent.max) }
             is SettingsIntent.SetQuietHours -> viewModelScope.launch {
-                repository?.setQuietHours(intent.startHour, intent.endHour)
+                setQuietHoursUseCase?.invoke(intent.startHour, intent.endHour)
+                    ?: repository?.setQuietHours(intent.startHour, intent.endHour)
             }
-            is SettingsIntent.SetDashboardPeriod -> viewModelScope.launch { repository?.setDashboardPeriod(intent.period) }
+            is SettingsIntent.SetDashboardPeriod -> viewModelScope.launch {
+                setDashboardPeriodUseCase?.invoke(intent.period)
+                    ?: repository?.setDashboardPeriod(intent.period)
+            }
             is SettingsIntent.SetConfettiEnabled -> viewModelScope.launch { repository?.setConfettiEnabled(intent.enabled) }
-            is SettingsIntent.SetAutoTrackingEnabled -> viewModelScope.launch { repository?.setAutoTrackingEnabled(intent.enabled) }
+            is SettingsIntent.SetAutoTrackingEnabled -> viewModelScope.launch {
+                setAutoTrackingEnabledUseCase?.invoke(intent.enabled)
+                    ?: repository?.setAutoTrackingEnabled(intent.enabled)
+            }
             is SettingsIntent.SetDefaultCity -> viewModelScope.launch { repository?.setDefaultCity(intent.city) }
             is SettingsIntent.SetSearchRadiusKm -> viewModelScope.launch { repository?.setSearchRadiusKm(intent.radiusKm) }
             is SettingsIntent.SetQuickRatingEnabled -> viewModelScope.launch { repository?.setQuickRatingEnabled(intent.enabled) }
@@ -191,13 +245,22 @@ class SettingsViewModel(
                 repository?.setAutoUpdatePhonebookServices(intent.enabled)
             }
             is SettingsIntent.SetSmartFilter -> viewModelScope.launch { setSmartFilter(intent.enabled) }
-            is SettingsIntent.SetDuplicateScanEnabled -> viewModelScope.launch { repository?.setDuplicateScanEnabled(intent.enabled) }
+            is SettingsIntent.SetDuplicateScanEnabled -> viewModelScope.launch {
+                setDuplicateScanUseCase?.invoke(intent.enabled)
+                    ?: repository?.setDuplicateScanEnabled(intent.enabled)
+            }
             is SettingsIntent.SetPostCallCategorizeEnabled -> viewModelScope.launch {
                 repository?.setPostCallCategorizeEnabled(intent.enabled)
             }
-            is SettingsIntent.SetCrashReportsEnabled -> viewModelScope.launch { repository?.setCrashReportsEnabled(intent.enabled) }
+            is SettingsIntent.SetCrashReportsEnabled -> viewModelScope.launch {
+                setCrashReportsUseCase?.invoke(intent.enabled)
+                    ?: repository?.setCrashReportsEnabled(intent.enabled)
+            }
             is SettingsIntent.SetInterestTags -> viewModelScope.launch { repository?.setInterestTags(intent.tags) }
-            is SettingsIntent.SetSwipeActions -> viewModelScope.launch { repository?.setSwipeActions(intent.start, intent.end) }
+            is SettingsIntent.SetSwipeActions -> viewModelScope.launch {
+                setSwipeActionsUseCase?.invoke(intent.start, intent.end)
+                    ?: repository?.setSwipeActions(intent.start, intent.end)
+            }
             is SettingsIntent.SetCategoryRingtone -> viewModelScope.launch {
                 if (setCategoryRingtoneUseCase != null) {
                     setCategoryRingtoneUseCase(intent.category, intent.uri)
@@ -225,7 +288,8 @@ class SettingsViewModel(
                         )
                     }
                     sendEffect(SettingsEffect.BackupExported(bytes))
-                } catch (err: Throwable) {
+                } catch (err: Exception) {
+                    if (err is CancellationException) throw err
                     _uiState.update { it.copy(isExportingBackup = false, backupErrorMessage = err.message) }
                 }
             }
@@ -246,7 +310,8 @@ class SettingsViewModel(
                             backupPreview = preview
                         )
                     }
-                } catch (err: Throwable) {
+                } catch (err: Exception) {
+                    if (err is CancellationException) throw err
                     _uiState.update { it.copy(isImportingBackup = false, backupErrorMessage = err.message) }
                 }
             }
@@ -267,7 +332,8 @@ class SettingsViewModel(
                         )
                     }
                     sendEffect(SettingsEffect.BackupRestored(result))
-                } catch (err: Throwable) {
+                } catch (err: Exception) {
+                    if (err is CancellationException) throw err
                     _uiState.update { it.copy(isImportingBackup = false, backupErrorMessage = err.message) }
                 }
             }

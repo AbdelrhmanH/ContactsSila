@@ -444,6 +444,9 @@
 "settings_title" = "Settings";
 "settings_section_appearance" = "Appearance & Language";
 "settings_theme" = "Theme";
+"settings_theme_light" = "Light";
+"settings_theme_dark" = "Dark";
+"settings_theme_system" = "System Default";
 "settings_language" = "Language";
 "settings_digits" = "Digits";
 "settings_digits_arabic" = "Western Arabic (1 2 3)";
@@ -453,6 +456,9 @@
 "settings_name_order_last_first" = "Last Name, First Name";
 "settings_section_general" = "General & Behavior";
 "settings_default_tab" = "Default Tab";
+"settings_tab_contacts" = "Contacts";
+"settings_tab_services" = "Services Directory";
+"settings_tab_arham" = "Arham";
 "settings_swipe_start" = "Start Swipe Action";
 "settings_swipe_end" = "End Swipe Action";
 "settings_swipe_call" = "Call";

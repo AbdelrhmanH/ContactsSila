@@ -27,7 +27,7 @@ class UserPreferencesDataSourceTest {
         val prefs = dataSource.preferences.first()
         assertEquals(AppLanguage.ARABIC, prefs.language)
         assertTrue(prefs.language.isRtl)
-        assertEquals(AppThemeMode.LIGHT, prefs.themeMode)
+        assertEquals(AppThemeMode.SYSTEM, prefs.themeMode)
     }
 
     @Test

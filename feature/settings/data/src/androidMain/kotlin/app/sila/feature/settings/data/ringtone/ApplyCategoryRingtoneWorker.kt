@@ -1,10 +1,13 @@
-package app.sila.settings.ringtone
+package app.sila.feature.settings.data.ringtone
 
-import android.content.ContentUris
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.provider.ContactsContract
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -16,6 +19,7 @@ import org.koin.core.context.GlobalContext
 /**
  * عامل خلفي يطبق نغمة التصنيف على الأعضاء الذين ليس لديهم نغمة فردية (PRD §11 و 07-ringtones-preferences.md).
  * يكتب CUSTOM_RINGTONE في دفتر هاتف أندرويد لجهات اتصال التصنيف.
+ * يتعامل مع الهوية الدائمة عبر CONTENT_LOOKUP_URI ويفحص صلاحية WRITE_CONTACTS بدقة (ADR-0009 / ADR-0012).
  */
 class ApplyCategoryRingtoneWorker(
     context: Context,
@@ -29,6 +33,11 @@ class ApplyCategoryRingtoneWorker(
         val category = runCatching { Category.valueOf(categoryName) }.getOrNull()
             ?: return Result.failure()
 
+        if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.WRITE_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "WRITE_CONTACTS permission not granted, skipping apply category ringtones")
+            return Result.success()
+        }
+
         val koin = GlobalContext.getOrNull()
         val contactDao = koin?.getOrNull<ContactDao>()
 
@@ -39,13 +48,15 @@ class ApplyCategoryRingtoneWorker(
 
             val contentResolver = applicationContext.contentResolver
             for (contact in membersWithoutIndividualRingtone) {
-                val rawId = contact.systemContactId.toLongOrNull() ?: continue
-                val uri = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, rawId)
+                val key = contact.lookupKey ?: contact.systemContactId
+                if (key.isBlank()) continue
+
+                val lookupUri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, key)
                 val values = ContentValues().apply {
                     put(ContactsContract.Contacts.CUSTOM_RINGTONE, ringtoneUri)
                 }
                 runCatching {
-                    contentResolver.update(uri, values, null, null)
+                    contentResolver.update(lookupUri, values, null, null)
                 }
             }
             Result.success()

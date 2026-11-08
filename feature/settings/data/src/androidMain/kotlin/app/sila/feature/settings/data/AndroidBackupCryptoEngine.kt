@@ -14,6 +14,7 @@ import javax.crypto.spec.SecretKeySpec
  * يعتمد على معايير التشفير الصارمة:
  * - مفتاح AES-256 مشتق عبر PBKDF2WithHmacSHA256 مع 100,000 تكرار وملح 16 بايت عشوائي.
  * - تشفير موثّق AES-256-GCM مع IV عشوائي 12 بايت وعلامة مصادقة (Tag) بطول 128 بت.
+ * - تطهير صارم لبيانات الاعتماد من الذاكرة (Zeroization).
  */
 class AndroidBackupCryptoEngine : BackupCryptoEngine {
 
@@ -28,25 +29,30 @@ class AndroidBackupCryptoEngine : BackupCryptoEngine {
         val keySpec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
         val factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM)
         val keyBytes = factory.generateSecret(keySpec).encoded
+        keySpec.clearPassword()
         val secretKey = SecretKeySpec(keyBytes, "AES")
 
-        val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(TAG_LENGTH_BITS, iv))
-        val cipherTextWithTag = cipher.doFinal(plainBytes)
+        return try {
+            val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(TAG_LENGTH_BITS, iv))
+            val cipherTextWithTag = cipher.doFinal(plainBytes)
 
-        val output = ByteArray(HEADER_SIZE_BYTES + cipherTextWithTag.size)
-        // 1) Magic header (4 bytes)
-        MAGIC_BYTES.copyInto(output, destinationOffset = 0)
-        // 2) Version (1 byte)
-        output[4] = FORMAT_VERSION
-        // 3) Salt (16 bytes)
-        salt.copyInto(output, destinationOffset = 5)
-        // 4) IV (12 bytes)
-        iv.copyInto(output, destinationOffset = 21)
-        // 5) Ciphertext + Tag
-        cipherTextWithTag.copyInto(output, destinationOffset = HEADER_SIZE_BYTES)
+            val output = ByteArray(HEADER_SIZE_BYTES + cipherTextWithTag.size)
+            // 1) Magic header (4 bytes)
+            MAGIC_BYTES.copyInto(output, destinationOffset = 0)
+            // 2) Version (1 byte)
+            output[4] = FORMAT_VERSION
+            // 3) Salt (16 bytes)
+            salt.copyInto(output, destinationOffset = 5)
+            // 4) IV (12 bytes)
+            iv.copyInto(output, destinationOffset = 21)
+            // 5) Ciphertext + Tag
+            cipherTextWithTag.copyInto(output, destinationOffset = HEADER_SIZE_BYTES)
 
-        return output
+            output
+        } finally {
+            keyBytes.fill(0)
+        }
     }
 
     override fun decrypt(cipherBytes: ByteArray, password: String): ByteArray {
@@ -84,6 +90,7 @@ class AndroidBackupCryptoEngine : BackupCryptoEngine {
         val keySpec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
         val factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM)
         val keyBytes = factory.generateSecret(keySpec).encoded
+        keySpec.clearPassword()
         val secretKey = SecretKeySpec(keyBytes, "AES")
 
         // 6) Decrypt and authenticate
@@ -93,6 +100,8 @@ class AndroidBackupCryptoEngine : BackupCryptoEngine {
             cipher.doFinal(cipherTextWithTag)
         } catch (t: Throwable) {
             throw BackupDecryptionException("Decryption failed: incorrect password or corrupted data", cause = t)
+        } finally {
+            keyBytes.fill(0)
         }
     }
 

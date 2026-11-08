@@ -1,7 +1,6 @@
 package app.sila.feature.settings.presentation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,203 +15,267 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.sila.core.designsystem.SilaDimens
 import app.sila.core.designsystem.SilaSettingsGroup
 import app.sila.core.designsystem.SilaSettingsItem
-import app.sila.core.designsystem.SilaTheme
 import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.Category
 import app.sila.core.model.ContactSwipeAction
-import app.sila.core.model.DashboardPeriod
 import app.sila.core.model.DefaultTab
 import app.sila.core.model.NameOrder
-import app.sila.core.model.UserPreferences
-import app.sila.feature.settings.domain.BackupPreview
 import app.sila.feature.settings.domain.RestoreMode
 
 /**
- * شاشة الإعدادات Stateful (CODING_GUIDELINES.md §2-3: XScreen stateful + XContent stateless).
+ * شاشة الإعدادات والتفضيلات لـ ContactsSila (T9 — Issue #30).
+ * تطبق مبادئ Clean Architecture و Offline-First:
+ * - تقرأ الحالة عبر collectAsStateWithLifecycle
+ * - تستمع للآثار الجانبية (Effects) عبر LaunchedEffect وتظهر رسائل للمستخدم
+ * - تعتمد على مركزية النصوص المترجمة (SettingsStrings) لمنع النصوص الثابتة
  */
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onDismiss: () -> Unit
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val isArabic = state.preferences.language == AppLanguage.ARABIC
+    val strings = remember(isArabic) { if (isArabic) SettingsStrings.arabic() else SettingsStrings.english() }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    var lastExportedBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var restoreBytesBuffer by remember { mutableStateOf<ByteArray?>(null) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.effects.collect { effect ->
+            when (effect) {
+                is SettingsEffect.BackupExported -> {
+                    lastExportedBytes = effect.bytes
+                    restoreBytesBuffer = effect.bytes
+                    snackbarHostState.showSnackbar(
+                        if (isArabic) "تم تصدير النسخة الاحتياطية بنجاح (${effect.bytes.size} بايت)"
+                        else "Backup exported successfully (${effect.bytes.size} bytes)"
+                    )
+                }
+                is SettingsEffect.BackupRestored -> {
+                    snackbarHostState.showSnackbar(
+                        if (isArabic) "تمت استعادة النسخة بنجاح (${effect.result.matchedCategories} تصنيف، ${effect.result.matchedArham} صلة رحم)"
+                        else "Backup restored successfully (${effect.result.matchedCategories} categories, ${effect.result.matchedArham} kinship ties)"
+                    )
+                }
+                is SettingsEffect.ShowToast -> {
+                    snackbarHostState.showSnackbar(effect.message)
+                }
+                is SettingsEffect.OpenIosContactsApp -> Unit
+            }
+        }
+    }
 
     SettingsDialog(
         state = state,
+        strings = strings,
         isArabic = isArabic,
         onIntent = viewModel::onIntent,
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        snackbarHostState = snackbarHostState,
+        lastExportedBytes = lastExportedBytes,
+        restoreBytesBuffer = restoreBytesBuffer,
+        onUpdateRestoreBytes = { restoreBytesBuffer = it }
     )
 }
 
-/**
- * حوار واجهة الإعدادات والتفضيلات الشامل (:feature:settings:presentation).
- */
 @Composable
 fun SettingsDialog(
     state: SettingsUiState,
+    strings: SettingsStrings,
     isArabic: Boolean,
     onIntent: (SettingsIntent) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    lastExportedBytes: ByteArray? = null,
+    restoreBytesBuffer: ByteArray? = null,
+    onUpdateRestoreBytes: (ByteArray?) -> Unit = {}
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(SilaDimens.SheetCornerRadius),
-            color = MaterialTheme.colorScheme.background,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = SilaDimens.Space16)
+                .fillMaxSize()
+                .padding(vertical = SilaDimens.Space16),
+            shape = RoundedCornerShape(SilaDimens.SettingsGroupCornerRadius),
+            color = MaterialTheme.colorScheme.background,
+            tonalElevation = 4.dp
         ) {
-            SettingsContent(
-                state = state,
-                isArabic = isArabic,
-                onIntent = onIntent,
-                onDismiss = onDismiss
-            )
+            Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                bottomBar = {
+                    Surface(
+                        tonalElevation = 2.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(SilaDimens.Space16),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Button(
+                                onClick = onDismiss,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(strings.close)
+                            }
+                        }
+                    }
+                }
+            ) { paddingValues ->
+                SettingsContent(
+                    state = state,
+                    strings = strings,
+                    isArabic = isArabic,
+                    onIntent = onIntent,
+                    onDismiss = onDismiss,
+                    lastExportedBytes = lastExportedBytes,
+                    restoreBytesBuffer = restoreBytesBuffer,
+                    onUpdateRestoreBytes = onUpdateRestoreBytes,
+                    modifier = Modifier.padding(paddingValues)
+                )
+            }
         }
     }
 }
 
-/**
- * المحتوى التخطيطي لشاشة الإعدادات Stateless — قابل للمعاينة والاختبار بنسبة 100%.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsContent(
     state: SettingsUiState,
+    strings: SettingsStrings,
     isArabic: Boolean,
     onIntent: (SettingsIntent) -> Unit,
     onDismiss: () -> Unit,
+    lastExportedBytes: ByteArray? = null,
+    restoreBytesBuffer: ByteArray? = null,
+    onUpdateRestoreBytes: (ByteArray?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val prefs = state.preferences
     val scrollState = rememberScrollState()
+    val prefs = state.preferences
 
-    var customKeywordInput by remember { mutableStateOf("") }
     var exportPasswordInput by remember { mutableStateOf("") }
     var restorePasswordInput by remember { mutableStateOf("") }
     var restoreMode by remember { mutableStateOf(RestoreMode.MERGE) }
     var restorePreferencesCheckbox by remember { mutableStateOf(false) }
+    var newKeywordInput by remember { mutableStateOf("") }
+    var showQuietHoursDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(SilaDimens.Space16)
+            .padding(SilaDimens.Space16),
+        verticalArrangement = Arrangement.spacedBy(SilaDimens.Space16)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = SilaDimens.Space16),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = if (isArabic) "الإعدادات والتفضيلات" else "Settings & Preferences",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            IconButton(onClick = onDismiss) {
-                Text(text = "✕", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        Text(
+            text = strings.title,
+            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onBackground
+        )
 
-        // 1) الحساب (Phase 2 Placeholder)
-        SilaSettingsGroup(title = if (isArabic) "الحساب" else "Account") {
+        // 1) المظهر واللغة
+        SilaSettingsGroup(title = strings.sectionAppearance) {
             SilaSettingsItem(
-                iconEmoji = "👤",
-                title = if (isArabic) "حساب صِلَة الشخصي" else "Sila Profile",
-                value = if (isArabic) "قريباً (المرحلة 2)" else "Coming in Phase 2",
-                onClick = {},
-                showDivider = false
-            )
-        }
-
-        // 2) المظهر واللغة
-        SilaSettingsGroup(title = if (isArabic) "المظهر واللغة" else "Appearance & Language") {
-            SilaSettingsItem(
-                iconEmoji = "🌐",
-                title = if (isArabic) "اللغة" else "Language",
-                value = if (isArabic) "العربية" else "English",
+                iconEmoji = "🎨",
+                title = strings.theme,
+                value = when (prefs.themeMode) {
+                    AppThemeMode.LIGHT -> strings.themeLight
+                    AppThemeMode.DARK -> strings.themeDark
+                    AppThemeMode.SYSTEM -> strings.themeSystem
+                },
                 onClick = {
-                    val next = if (isArabic) AppLanguage.ENGLISH else AppLanguage.ARABIC
+                    val next = when (prefs.themeMode) {
+                        AppThemeMode.SYSTEM -> AppThemeMode.LIGHT
+                        AppThemeMode.LIGHT -> AppThemeMode.DARK
+                        AppThemeMode.DARK -> AppThemeMode.SYSTEM
+                    }
+                    onIntent(SettingsIntent.SetThemeMode(next))
+                },
+                showDivider = true
+            )
+            SilaSettingsItem(
+                iconEmoji = "🌍",
+                title = strings.language,
+                value = if (prefs.language == AppLanguage.ARABIC) "العربية" else "English",
+                onClick = {
+                    val next = if (prefs.language == AppLanguage.ARABIC) AppLanguage.ENGLISH else AppLanguage.ARABIC
                     onIntent(SettingsIntent.SetLanguage(next))
                 },
                 showDivider = true
             )
             SilaSettingsItem(
-                iconEmoji = "🎨",
-                title = if (isArabic) "الوضع الداكن" else "Dark Theme",
-                toggle = prefs.themeMode == AppThemeMode.DARK,
-                onToggle = { enabled ->
-                    onIntent(SettingsIntent.SetThemeMode(if (enabled) AppThemeMode.DARK else AppThemeMode.LIGHT))
+                iconEmoji = "🔢",
+                title = strings.digits,
+                value = if (prefs.digits == AppDigits.ARABIC) strings.digitsArabic else strings.digitsHindi,
+                onClick = {
+                    val next = if (prefs.digits == AppDigits.ARABIC) AppDigits.HINDI else AppDigits.ARABIC
+                    onIntent(SettingsIntent.SetDigits(next))
                 },
                 showDivider = true
             )
             SilaSettingsItem(
-                iconEmoji = "🔢",
-                title = if (isArabic) "شكل الأرقام" else "Number Digits",
-                value = if (prefs.digits == AppDigits.HINDI) (if (isArabic) "١٢٣ (هندية)" else "١٢٣ (Hindi)") else (if (isArabic) "123 (عربية)" else "123 (Arabic)"),
+                iconEmoji = "🔤",
+                title = strings.nameOrder,
+                value = if (prefs.nameOrder == NameOrder.FIRST_LAST) strings.nameOrderFirstLast else strings.nameOrderLastFirst,
                 onClick = {
-                    val next = if (prefs.digits == AppDigits.ARABIC) AppDigits.HINDI else AppDigits.ARABIC
-                    onIntent(SettingsIntent.SetDigits(next))
+                    val next = if (prefs.nameOrder == NameOrder.FIRST_LAST) NameOrder.LAST_FIRST else NameOrder.FIRST_LAST
+                    onIntent(SettingsIntent.SetNameOrder(next))
                 }
             )
         }
 
-        // 3) عام
-        SilaSettingsGroup(title = if (isArabic) "عام" else "General") {
+        // 2) السلوك والتنقل
+        SilaSettingsGroup(title = strings.sectionGeneral) {
             SilaSettingsItem(
-                iconEmoji = "📌",
-                title = if (isArabic) "الشاشة الافتراضية" else "Default Tab",
+                iconEmoji = "📑",
+                title = strings.defaultTab,
                 value = when (prefs.defaultTab) {
-                    DefaultTab.CONTACTS -> if (isArabic) "جهات الاتصال" else "Contacts"
-                    DefaultTab.SERVICES -> if (isArabic) "الخدمات" else "Services"
-                    DefaultTab.ARHAM -> if (isArabic) "أرحام" else "Arham"
+                    DefaultTab.CONTACTS -> strings.tabContacts
+                    DefaultTab.SERVICES -> strings.tabServices
+                    DefaultTab.ARHAM -> strings.tabArham
                 },
                 onClick = {
                     val next = when (prefs.defaultTab) {
@@ -225,126 +288,119 @@ fun SettingsContent(
                 showDivider = true
             )
             SilaSettingsItem(
-                iconEmoji = "🔤",
-                title = if (isArabic) "ترتيب الأسماء" else "Name Order",
-                value = if (prefs.nameOrder == NameOrder.FIRST_LAST) (if (isArabic) "الاسم الأول أولاً" else "First name first") else (if (isArabic) "اسم العائلة أولاً" else "Last name first"),
+                iconEmoji = "👆",
+                title = "${strings.swipeStart} / ${strings.swipeEnd}",
+                value = "${formatSwipeAction(prefs.swipeStartAction, strings)} / ${formatSwipeAction(prefs.swipeEndAction, strings)}",
                 onClick = {
-                    val next = if (prefs.nameOrder == NameOrder.FIRST_LAST) NameOrder.LAST_FIRST else NameOrder.FIRST_LAST
-                    onIntent(SettingsIntent.SetNameOrder(next))
-                },
-                showDivider = true
-            )
-            SilaSettingsItem(
-                iconEmoji = "↔️",
-                title = if (isArabic) "إجراءات السحب" else "Swipe Actions",
-                value = if (isArabic) "يمين: اتصال / يسار: رسالة" else "Start: Call / End: Message",
-                onClick = {
+                    // تبديل دوري لأفعال السحب
                     val nextStart = when (prefs.swipeStartAction) {
                         ContactSwipeAction.CALL -> ContactSwipeAction.MESSAGE
                         ContactSwipeAction.MESSAGE -> ContactSwipeAction.NONE
                         ContactSwipeAction.NONE -> ContactSwipeAction.CALL
                     }
                     onIntent(SettingsIntent.SetSwipeActions(nextStart, prefs.swipeEndAction))
+                },
+                showDivider = true
+            )
+            SilaSettingsItem(
+                iconEmoji = "📶",
+                title = strings.simSlot,
+                value = prefs.defaultSimSlot?.let { "SIM $it" } ?: (if (isArabic) "السؤال دائماً" else "Always Ask"),
+                onClick = {
+                    val next = when (prefs.defaultSimSlot) {
+                        null -> 1
+                        1 -> 2
+                        else -> null
+                    }
+                    onIntent(SettingsIntent.SetDefaultSimSlot(next))
                 }
             )
         }
 
-        // 4) صلة الرحم (أرحام)
-        SilaSettingsGroup(title = if (isArabic) "صلة الرحم (أرحام)" else "Kinship (Arham)") {
+        // 3) إعدادات صلة الرحم
+        SilaSettingsGroup(title = strings.sectionArham) {
             SilaSettingsItem(
                 iconEmoji = "🔔",
-                title = if (isArabic) "إشعارات التذكير" else "Reminders",
+                title = strings.arhamNotifications,
                 toggle = prefs.arhamNotificationsEnabled,
                 onToggle = { onIntent(SettingsIntent.SetArhamNotifications(it)) },
                 showDivider = true
             )
-            SilaSettingsItem(
-                iconEmoji = "⏰",
-                title = if (isArabic) "الوقت المفضل للتذكير" else "Preferred Reminder Time",
-                value = "${prefs.arhamNotificationHour.toString().padStart(2, '0')}:${prefs.arhamNotificationMinute.toString().padStart(2, '0')}",
-                onClick = {
-                    val nextHour = (prefs.arhamNotificationHour + 1) % 24
-                    onIntent(SettingsIntent.SetArhamNotificationTime(nextHour, prefs.arhamNotificationMinute))
-                },
-                showDivider = true
-            )
-            SilaSettingsItem(
-                iconEmoji = "🌙",
-                title = if (isArabic) "أوقات الهدوء (عابرة لمنتصف الليل)" else "Quiet Hours (Cross-midnight)",
-                value = "${prefs.quietHoursStartHour.toString().padStart(2, '0')}:00 - ${prefs.quietHoursEndHour.toString().padStart(2, '0')}:00",
-                onClick = {
-                    onIntent(SettingsIntent.SetQuietHours(22, 8))
-                },
-                showDivider = true
-            )
-            SilaSettingsItem(
-                iconEmoji = "📊",
-                title = if (isArabic) "فترة اللوحة الإحصائية" else "Dashboard Period",
-                value = if (prefs.dashboardPeriod == DashboardPeriod.WEEK) (if (isArabic) "أسبوعياً" else "Weekly") else (if (isArabic) "شهرياً" else "Monthly"),
-                onClick = {
-                    val next = if (prefs.dashboardPeriod == DashboardPeriod.WEEK) DashboardPeriod.MONTH else DashboardPeriod.WEEK
-                    onIntent(SettingsIntent.SetDashboardPeriod(next))
-                },
-                showDivider = true
-            )
-            SilaSettingsItem(
-                iconEmoji = "🎉",
-                title = if (isArabic) "احتفال الكونفيتي عند الصلة" else "Celebration Confetti",
-                toggle = prefs.confettiEnabled,
-                onToggle = { onIntent(SettingsIntent.SetConfettiEnabled(it)) },
-                showDivider = true
-            )
-            SilaSettingsItem(
-                iconEmoji = "📞",
-                title = if (isArabic) "التتبع التلقائي للمكالمات" else "Auto Call Tracking",
-                toggle = prefs.autoTrackingEnabled,
-                onToggle = { onIntent(SettingsIntent.SetAutoTrackingEnabled(it)) }
-            )
+            if (prefs.arhamNotificationsEnabled) {
+                SilaSettingsItem(
+                    iconEmoji = "⏰",
+                    title = strings.arhamTime,
+                    value = "${prefs.arhamNotificationHour.toString().padStart(2, '0')}:${prefs.arhamNotificationMinute.toString().padStart(2, '0')}",
+                    onClick = {
+                        val nextHour = (prefs.arhamNotificationHour + 1) % 24
+                        onIntent(SettingsIntent.SetArhamNotificationTime(nextHour, 0))
+                    },
+                    showDivider = true
+                )
+                SilaSettingsItem(
+                    iconEmoji = "📊",
+                    title = strings.arhamMaxPerDay,
+                    value = "${prefs.arhamMaxPerDay}",
+                    onClick = {
+                        val next = if (prefs.arhamMaxPerDay >= 5) 1 else prefs.arhamMaxPerDay + 1
+                        onIntent(SettingsIntent.SetArhamMaxPerDay(next))
+                    },
+                    showDivider = true
+                )
+                SilaSettingsItem(
+                    iconEmoji = "🌙",
+                    title = strings.quietHours,
+                    value = "${prefs.quietHoursStartHour.toString().padStart(2, '0')}:00 - ${prefs.quietHoursEndHour.toString().padStart(2, '0')}:00",
+                    onClick = { showQuietHoursDialog = true }
+                )
+            }
         }
 
-        // 5) التنظيم والفلترة الذكية
-        SilaSettingsGroup(title = if (isArabic) "التنظيم والفلترة الذكية" else "Organization & Filter") {
+        // 4) التنظيم والفلترة الذكية
+        SilaSettingsGroup(title = strings.sectionOrganization) {
             SilaSettingsItem(
-                iconEmoji = "✨",
-                title = if (isArabic) "الفلترة الذكية للأرقام المؤقتة" else "Smart Filter for Temporary Numbers",
+                iconEmoji = "🤖",
+                title = strings.smartFilter,
                 toggle = prefs.smartFilterEnabled,
                 onToggle = { onIntent(SettingsIntent.SetSmartFilter(it)) },
                 showDivider = true
             )
             SilaSettingsItem(
-                iconEmoji = "🔍",
-                title = if (isArabic) "الفحص الدوري للأرقام المكررة" else "Periodic Duplicate Scan",
+                iconEmoji = "👥",
+                title = strings.duplicateScan,
                 toggle = prefs.duplicateScanEnabled,
                 onToggle = { onIntent(SettingsIntent.SetDuplicateScanEnabled(it)) },
                 showDivider = true
             )
-            // النمط 2 — إدخال → رقاقات للكلمات المفتاحية المخصصة
-            Column(modifier = Modifier.padding(horizontal = SilaDimens.Space16, vertical = SilaDimens.Space8)) {
+            Column(modifier = Modifier.padding(SilaDimens.Space16)) {
                 Text(
-                    text = if (isArabic) "الكلمات المفتاحية المخصصة (إدخال ← رقاقات)" else "Custom Filter Keywords",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
+                    text = strings.customKeywords,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(SilaDimens.Space8))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     OutlinedTextField(
-                        value = customKeywordInput,
-                        onValueChange = { customKeywordInput = it },
-                        placeholder = { Text(if (isArabic) "أضف كلمة (مثل: دليفري)..." else "Add keyword...") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
+                        value = newKeywordInput,
+                        onValueChange = { newKeywordInput = it },
+                        placeholder = { Text(if (isArabic) "كلمة مفتاحية جديدة..." else "New keyword...") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
                     )
                     Spacer(modifier = Modifier.width(SilaDimens.Space8))
                     Button(
                         onClick = {
-                            if (customKeywordInput.isNotBlank()) {
-                                onIntent(SettingsIntent.SetInterestTags(prefs.interestTags + customKeywordInput.trim()))
-                                customKeywordInput = ""
+                            if (newKeywordInput.isNotBlank()) {
+                                onIntent(SettingsIntent.SetInterestTags(prefs.interestTags + newKeywordInput.trim()))
+                                newKeywordInput = ""
                             }
-                        }
+                        },
+                        enabled = newKeywordInput.isNotBlank()
                     ) {
-                        Text(if (isArabic) "إضافة" else "Add")
+                        Text(strings.addKeyword)
                     }
                 }
                 if (prefs.interestTags.isNotEmpty()) {
@@ -367,10 +423,10 @@ fun SettingsContent(
             }
         }
 
-        // 6) النغمات المخصصة
-        SilaSettingsGroup(title = if (isArabic) "نغمات التصنيفات" else "Category Ringtones") {
+        // 5) النغمات المخصصة
+        SilaSettingsGroup(title = strings.sectionRingtones) {
             Text(
-                text = if (isArabic) "الأولوية: نغمة الشخص > نغمة التصنيف > نغمة النظام" else "Priority: Contact Ringtone > Category Ringtone > System Default",
+                text = strings.ringtonePriority,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = SilaDimens.Space16, vertical = SilaDimens.Space4)
@@ -386,7 +442,7 @@ fun SettingsContent(
                 SilaSettingsItem(
                     iconEmoji = "🎵",
                     title = title,
-                    value = if (uri != null) (if (isArabic) "مخصصة ✓" else "Custom ✓") else (if (isArabic) "نغمة النظام" else "System Default"),
+                    value = if (uri != null) strings.customRingtone else strings.systemDefaultRingtone,
                     onClick = {
                         onIntent(SettingsIntent.OpenRingtonePicker(cat))
                     },
@@ -395,95 +451,125 @@ fun SettingsContent(
             }
         }
 
-        // 7) الخصوصية والنسخ الاحتياطي
-        SilaSettingsGroup(title = if (isArabic) "الخصوصية والنسخ الاحتياطي" else "Privacy & Backup") {
+        // 6) الخصوصية والنسخ الاحتياطي
+        SilaSettingsGroup(title = strings.sectionBackup) {
             SilaSettingsItem(
                 iconEmoji = "🛡️",
-                title = if (isArabic) "ماذا نعرف عنك؟ (الخصوصية المحلية)" else "Local-first Privacy",
-                value = if (isArabic) "0 بيانات مرفوعة" else "0 data uploaded",
+                title = strings.localPrivacy,
+                value = strings.localPrivacyValue,
                 onClick = {},
                 showDivider = true
             )
             SilaSettingsItem(
                 iconEmoji = "📤",
-                title = if (isArabic) "تصدير نسخة مشفرة (.sila.backup)" else "Export Encrypted Backup",
-                value = if (isArabic) "AES-256-GCM" else "AES-256-GCM",
+                title = strings.exportBackup,
+                value = "AES-256-GCM",
                 onClick = { onIntent(SettingsIntent.ShowExportDialog) },
                 showDivider = true
             )
             SilaSettingsItem(
                 iconEmoji = "📥",
-                title = if (isArabic) "استعادة نسخة احتياطية" else "Restore Backup",
-                value = if (isArabic) "مطابقة المفاتيح" else "Key matching",
+                title = strings.restoreBackup,
+                value = if (restoreBytesBuffer != null) (if (isArabic) "بيانات جاهزة (${restoreBytesBuffer.size} بايت)" else "Data ready (${restoreBytesBuffer.size} bytes)") else (if (isArabic) "مطابقة المفاتيح" else "Key matching"),
                 onClick = { onIntent(SettingsIntent.ShowImportDialog) },
                 showDivider = true
             )
             SilaSettingsItem(
                 iconEmoji = "📉",
-                title = if (isArabic) "إرسال تقارير الأعطال مجهولة المصدر" else "Crash Reports",
+                title = strings.crashReports,
                 toggle = prefs.crashReportsEnabled,
                 onToggle = { onIntent(SettingsIntent.SetCrashReportsEnabled(it)) },
                 showDivider = true
             )
             SilaSettingsItem(
                 iconEmoji = "🗑️",
-                title = if (isArabic) "حذف الحساب والبيانات السحابية" else "Delete Account",
-                value = if (isArabic) "مرحلة 2 (وضع الضيف حالياً)" else "Phase 2 (Guest Mode)",
+                title = strings.deleteAccount,
+                value = strings.deleteAccountValue,
                 onClick = {}
             )
         }
 
-        // 8) حول صِلَة
-        SilaSettingsGroup(title = if (isArabic) "حول صِلَة" else "About Sila") {
+        // 7) حول صِلَة
+        SilaSettingsGroup(title = strings.aboutSection) {
             SilaSettingsItem(
                 iconEmoji = "ℹ️",
-                title = if (isArabic) "الإصدار" else "Version",
-                value = "1.0.0 (Phase 1 MVP)",
+                title = strings.versionTitle,
+                value = strings.versionValue,
                 onClick = {},
                 showDivider = true
             )
             SilaSettingsItem(
                 iconEmoji = "📜",
-                title = if (isArabic) "سياسة الخصوصية والشروط" else "Privacy Policy & Terms",
+                title = strings.privacyTerms,
                 onClick = {},
                 showDivider = true
             )
             SilaSettingsItem(
                 iconEmoji = "⭐",
-                title = if (isArabic) "تقييم التطبيق وتواصل معنا" else "Rate App & Feedback",
+                title = strings.rateApp,
                 onClick = {}
             )
-        }
-
-        Spacer(modifier = Modifier.height(SilaDimens.Space16))
-        OutlinedButton(
-            onClick = onDismiss,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (isArabic) "إغلاق الإعدادات" else "Close Settings")
         }
     }
 
     // ===== الحوارات المنبثقة =====
 
-    // حوار إدخال كلمة مرور التصدير
+    // حوار الساعات الهادئة
+    if (showQuietHoursDialog) {
+        var startH by remember { mutableStateOf(prefs.quietHoursStartHour.toFloat()) }
+        var endH by remember { mutableStateOf(prefs.quietHoursEndHour.toFloat()) }
+
+        AlertDialog(
+            onDismissRequest = { showQuietHoursDialog = false },
+            title = { Text(strings.quietHoursPickTitle) },
+            text = {
+                Column {
+                    Text("${strings.quietHoursStart}: ${startH.toInt().toString().padStart(2, '0')}:00")
+                    Slider(
+                        value = startH,
+                        onValueChange = { startH = it },
+                        valueRange = 0f..23f,
+                        steps = 22
+                    )
+                    Spacer(modifier = Modifier.height(SilaDimens.Space8))
+                    Text("${strings.quietHoursEnd}: ${endH.toInt().toString().padStart(2, '0')}:00")
+                    Slider(
+                        value = endH,
+                        onValueChange = { endH = it },
+                        valueRange = 0f..23f,
+                        steps = 22
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onIntent(SettingsIntent.SetQuietHours(startH.toInt(), endH.toInt()))
+                    showQuietHoursDialog = false
+                }) {
+                    Text(strings.save)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showQuietHoursDialog = false }) {
+                    Text(strings.cancel)
+                }
+            }
+        )
+    }
+
+    // حوار تصدير النسخة الاحتياطية المشفرة
     if (state.showExportPasswordDialog) {
         AlertDialog(
             onDismissRequest = { onIntent(SettingsIntent.DismissExportDialog) },
-            title = { Text(if (isArabic) "تصدير نسخة احتياطية مشفرة" else "Export Encrypted Backup") },
+            title = { Text(strings.exportDialogTitle) },
             text = {
                 Column {
-                    Text(
-                        if (isArabic)
-                            "سيتم تشفير بيانات التصنيفات وصلة الرحم والوسوم والتفضيلات بـ AES-256-GCM. أدخل كلمة مرور قوية لحماية ملفك:"
-                        else
-                            "Categories, kinship, tags, and preferences will be encrypted with AES-256-GCM. Enter a password to protect your file:"
-                    )
+                    Text(strings.exportDialogDesc)
                     Spacer(modifier = Modifier.height(SilaDimens.Space8))
                     OutlinedTextField(
                         value = exportPasswordInput,
                         onValueChange = { exportPasswordInput = it },
-                        label = { Text(if (isArabic) "كلمة المرور" else "Password") },
+                        label = { Text(strings.passwordLabel) },
                         visualTransformation = PasswordVisualTransformation(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -503,35 +589,45 @@ fun SettingsContent(
                     },
                     enabled = exportPasswordInput.isNotBlank() && !state.isExportingBackup
                 ) {
-                    Text(if (state.isExportingBackup) (if (isArabic) "جاري التشفير..." else "Encrypting...") else (if (isArabic) "تصدير" else "Export"))
+                    Text(if (state.isExportingBackup) strings.encrypting else strings.exportButton)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { onIntent(SettingsIntent.DismissExportDialog) }) {
-                    Text(if (isArabic) "إلغاء" else "Cancel")
+                    Text(strings.cancel)
                 }
             }
         )
     }
 
-    // حوار استيراد النسخة الاحتياطية وإدخال كلمة المرور
+    // حوار استيراد النسخة الاحتياطية ومعاينتها
     if (state.showImportPasswordDialog) {
         AlertDialog(
             onDismissRequest = { onIntent(SettingsIntent.DismissImportDialog) },
-            title = { Text(if (isArabic) "استعادة نسخة احتياطية" else "Restore Backup") },
+            title = { Text(strings.restoreDialogTitle) },
             text = {
                 Column {
-                    Text(
-                        if (isArabic)
-                            "أدخل كلمة المرور التي تم استخدامها عند تشفير الملف لمعاينة واستعادة البيانات:"
-                        else
-                            "Enter the password used when encrypting the backup file to preview and restore:"
-                    )
+                    Text(strings.restoreDialogDesc)
                     Spacer(modifier = Modifier.height(SilaDimens.Space8))
+                    if (restoreBytesBuffer != null) {
+                        Text(
+                            text = if (isArabic) "✓ تم تحميل بيانات النسخة (${restoreBytesBuffer.size} بايت)" else "✓ Backup data loaded (${restoreBytesBuffer.size} bytes)",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(SilaDimens.Space4))
+                    } else {
+                        Text(
+                            text = if (isArabic) "قم بتصدير نسخة أولاً أو اختيار ملف احتياطي" else "Export a backup first or load a backup file",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(modifier = Modifier.height(SilaDimens.Space4))
+                    }
                     OutlinedTextField(
                         value = restorePasswordInput,
                         onValueChange = { restorePasswordInput = it },
-                        label = { Text(if (isArabic) "كلمة المرور" else "Password") },
+                        label = { Text(strings.passwordLabel) },
                         visualTransformation = PasswordVisualTransformation(),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -545,158 +641,425 @@ fun SettingsContent(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (restorePasswordInput.isNotBlank()) {
-                            // محاكاة أو تشغيل المعاينة
-                            onIntent(SettingsIntent.PreviewBackupFile(ByteArray(0), restorePasswordInput))
+                        val bytesToPreview = restoreBytesBuffer ?: lastExportedBytes
+                        if (restorePasswordInput.isNotBlank() && bytesToPreview != null) {
+                            onIntent(SettingsIntent.PreviewBackupFile(bytesToPreview, restorePasswordInput))
                         }
                     },
-                    enabled = restorePasswordInput.isNotBlank() && !state.isImportingBackup
+                    enabled = restorePasswordInput.isNotBlank() && (restoreBytesBuffer != null || lastExportedBytes != null) && !state.isImportingBackup
                 ) {
-                    Text(if (state.isImportingBackup) (if (isArabic) "جاري الفحص..." else "Verifying...") else (if (isArabic) "معاينة النسخة" else "Preview Backup"))
+                    Text(if (state.isImportingBackup) strings.verifying else strings.previewButton)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { onIntent(SettingsIntent.DismissImportDialog) }) {
-                    Text(if (isArabic) "إلغاء" else "Cancel")
+                    Text(strings.cancel)
                 }
             }
         )
     }
 
-    // حوار معاينة النسخة الاحتياطية وخيارات الدمج/الاستبدال
+    // حوار معاينة النسخة الاحتياطية وتأكيد الاستعادة
     state.backupPreview?.let { preview ->
         if (state.showRestorePreviewDialog) {
             AlertDialog(
                 onDismissRequest = { onIntent(SettingsIntent.DismissRestorePreviewDialog) },
-                title = { Text(if (isArabic) "معاينة النسخة الاحتياطية" else "Backup Preview") },
+                title = { Text(strings.previewDialogTitle) },
                 text = {
                     Column {
                         Text(
                             text = if (isArabic)
-                                "تم التحقق وفك التشفير بنجاح!\n• عدد التصنيفات: ${preview.categoriesCount}\n• بيانات أرحام: ${preview.arhamCount}\n• الوسوم المخصصة: ${preview.tagsCount}\n• نغمات التصنيفات: ${preview.categoryRingtonesCount}"
+                                "تم التحقق وفك التشفير بنجاح!\n• عدد التصنيفات: ${preview.categoriesCount}\n• بيانات أرحام: ${preview.arhamCount}\n• الوسوم: ${preview.tagsCount}\n• نغمات التصنيفات: ${preview.categoryRingtonesCount}"
                             else
-                                "Decryption verified successfully!\n• Categories: ${preview.categoriesCount}\n• Kinship entries: ${preview.arhamCount}\n• Tags: ${preview.tagsCount}\n• Ringtones: ${preview.categoryRingtonesCount}"
+                                "Decryption verified successfully!\n• Categories: ${preview.categoriesCount}\n• Kinship ties: ${preview.arhamCount}\n• Tags: ${preview.tagsCount}\n• Ringtones: ${preview.categoryRingtonesCount}"
                         )
                         Spacer(modifier = Modifier.height(SilaDimens.Space12))
-                        Text(
-                            text = if (isArabic) "طريقة الاستعادة:" else "Restore Mode:",
-                            fontWeight = FontWeight.Bold
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(SilaDimens.Space12))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { restoreMode = RestoreMode.MERGE }
+                        ) {
                             RadioButton(
                                 selected = restoreMode == RestoreMode.MERGE,
                                 onClick = { restoreMode = RestoreMode.MERGE }
                             )
-                            Text(if (isArabic) "دمج مع البيانات الحالية" else "Merge with existing data")
+                            Spacer(modifier = Modifier.width(SilaDimens.Space8))
+                            Column {
+                                Text(strings.restoreModeMerge, fontWeight = FontWeight.Bold)
+                                Text(strings.restoreModeMergeDesc, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+
+                        Spacer(modifier = Modifier.height(SilaDimens.Space8))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { restoreMode = RestoreMode.REPLACE }
+                        ) {
                             RadioButton(
                                 selected = restoreMode == RestoreMode.REPLACE,
                                 onClick = { restoreMode = RestoreMode.REPLACE }
                             )
-                            Text(if (isArabic) "استبدال بالكامل" else "Replace existing data")
+                            Spacer(modifier = Modifier.width(SilaDimens.Space8))
+                            Column {
+                                Text(strings.restoreModeReplace, fontWeight = FontWeight.Bold)
+                                Text(strings.restoreModeReplaceDesc, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
-                        Spacer(modifier = Modifier.height(SilaDimens.Space8))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+
+                        Spacer(modifier = Modifier.height(SilaDimens.Space12))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { restorePreferencesCheckbox = !restorePreferencesCheckbox }
+                        ) {
                             Checkbox(
                                 checked = restorePreferencesCheckbox,
                                 onCheckedChange = { restorePreferencesCheckbox = it }
                             )
-                            Text(if (isArabic) "استعادة تفضيلات التطبيق أيضاً" else "Also restore app preferences")
+                            Spacer(modifier = Modifier.width(SilaDimens.Space8))
+                            Text(strings.restorePrefsCheckbox)
                         }
                     }
                 },
                 confirmButton = {
                     Button(
                         onClick = {
-                            onIntent(
-                                SettingsIntent.ConfirmRestore(
-                                    cipherBytes = ByteArray(0),
-                                    password = restorePasswordInput,
-                                    mode = restoreMode,
-                                    restorePreferences = restorePreferencesCheckbox
+                            val bytesToRestore = restoreBytesBuffer ?: lastExportedBytes
+                            if (bytesToRestore != null) {
+                                onIntent(
+                                    SettingsIntent.ConfirmRestore(
+                                        cipherBytes = bytesToRestore,
+                                        password = restorePasswordInput,
+                                        mode = restoreMode,
+                                        restorePreferences = restorePreferencesCheckbox
+                                    )
                                 )
-                            )
-                        }
+                            }
+                        },
+                        enabled = (restoreBytesBuffer != null || lastExportedBytes != null) && !state.isImportingBackup
                     ) {
-                        Text(if (isArabic) "بدء الاستعادة" else "Confirm Restore")
+                        Text(strings.startRestore)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { onIntent(SettingsIntent.DismissRestorePreviewDialog) }) {
-                        Text(if (isArabic) "إلغاء" else "Cancel")
+                        Text(strings.cancel)
                     }
                 }
             )
         }
     }
 
-    // حوار نغمات iOS التوجيهي (Guidance Dialog)
-    if (state.showRingtoneGuidanceDialog) {
-        AlertDialog(
-            onDismissRequest = { onIntent(SettingsIntent.DismissRingtoneGuidance) },
-            title = { Text(if (isArabic) "النغمات المخصصة على iOS" else "Custom Ringtones on iOS") },
-            text = {
-                Text(
-                    if (isArabic)
-                        "نظام iOS لا يسمح لأي تطبيق بتعيين نغمات الرنين برمجياً في دفتر الهاتف.\n\nيمكنك تعيين نغمة رنين خاصة لأي شخص مباشرة عبر فتح جهة الاتصال في تطبيق جهات اتصال النظام واختيار 'نغمة الرنين'."
-                    else
-                        "iOS does not permit third-party apps to change ringtones programmatically.\n\nYou can assign a custom ringtone directly by opening the contact in the native iOS Contacts app and choosing 'Ringtone'."
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onIntent(SettingsIntent.DismissRingtoneGuidance)
-                    }
-                ) {
-                    Text(if (isArabic) "حسناً، فهمت" else "Got it")
-                }
-            }
-        )
-    }
-
-    // حوار اختيار النغمة للتصنيف
+    // حوار اختيار النغمة
     state.showRingtonePickerCategory?.let { category ->
         AlertDialog(
             onDismissRequest = { onIntent(SettingsIntent.DismissRingtonePicker) },
             title = {
-                Text(
-                    if (isArabic) "اختر نغمة لتصنيف ${category.name}" else "Choose Ringtone for ${category.name}"
-                )
+                Text("${strings.chooseRingtone}: ${category.name}")
             },
             text = {
                 Column {
-                    Text(
-                        if (isArabic)
-                            "سيتم تطبيق هذه النغمة تلقائياً على جميع جهات الاتصال في هذا التصنيف التي ليس لها نغمة فردية."
-                        else
-                            "This ringtone will be applied to all contacts in this category that do not have an individual ringtone."
-                    )
+                    Text(strings.ringtoneExplain)
                     Spacer(modifier = Modifier.height(SilaDimens.Space8))
-                    TextButton(
-                        onClick = {
-                            onIntent(SettingsIntent.SetCategoryRingtone(category, "content://media/chime.ogg"))
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (isArabic) "نغمة صِلَة العائلية (Chime)" else "Sila Family Chime")
+
+                    if (state.availableRingtones.isNotEmpty()) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                        ) {
+                            items(state.availableRingtones) { ringtoneItem ->
+                                TextButton(
+                                    onClick = {
+                                        onIntent(SettingsIntent.SetCategoryRingtone(category, ringtoneItem.uri))
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(ringtoneItem.title)
+                                }
+                            }
+                        }
+                    } else {
+                        TextButton(
+                            onClick = {
+                                onIntent(SettingsIntent.SetCategoryRingtone(category, "content://media/chime.ogg"))
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isArabic) "نغمة صِلَة العائلية" else "Sila Chime")
+                        }
                     }
+
+                    HorizontalDivider()
                     TextButton(
                         onClick = {
                             onIntent(SettingsIntent.SetCategoryRingtone(category, null))
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (isArabic) "إعادة تعيين لنغمة النظام الافتراضية" else "Reset to System Default")
+                        Text(strings.resetDefault)
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { onIntent(SettingsIntent.DismissRingtonePicker) }) {
-                    Text(if (isArabic) "إغلاق" else "Close")
+                    Text(strings.close)
                 }
             }
+        )
+    }
+}
+
+private fun formatSwipeAction(action: ContactSwipeAction, strings: SettingsStrings): String = when (action) {
+    ContactSwipeAction.CALL -> strings.swipeCall
+    ContactSwipeAction.MESSAGE -> strings.swipeMessage
+    ContactSwipeAction.NONE -> strings.swipeNone
+}
+
+data class SettingsStrings(
+    val title: String,
+    val close: String,
+    val sectionAppearance: String,
+    val theme: String,
+    val themeLight: String,
+    val themeDark: String,
+    val themeSystem: String,
+    val language: String,
+    val digits: String,
+    val digitsArabic: String,
+    val digitsHindi: String,
+    val nameOrder: String,
+    val nameOrderFirstLast: String,
+    val nameOrderLastFirst: String,
+    val sectionGeneral: String,
+    val defaultTab: String,
+    val tabContacts: String,
+    val tabServices: String,
+    val tabArham: String,
+    val swipeStart: String,
+    val swipeEnd: String,
+    val swipeCall: String,
+    val swipeMessage: String,
+    val swipeNone: String,
+    val simSlot: String,
+    val sectionArham: String,
+    val arhamNotifications: String,
+    val arhamTime: String,
+    val arhamMaxPerDay: String,
+    val quietHours: String,
+    val quietHoursPickTitle: String,
+    val quietHoursStart: String,
+    val quietHoursEnd: String,
+    val save: String,
+    val cancel: String,
+    val sectionOrganization: String,
+    val smartFilter: String,
+    val duplicateScan: String,
+    val customKeywords: String,
+    val addKeyword: String,
+    val sectionRingtones: String,
+    val ringtonePriority: String,
+    val customRingtone: String,
+    val systemDefaultRingtone: String,
+    val chooseRingtone: String,
+    val ringtoneExplain: String,
+    val resetDefault: String,
+    val sectionBackup: String,
+    val localPrivacy: String,
+    val localPrivacyValue: String,
+    val exportBackup: String,
+    val restoreBackup: String,
+    val crashReports: String,
+    val deleteAccount: String,
+    val deleteAccountValue: String,
+    val exportDialogTitle: String,
+    val exportDialogDesc: String,
+    val passwordLabel: String,
+    val exportButton: String,
+    val encrypting: String,
+    val restoreDialogTitle: String,
+    val restoreDialogDesc: String,
+    val previewButton: String,
+    val verifying: String,
+    val previewDialogTitle: String,
+    val restoreModeMerge: String,
+    val restoreModeMergeDesc: String,
+    val restoreModeReplace: String,
+    val restoreModeReplaceDesc: String,
+    val restorePrefsCheckbox: String,
+    val startRestore: String,
+    val aboutSection: String,
+    val versionTitle: String,
+    val versionValue: String,
+    val privacyTerms: String,
+    val rateApp: String
+) {
+    companion object {
+        fun arabic(): SettingsStrings = SettingsStrings(
+            title = "الإعدادات والتفضيلات",
+            close = "إغلاق الإعدادات",
+            sectionAppearance = "المظهر واللغة",
+            theme = "السمة المظهرية",
+            themeLight = "فاتح ☀️",
+            themeDark = "داكن 🌙",
+            themeSystem = "تلقائي (حسب النظام) ⚙️",
+            language = "لغة التطبيق",
+            digits = "كتابة الأرقام",
+            digitsArabic = "أرقام عربية غربية (1 2 3)",
+            digitsHindi = "أرقام عربية مشرقية (١ ٢ ٣)",
+            nameOrder = "ترتيب عرض الأسماء",
+            nameOrderFirstLast = "الاسم الأول أولاً",
+            nameOrderLastFirst = "اسم العائلة أولاً",
+            sectionGeneral = "عام وسلوك التطبيق",
+            defaultTab = "التبويب الافتراضي عند الفتح",
+            tabContacts = "جهات الاتصال 👥",
+            tabServices = "دليل الخدمات 🛠️",
+            tabArham = "أرحام ❤️",
+            swipeStart = "سحب البداية",
+            swipeEnd = "سحب النهاية",
+            swipeCall = "اتصال 📞",
+            swipeMessage = "رسالة 💬",
+            swipeNone = "معطل ✕",
+            simSlot = "شريحة الاتصال المفضلة",
+            sectionArham = "صلة الرحم (أرحام)",
+            arhamNotifications = "تفعيل تنبيهات صلة الرحم",
+            arhamTime = "وقت التذكير اليومي",
+            arhamMaxPerDay = "الحد الأقصى للتنبيهات يومياً",
+            quietHours = "الساعات الهادئة (حظر التنبيهات)",
+            quietHoursPickTitle = "تحديد الساعات الهادئة",
+            quietHoursStart = "بداية الهدوء",
+            quietHoursEnd = "نهاية الهدوء",
+            save = "حفظ",
+            cancel = "إلغاء",
+            sectionOrganization = "التنظيم والذكاء الاصطناعي المحلي",
+            smartFilter = "الفلترة الذكية التلقائية",
+            duplicateScan = "فحص التكرارات بالخلفية عند التشغيل",
+            customKeywords = "الكلمات المفتاحية المخصصة للتصنيف",
+            addKeyword = "إضافة",
+            sectionRingtones = "نغمات التصنيفات",
+            ringtonePriority = "الأولوية: نغمة الشخص > نغمة التصنيف > نغمة النظام",
+            customRingtone = "مخصصة ✓",
+            systemDefaultRingtone = "نغمة النظام الافتراضية",
+            chooseRingtone = "اختر نغمة",
+            ringtoneExplain = "سيتم تطبيق هذه النغمة تلقائياً على جهات الاتصال في هذا التصنيف التي ليس لها نغمة فردية.",
+            resetDefault = "إعادة تعيين لنغمة النظام الافتراضية",
+            sectionBackup = "الخصوصية والنسخ الاحتياطي المشفر",
+            localPrivacy = "ماذا نعرف عنك؟ (الخصوصية المحلية)",
+            localPrivacyValue = "0 بيانات مرفوعة (محلي 100%)",
+            exportBackup = "تصدير نسخة مشفرة (.sila.backup)",
+            restoreBackup = "استعادة نسخة احتياطية",
+            crashReports = "إرسال تقارير الأعطال مجهولة المصدر",
+            deleteAccount = "حذف البيانات والبدء من جديد",
+            deleteAccountValue = "محلي فقط (لا سحابة)",
+            exportDialogTitle = "تصدير نسخة احتياطية مشفرة",
+            exportDialogDesc = "سيتم تشفير التصنيفات وبيانات أرحام والوسوم والتفضيلات بـ AES-256-GCM. أدخل كلمة مرور قوية:",
+            passwordLabel = "كلمة المرور",
+            exportButton = "تصدير مشفر",
+            encrypting = "جاري التشفير...",
+            restoreDialogTitle = "استعادة نسخة احتياطية",
+            restoreDialogDesc = "أدخل كلمة المرور لمعاينة وفك تشفير النسخة:",
+            previewButton = "معاينة النسخة",
+            verifying = "جاري الفحص...",
+            previewDialogTitle = "معاينة النسخة الاحتياطية",
+            restoreModeMerge = "دمج مع البيانات الحالية",
+            restoreModeMergeDesc = "تحديث التصنيفات وصلة الرحم والوسوم دون حذف القائم",
+            restoreModeReplace = "استبدال البيانات الحالية",
+            restoreModeReplaceDesc = "إعادة تعيين التصنيفات والوسوم القديمة وتطبيق محتوى النسخة",
+            restorePrefsCheckbox = "استعادة تفضيلات وإعدادات التطبيق أيضاً",
+            startRestore = "بدء الاستعادة",
+            aboutSection = "حول صِلَة",
+            versionTitle = "رقم الإصدار",
+            versionValue = "1.0.0 (Phase 1 Local MVP)",
+            privacyTerms = "سياسة الخصوصية والشروط",
+            rateApp = "تقييم التطبيق والدعم"
+        )
+
+        fun english(): SettingsStrings = SettingsStrings(
+            title = "Settings & Preferences",
+            close = "Close Settings",
+            sectionAppearance = "Appearance & Language",
+            theme = "Theme Mode",
+            themeLight = "Light ☀️",
+            themeDark = "Dark 🌙",
+            themeSystem = "System Default ⚙️",
+            language = "Language",
+            digits = "Digits Format",
+            digitsArabic = "Western Arabic (1 2 3)",
+            digitsHindi = "Eastern Arabic (١ ٢ ٣)",
+            nameOrder = "Name Display Order",
+            nameOrderFirstLast = "First Name, Last Name",
+            nameOrderLastFirst = "Last Name, First Name",
+            sectionGeneral = "General & Behavior",
+            defaultTab = "Default Startup Tab",
+            tabContacts = "Contacts 👥",
+            tabServices = "Services 🛠️",
+            tabArham = "Arham ❤️",
+            swipeStart = "Start Swipe",
+            swipeEnd = "End Swipe",
+            swipeCall = "Call 📞",
+            swipeMessage = "Message 💬",
+            swipeNone = "Disabled ✕",
+            simSlot = "Default SIM Slot",
+            sectionArham = "Kinship (Arham)",
+            arhamNotifications = "Kinship Reminders",
+            arhamTime = "Daily Reminder Time",
+            arhamMaxPerDay = "Max Reminders Per Day",
+            quietHours = "Quiet Hours (Do Not Disturb)",
+            quietHoursPickTitle = "Set Quiet Hours",
+            quietHoursStart = "Quiet Start",
+            quietHoursEnd = "Quiet End",
+            save = "Save",
+            cancel = "Cancel",
+            sectionOrganization = "Organization & Local AI",
+            smartFilter = "Smart Filter",
+            duplicateScan = "Startup Duplicate Scan",
+            customKeywords = "Custom Category Keywords",
+            addKeyword = "Add",
+            sectionRingtones = "Category Ringtones",
+            ringtonePriority = "Priority: Contact Ringtone > Category Ringtone > System Default",
+            customRingtone = "Custom ✓",
+            systemDefaultRingtone = "System Default",
+            chooseRingtone = "Select Ringtone",
+            ringtoneExplain = "This ringtone will be assigned to category contacts without individual custom ringtones.",
+            resetDefault = "Reset to System Default",
+            sectionBackup = "Privacy & Encrypted Backup",
+            localPrivacy = "What do we know about you?",
+            localPrivacyValue = "0 data uploaded (100% offline)",
+            exportBackup = "Export Encrypted Backup (.sila.backup)",
+            restoreBackup = "Restore Backup",
+            crashReports = "Anonymous Crash Reports",
+            deleteAccount = "Reset Data & Start Fresh",
+            deleteAccountValue = "Local only (No Cloud)",
+            exportDialogTitle = "Export Encrypted Backup",
+            exportDialogDesc = "Categories, kinship, tags, and preferences will be encrypted with AES-256-GCM. Enter a strong password:",
+            passwordLabel = "Password",
+            exportButton = "Export Encrypted",
+            encrypting = "Encrypting...",
+            restoreDialogTitle = "Restore Backup",
+            restoreDialogDesc = "Enter the password to preview and decrypt the backup:",
+            previewButton = "Preview Backup",
+            verifying = "Verifying...",
+            previewDialogTitle = "Backup Preview",
+            restoreModeMerge = "Merge with current data",
+            restoreModeMergeDesc = "Update categories, kinship, and tags without deleting existing ones",
+            restoreModeReplace = "Replace current data",
+            restoreModeReplaceDesc = "Reset previous categories and tags, applying the backup payload",
+            restorePrefsCheckbox = "Also restore app preferences and settings",
+            startRestore = "Start Restore",
+            aboutSection = "About Sila",
+            versionTitle = "Version",
+            versionValue = "1.0.0 (Phase 1 Local MVP)",
+            privacyTerms = "Privacy Policy & Terms",
+            rateApp = "Rate App & Feedback"
         )
     }
 }

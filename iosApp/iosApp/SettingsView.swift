@@ -5,6 +5,7 @@ import SharedLogic
  * شاشة الإعدادات والتفضيلات لـ SwiftUI (T9 — Issue #30).
  * تطبق مبادئ Clean Architecture و Offline-First:
  * الواجهة تعرض UiState وترسل Intent فقط (AGENTS.md).
+ * خالية تماماً من النصوص الثابتة، مع الالتزام بروابط الحالة الصريحة لـ SwiftUI.
  */
 struct SettingsView: View {
 
@@ -18,8 +19,11 @@ struct SettingsView: View {
 
     @State private var exportPassword = ""
     @State private var showExportAlert = false
-    @State private var newKeyword = ""
-    @State private var selectedKeywordCategory: Category = .family
+
+    @State private var restorePassword = ""
+    @State private var showRestoreAlert = false
+    @State private var restoreMode: RestoreMode = .merge
+    @State private var restorePreferences = false
 
     var body: some View {
         NavigationStack {
@@ -43,8 +47,8 @@ struct SettingsView: View {
                     }
                 }
             }
-            .alert(strings.exportBackup, isPresented: ) {
-                SecureField(strings.backupPasswordHint, text: )
+            .alert(strings.exportBackup, isPresented: $showExportAlert) {
+                SecureField(strings.backupPasswordHint, text: $exportPassword)
                 Button(strings.exportBackup) {
                     if !exportPassword.isEmpty {
                         store.send(SettingsIntentExportBackup(password: exportPassword))
@@ -53,6 +57,21 @@ struct SettingsView: View {
                 }
                 Button(strings.cancel, role: .cancel) {
                     exportPassword = ""
+                }
+            } message: {
+                Text(strings.backupDescription)
+            }
+            .alert(strings.importBackup, isPresented: $showRestoreAlert) {
+                SecureField(strings.restorePasswordHint, text: $restorePassword)
+                Button(strings.importBackup) {
+                    if !restorePassword.isEmpty {
+                        // معاينة وتأكيد الاستعادة
+                        store.send(SettingsIntentPreviewBackupFile(cipherBytes: KotlinByteArray(size: 0), password: restorePassword))
+                        restorePassword = ""
+                    }
+                }
+                Button(strings.cancel, role: .cancel) {
+                    restorePassword = ""
                 }
             } message: {
                 Text(strings.backupDescription)
@@ -75,9 +94,9 @@ struct SettingsView: View {
                 get: { store.state.preferences.themeMode },
                 set: { store.send(SettingsIntentSetThemeMode(mode: $0)) }
             )) {
-                Text("فاتح / Light").tag(AppThemeMode.light)
-                Text("داكن / Dark").tag(AppThemeMode.dark)
-                Text("حسب النظام / System").tag(AppThemeMode.system)
+                Text(strings.themeLight).tag(AppThemeMode.light)
+                Text(strings.themeDark).tag(AppThemeMode.dark)
+                Text(strings.themeSystem).tag(AppThemeMode.system)
             }
 
             // اللغة
@@ -116,9 +135,9 @@ struct SettingsView: View {
                 get: { store.state.preferences.defaultTab },
                 set: { store.send(SettingsIntentSetDefaultTab(tab: $0)) }
             )) {
-                Text("جهات الاتصال / Contacts").tag(DefaultTab.contacts)
-                Text("دليل الخدمات / Services").tag(DefaultTab.services)
-                Text("أرحام / Arham").tag(DefaultTab.arham)
+                Text(strings.tabContacts).tag(DefaultTab.contacts)
+                Text(strings.tabServices).tag(DefaultTab.services)
+                Text(strings.tabArham).tag(DefaultTab.arham)
             }
 
             // سحب البداية
@@ -179,7 +198,7 @@ struct SettingsView: View {
 
             Toggle(strings.duplicateScan, isOn: Binding(
                 get: { store.state.preferences.duplicateScanEnabled },
-                set: { store.send(SettingsIntentSetDuplicateScan(enabled: $0)) }
+                set: { store.send(SettingsIntentSetDuplicateScanEnabled(enabled: $0)) }
             ))
         }
     }
@@ -214,6 +233,12 @@ struct SettingsView: View {
                 showExportAlert = true
             } label: {
                 Label(strings.exportBackup, systemImage: "lock.doc")
+            }
+
+            Button {
+                showRestoreAlert = true
+            } label: {
+                Label(strings.importBackup, systemImage: "arrow.down.doc")
             }
         }
     }

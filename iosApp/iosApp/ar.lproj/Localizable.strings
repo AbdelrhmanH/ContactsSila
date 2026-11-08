@@ -444,6 +444,9 @@
 "settings_title" = "الإعدادات";
 "settings_section_appearance" = "المظهر واللغة";
 "settings_theme" = "السمة";
+"settings_theme_light" = "فاتح";
+"settings_theme_dark" = "داكن";
+"settings_theme_system" = "حسب النظام";
 "settings_language" = "اللغة";
 "settings_digits" = "الأرقام";
 "settings_digits_arabic" = "أرقام عربية (1 2 3)";
@@ -453,6 +456,9 @@
 "settings_name_order_last_first" = "العائلة ثم الاسم الأول";
 "settings_section_general" = "عام وسلوك العرض";
 "settings_default_tab" = "التبويب الافتراضي";
+"settings_tab_contacts" = "جهات الاتصال";
+"settings_tab_services" = "دليل الخدمات";
+"settings_tab_arham" = "أرحام";
 "settings_swipe_start" = "سحب البداية";
 "settings_swipe_end" = "سحب النهاية";
 "settings_swipe_call" = "اتصال";

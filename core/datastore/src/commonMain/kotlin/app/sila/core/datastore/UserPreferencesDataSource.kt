@@ -366,12 +366,31 @@ class SilaPreferencesDataSource(
     }
 
     override suspend fun setCategoryRingtone(category: Category, uri: String?) {
-        val updated = if (uri.isNullOrBlank()) {
-            _memoryState.value.categoryRingtones - category
-        } else {
-            _memoryState.value.categoryRingtones + (category to uri)
+        var finalMap = emptyMap<Category, String>()
+        dataStore?.edit { prefs ->
+            val raw = prefs[KEY_CATEGORY_RINGTONES]
+            val current = raw?.let {
+                runCatching {
+                    json.decodeFromString(MapSerializer(Category.serializer(), String.serializer()), it)
+                }.getOrNull()
+            } ?: emptyMap()
+            val updated = if (uri.isNullOrBlank()) {
+                current - category
+            } else {
+                current + (category to uri)
+            }
+            finalMap = updated
+            val encoded = runCatching {
+                json.encodeToString(MapSerializer(Category.serializer(), String.serializer()), updated)
+            }
+            encoded.onSuccess { prefs[KEY_CATEGORY_RINGTONES] = it }
+                .onFailure { prefs.remove(KEY_CATEGORY_RINGTONES) }
         }
-        setCategoryRingtones(updated)
+        if (dataStore == null) {
+            val current = _memoryState.value.categoryRingtones
+            finalMap = if (uri.isNullOrBlank()) current - category else current + (category to uri)
+        }
+        _memoryState.update { it.copy(categoryRingtones = finalMap) }
     }
 
     override suspend fun setCategoryRingtones(ringtones: Map<Category, String>) {

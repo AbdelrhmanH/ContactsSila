@@ -3,10 +3,10 @@ package app.sila.di
 import android.content.Context
 import app.sila.core.model.Category
 import app.sila.feature.settings.data.AndroidBackupCryptoEngine
+import app.sila.feature.settings.data.ringtone.AndroidRingtoneSource
 import app.sila.feature.settings.domain.BackupCryptoEngine
 import app.sila.feature.settings.domain.PlatformRingtoneSource
 import app.sila.feature.settings.domain.RingtoneItem
-import app.sila.settings.ringtone.AndroidRingtoneSource
 import org.koin.core.module.Module
 import org.koin.dsl.module
 

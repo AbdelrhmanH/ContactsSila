@@ -47,7 +47,7 @@ enum class ContactSwipeAction {
 
 @Serializable
 data class UserPreferences(
-    val themeMode: AppThemeMode = AppThemeMode.LIGHT,
+    val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val language: AppLanguage = AppLanguage.ARABIC,
     val digits: AppDigits = AppDigits.ARABIC,
     val nameOrder: NameOrder = NameOrder.FIRST_LAST,
@@ -55,10 +55,10 @@ data class UserPreferences(
     val visibleAccounts: Set<String> = emptySet(),
     val defaultSimSlot: Int? = null,
     val arhamNotificationsEnabled: Boolean = true,
-    val quietHoursStartHour: Int = 23,
+    val quietHoursStartHour: Int = 22,
     val quietHoursEndHour: Int = 8,
-    /** ساعة التذكير اليومي المفضلة بالتوقيت المحلي (§M «الوقت المفضل» — T8-08؛ الافتراضي 20:00). */
-    val arhamNotificationHour: Int = 20,
+    /** ساعة التذكير اليومي المفضلة بالتوقيت المحلي (§M «الوقت المفضل» — T8-08؛ الافتراضي 19:00). */
+    val arhamNotificationHour: Int = 19,
     /** دقيقة التذكير اليومي المفضلة بالتوقيت المحلي (§M «الوقت المفضل» — T8-08). */
     val arhamNotificationMinute: Int = 0,
     val arhamMaxPerDay: Int = 1,

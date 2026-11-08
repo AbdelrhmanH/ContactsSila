@@ -12,7 +12,7 @@ struct SettingsLocalizedStrings {
 
     private var bundle: Bundle {
         let path = Bundle.main.path(forResource: language.code, ofType: "lproj")
-        return path.flatMap { Bundle(path: ) } ?? Bundle.main
+        return path.flatMap { Bundle(path: $0) } ?? Bundle.main
     }
 
     private func string(_ key: String) -> String {
@@ -22,6 +22,9 @@ struct SettingsLocalizedStrings {
     var screenTitle: String { string("settings_title") }
     var sectionAppearance: String { string("settings_section_appearance") }
     var theme: String { string("settings_theme") }
+    var themeLight: String { string("settings_theme_light") }
+    var themeDark: String { string("settings_theme_dark") }
+    var themeSystem: String { string("settings_theme_system") }
     var languageTitle: String { string("settings_language") }
     var digits: String { string("settings_digits") }
     var digitsArabic: String { string("settings_digits_arabic") }
@@ -32,6 +35,9 @@ struct SettingsLocalizedStrings {
 
     var sectionGeneral: String { string("settings_section_general") }
     var defaultTab: String { string("settings_default_tab") }
+    var tabContacts: String { string("settings_tab_contacts") }
+    var tabServices: String { string("settings_tab_services") }
+    var tabArham: String { string("settings_tab_arham") }
     var swipeStart: String { string("settings_swipe_start") }
     var swipeEnd: String { string("settings_swipe_end") }
     var swipeCall: String { string("settings_swipe_call") }

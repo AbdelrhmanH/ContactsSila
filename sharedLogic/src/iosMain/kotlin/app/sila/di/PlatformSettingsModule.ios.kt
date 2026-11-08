@@ -1,9 +1,9 @@
 package app.sila.di
 
 import app.sila.feature.settings.data.IosBackupCryptoEngine
+import app.sila.feature.settings.data.ringtone.IosRingtoneSource
 import app.sila.feature.settings.domain.BackupCryptoEngine
 import app.sila.feature.settings.domain.PlatformRingtoneSource
-import app.sila.settings.ringtone.IosRingtoneSource
 import org.koin.core.module.Module
 import org.koin.dsl.module
 

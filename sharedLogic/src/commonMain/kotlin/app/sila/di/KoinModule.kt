@@ -509,9 +509,9 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     factory { ObserveCategoryRingtonesUseCase(repository = get()) }
     factory { SetCategoryRingtoneUseCase(repository = get(), platformRingtoneSource = get()) }
     factory { GetEffectiveRingtoneUseCase(repository = get(), platformRingtoneSource = get()) }
-    factory { ExportBackupUseCase(repository = get(), cryptoEngine = get()) }
-    factory { PreviewBackupUseCase(cryptoEngine = get()) }
-    factory { RestoreBackupUseCase(repository = get(), cryptoEngine = get()) }
+    factory { ExportBackupUseCase(repository = get(), cryptoEngine = get(), dispatchers = get()) }
+    factory { PreviewBackupUseCase(cryptoEngine = get(), dispatchers = get()) }
+    factory { RestoreBackupUseCase(repository = get(), cryptoEngine = get(), dispatchers = get()) }
     single {
         SettingsViewModel(
             observePreferences = get(),
@@ -519,11 +519,22 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             setLanguage = get(),
             setArhamNotifications = get(),
             setSmartFilter = get(),
+            setDigitsUseCase = get(),
+            setNameOrderUseCase = get(),
+            setSwipeActionsUseCase = get(),
+            setQuietHoursUseCase = get(),
+            setArhamNotificationTimeUseCase = get(),
+            setDashboardPeriodUseCase = get(),
+            setAutoTrackingEnabledUseCase = get(),
+            setDuplicateScanUseCase = get(),
+            setCrashReportsUseCase = get(),
             repository = get(),
             exportBackup = get(),
             previewBackup = get(),
             restoreBackup = get(),
             setCategoryRingtoneUseCase = get(),
+            platformRingtoneSource = get(),
+            dispatchers = get(),
         )
     }
 
