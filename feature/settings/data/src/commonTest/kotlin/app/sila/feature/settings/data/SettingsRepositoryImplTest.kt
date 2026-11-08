@@ -324,4 +324,32 @@ class SettingsRepositoryImplTest {
         assertEquals(21, restoredPrefs.quietHoursStartHour)
         assertEquals("content://media/chime", restoredPrefs.categoryRingtones[Category.FAMILY])
     }
+
+    @Test
+    fun getBackupData_withoutContactsDao_failsFastInsteadOfSilentEmptyBackup() = runTest {
+        val repository = SettingsRepositoryImpl(SilaPreferencesDataSource())
+
+        val result = runCatching { repository.getBackupData() }
+
+        assertTrue(result.isFailure, "Missing ContactDao must fail fast (silent empty backup was the defect)")
+    }
+
+    @Test
+    fun restoreBackupData_withoutDaos_failsFastInsteadOfSilentNoOpRestore() = runTest {
+        val repository = SettingsRepositoryImpl(SilaPreferencesDataSource())
+
+        val result = runCatching {
+            repository.restoreBackupData(
+                payload = BackupPayload(
+                    version = 1,
+                    exportedAt = "2026-11-08T12:00:00Z",
+                    appVersion = "1.0.0"
+                ),
+                mode = RestoreMode.MERGE,
+                restorePreferences = false
+            )
+        }
+
+        assertTrue(result.isFailure, "Missing DAOs must fail fast (silent no-op restore was the defect)")
+    }
 }

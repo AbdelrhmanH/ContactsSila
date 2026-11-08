@@ -37,6 +37,18 @@ class SettingsRepositoryImpl(
     private val arhamDao: ArhamDao? = null
 ) : SettingsRepository {
 
+    /**
+     * حارس مسارات النسخ الاحتياطي (مراجع T9 · اكتشاف DAOs nullable — سكوت البيانات):
+     * التصدير/الاستعادة بغير DAOs كانت تُنتج نسخة «ناجحة المنظر» فارغة أو استعادة
+     * لا-عمل — يُرفع الآن فشل فوري بدل التوفيق الصامت (الاختبارات المراجعة لا
+     * تستدعي مسارات النسخ بغير DAOs أصلاً).
+     */
+    private fun requireContactsDao(): ContactDao =
+        requireNotNull(contactDao) { "Backup export/restore requires ContactDao wiring (silent no-op guard)" }
+
+    private fun requireArhamDao(): ArhamDao =
+        requireNotNull(arhamDao) { "Backup restore requires ArhamDao wiring (silent no-op guard)" }
+
     override val preferences: Flow<UserPreferences> get() = dataSource.preferences
 
     override suspend fun setThemeMode(mode: AppThemeMode) = dataSource.setThemeMode(mode)
@@ -70,8 +82,9 @@ class SettingsRepositoryImpl(
         dataSource.setCategoryRingtones(ringtones)
 
     override suspend fun getBackupData(): BackupPayload {
+        val dao = requireContactsDao()
         val currentPrefs = dataSource.preferences.first()
-        val allContacts = contactDao?.observeContacts()?.first() ?: emptyList()
+        val allContacts = dao.observeContacts().first()
 
         val categoryEntries = allContacts.filter { it.category != Category.UNCATEGORIZED }.map { c ->
             BackupCategoryEntry(
@@ -155,7 +168,9 @@ class SettingsRepositoryImpl(
         mode: RestoreMode,
         restorePreferences: Boolean
     ): RestoreResult {
-        val allContacts = contactDao?.observeContacts()?.first() ?: emptyList()
+        val contactDao = requireContactsDao()
+        val arhamDao = requireArhamDao()
+        val allContacts = contactDao.observeContacts().first()
         val contactByLookup = mutableMapOf<String, Long>()
         for (c in allContacts) {
             c.lookupKey?.let { contactByLookup[it] = c.id }
@@ -164,8 +179,8 @@ class SettingsRepositoryImpl(
 
         if (mode == RestoreMode.REPLACE) {
             for (c in allContacts) {
-                contactDao?.upsertContact(c.copy(category = Category.UNCATEGORIZED, tags = emptyList(), arham = null))
-                arhamDao?.deleteArhamInfo(c.id)
+                contactDao.upsertContact(c.copy(category = Category.UNCATEGORIZED, tags = emptyList(), arham = null))
+                arhamDao.deleteArhamInfo(c.id)
             }
         }
 
@@ -175,7 +190,7 @@ class SettingsRepositoryImpl(
         for (cat in payload.categories) {
             val contactId = contactByLookup[cat.lookupKey]
             if (contactId != null) {
-                contactDao?.updateCategory(contactId, cat.category)
+                contactDao.updateCategory(contactId, cat.category)
                 matchedCategoriesCount++
             } else {
                 unmatchedCategories += cat
@@ -189,7 +204,7 @@ class SettingsRepositoryImpl(
             val contactId = contactByLookup[arham.lookupKey]
             if (contactId != null) {
                 val parentId = arham.parentLookupKey?.let { contactByLookup[it] }
-                arhamDao?.upsertArhamInfo(
+                arhamDao.upsertArhamInfo(
                     contactId = contactId,
                     info = ArhamInfo(
                         relation = arham.relation,
@@ -201,9 +216,9 @@ class SettingsRepositoryImpl(
                     )
                 )
                 if (arham.dates.isNotEmpty()) {
-                    val existing = contactDao?.getContactById(contactId)
+                    val existing = contactDao.getContactById(contactId)
                     if (existing != null) {
-                        contactDao?.upsertContact(existing.copy(dates = arham.dates))
+                        contactDao.upsertContact(existing.copy(dates = arham.dates))
                     }
                 }
                 matchedArhamCount++
@@ -216,9 +231,9 @@ class SettingsRepositoryImpl(
         for (tagEntry in payload.tags) {
             val contactId = contactByLookup[tagEntry.lookupKey]
             if (contactId != null) {
-                val existing = contactDao?.getContactById(contactId)
+                val existing = contactDao.getContactById(contactId)
                 if (existing != null) {
-                    contactDao?.upsertContact(existing.copy(tags = tagEntry.tags))
+                    contactDao.upsertContact(existing.copy(tags = tagEntry.tags))
                 }
             }
         }
