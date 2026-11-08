@@ -32,7 +32,7 @@ class UndoMergeUseCase(
         val absorbed = content.members.filter { it.systemContactId in content.absorbedSystemIds.toSet() }
 
         // J-1: المنصة أولاً — idempotent؛ فشلها يمنع أي مساس Room.
-        val platform = when (val result = mergeWriter.unmergeContacts(
+        val platformResult = when (val result = mergeWriter.unmergeContacts(
             PlatformUnmergeRequest(
                 survivor = survivor,
                 absorbed = absorbed,
@@ -45,12 +45,12 @@ class UndoMergeUseCase(
 
         return try {
             when (val outcome = mergeStore.undoInRoom(snapshotId, clock.nowEpochMillis()) { original ->
-                if (platform.absorbedSystemIds.isEmpty()) {
+                if (platformResult.absorbedSystemIds.isEmpty()) {
                     original
                 } else {
                     original.copy(
                         members = original.members.map { member ->
-                            platform.absorbedSystemIds[member.systemContactId]
+                            platformResult.absorbedSystemIds[member.systemContactId]
                                 ?.let { newId -> member.copy(systemContactId = newId) }
                                 ?: member
                         },

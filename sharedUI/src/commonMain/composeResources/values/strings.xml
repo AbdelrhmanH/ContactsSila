@@ -403,4 +403,30 @@
     <string name="contacts_emergency_ring_button">🚨 رنين طوارئ</string>
     <string name="contacts_emergency_warning_title">بدء رنين الطوارئ؟</string>
     <string name="contacts_emergency_warning_body">سيُطلق اتصال تلقائي متكرر على هذا الرقم حتى الردّ أو الإيقاف أو بلوغ 10 محاولات (بحدّ 3 جلسات في 24 ساعة).</string>
+
+    <!-- مراجعة المكررات — T7 (Issue #28 · spec 04 §أ) -->
+    <string name="dup_screen_title">مراجعة المكررات</string>
+    <string name="dup_back_description">رجوع</string>
+    <string name="dup_loading">جارٍ البحث عن المكررات…</string>
+    <string name="dup_empty_title">لا مكررات محتملة</string>
+    <string name="dup_empty_message">لم نجد جهات تبدو مكررة الآن. سنبقيك على اطلاع إن ظهر شيء.</string>
+    <string name="dup_confidence_high">مطابقة مؤكدة</string>
+    <string name="dup_confidence_medium">احتمال متوسط</string>
+    <string name="dup_confidence_low">اقتراح</string>
+    <string name="dup_reason_same_phone">نفس الرقم: %s</string>
+    <string name="dup_reason_same_email">نفس البريد: %s</string>
+    <string name="dup_reason_same_name">نفس الاسم: %s</string>
+    <string name="dup_reason_similar_name">أسماء متشابهة: %s</string>
+    <string name="dup_preview_title">بعد الدمج</string>
+    <string name="dup_preview_summary">الأرقام بعد الدمج: %d · البريد: %d</string>
+    <string name="dup_preview_notes_merged">ستُدمج الملاحظات المختلفة مع فاصل</string>
+    <string name="dup_ringtone_conflict">نغمات رنين مختلفة — بعد الدمج تبقى نغمة الجهة المُبقاة</string>
+    <string name="dup_merge_button">دمج</string>
+    <string name="dup_not_duplicates_button">ليست مكررات</string>
+    <string name="dup_merge_all_confirmed">دمج كل المؤكدة (%d)</string>
+    <string name="dup_undo_message">تم الدمج — يمكنك التراجع الآن</string>
+    <string name="dup_call_member">اتصال بالجهة</string>
+    <string name="dup_open_member_description">فتح تفاصيل الجهة</string>
+    <string name="dup_error_merge">تعذر دمج بعض المجموعات. جرّب مجدداً بعد قليل.</string>
+    <string name="dup_error_undo">تعذر التراجع. الجهات ما تزال مدموجة.</string>
 </resources>

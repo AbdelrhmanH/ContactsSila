@@ -65,11 +65,13 @@ import app.sila.feature.contacts.domain.DeleteContactUseCase
 import app.sila.feature.contacts.domain.DeleteContactWithUndoUseCase
 import app.sila.feature.contacts.domain.FindDuplicateContactUseCase
 import app.sila.feature.contacts.domain.DeleteContactsUseCase
+import app.sila.feature.contacts.domain.DismissDuplicateGroupUseCase
 import app.sila.feature.contacts.domain.MergeContactsUseCase
 import app.sila.feature.contacts.domain.UndoMergeUseCase
 import app.sila.feature.contacts.domain.DetectDuplicatesUseCase
 import app.sila.feature.contacts.domain.ObserveCategoryCountsUseCase
 import app.sila.feature.contacts.domain.ObserveContactDetailsUseCase
+import app.sila.feature.contacts.domain.ObserveDuplicateGroupsUseCase
 import app.sila.feature.contacts.domain.ObserveContactsPagedUseCase
 import app.sila.feature.contacts.domain.ObserveContactsUseCase
 import app.sila.feature.contacts.domain.ObserveFavoriteContactsUseCase
@@ -90,6 +92,7 @@ import app.sila.feature.contacts.domain.onboarding.SetOnboardingPermissionsResul
 import app.sila.feature.contacts.presentation.ContactDetailsViewModel
 import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
+import app.sila.feature.contacts.presentation.duplicates.DuplicatesReviewViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
 import app.sila.feature.services.data.ServicesRepositoryImpl
@@ -243,6 +246,17 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single<ContactsMergeStore> { ContactsMergeStoreImpl(db = get()) }
     factory { MergeContactsUseCase(mergeWriter = get(), mergeStore = get(), clock = get()) }
     factory { UndoMergeUseCase(mergeWriter = get(), mergeStore = get(), clock = get()) }
+    // T7 S8: تيار شاشة المراجعة (مجموعات كاملة غير مقتطعة + رفض الأزواج) وVM شاشتها.
+    factory { ObserveDuplicateGroupsUseCase(repository = get(), mergeStore = get()) }
+    factory { DismissDuplicateGroupUseCase(mergeStore = get(), clock = get()) }
+    factory {
+        DuplicatesReviewViewModel(
+            observeGroups = get(),
+            mergeContacts = get(),
+            undoMerge = get(),
+            dismissGroup = get(),
+        )
+    }
     // T6 — ViewModels التفاصيل/التحرير (معرفات تُمرَّر من التنقل عبر parametersOf).
     factory { (contactId: Long) ->
         ContactDetailsViewModel(

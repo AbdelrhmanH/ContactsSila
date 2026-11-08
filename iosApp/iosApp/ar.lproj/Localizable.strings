@@ -391,3 +391,29 @@
 "arham_screening_consent_action" = "منح الدور";
 "arham_screening_consent_dismiss" = "تجاهل";
 "arham_action_copy_number" = "نسخ الرقم";
+
+// مراجعة المكررات — T7 (Issue #28)
+"dup_screen_title" = "مراجعة المكررات";
+"dup_back_description" = "رجوع";
+"dup_loading" = "جارٍ البحث عن المكررات…";
+"dup_empty_title" = "لا مكررات محتملة";
+"dup_empty_message" = "لم نجد جهات تبدو مكررة الآن. سنبقيك على اطلاع إن ظهر شيء.";
+"dup_confidence_high" = "مطابقة مؤكدة";
+"dup_confidence_medium" = "احتمال متوسط";
+"dup_confidence_low" = "اقتراح";
+"dup_reason_same_phone" = "نفس الرقم: %s";
+"dup_reason_same_email" = "نفس البريد: %s";
+"dup_reason_same_name" = "نفس الاسم: %s";
+"dup_reason_similar_name" = "أسماء متشابهة: %s";
+"dup_preview_title" = "بعد الدمج";
+"dup_preview_summary" = "الأرقام بعد الدمج: %d · البريد: %d";
+"dup_preview_notes_merged" = "ستُدمج الملاحظات المختلفة مع فاصل";
+"dup_ringtone_conflict" = "نغمات رنين مختلفة — بعد الدمج تبقى نغمة الجهة المُبقاة";
+"dup_merge_button" = "دمج";
+"dup_not_duplicates_button" = "ليست مكررات";
+"dup_merge_all_confirmed" = "دمج كل المؤكدة (%d)";
+"dup_undo_message" = "تم الدمج — يمكنك التراجع الآن";
+"dup_call_member" = "اتصال بالجهة";
+"dup_open_member_description" = "فتح تفاصيل الجهة";
+"dup_error_merge" = "تعذر دمج بعض المجموعات. جرّب مجدداً بعد قليل.";
+"dup_error_undo" = "تعذر التراجع. الجهات ما تزال مدموجة.";

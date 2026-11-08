@@ -45,6 +45,7 @@ data class DuplicatesReviewUiState(
 }
 
 sealed interface DuplicatesReviewIntent {
+    data object Back : DuplicatesReviewIntent
     data class ToggleExpanded(val groupId: String) : DuplicatesReviewIntent
     data class MergeGroup(val groupId: String) : DuplicatesReviewIntent
     data object MergeAllConfirmed : DuplicatesReviewIntent
@@ -62,7 +63,7 @@ sealed interface DuplicatesReviewEffect {
 }
 
 /** مفاتيح أخطاء المراجعة — النصوص في موارد الترجمة (لا نثر في النطاق ولا في الـ VM). */
-enum class DuplicateReviewErrorKey { MERGE_FAILED, UNDO_FAILED, GROUP_CHANGED }
+enum class DuplicateReviewErrorKey { MERGE_FAILED, UNDO_FAILED }
 
 class DuplicatesReviewViewModel(
     private val observeGroups: ObserveDuplicateGroupsUseCase,
@@ -92,6 +93,7 @@ class DuplicatesReviewViewModel(
 
     override fun onIntent(intent: DuplicatesReviewIntent) {
         when (intent) {
+            DuplicatesReviewIntent.Back -> sendEffect(DuplicatesReviewEffect.NavigateBack)
             is DuplicatesReviewIntent.ToggleExpanded -> toggleExpanded(intent.groupId)
             is DuplicatesReviewIntent.MergeGroup -> mergeOne(intent.groupId)
             DuplicatesReviewIntent.MergeAllConfirmed -> mergeAllConfirmed()
@@ -150,9 +152,15 @@ class DuplicatesReviewViewModel(
             updateState { copy(isMerging = false) }
             when (failure) {
                 null -> {
-                    val summary = DuplicatesReviewUiState.MergedSummary(mergedCount, lastSurvivorName)
-                    updateState { copy(lastMergedSummary = summary, isUndoBarVisible = mergedCount > 0) }
-                    sendEffect(DuplicatesReviewEffect.MergeCompleted(summary))
+                    // mergedCount == 0 (كل المجموعات تلاشت قبل التنفيذ — المزامنة أصلحتها):
+                    // لا شيء التزم فلا نجاح زائف ولا إنذار — الشاشة الحية تعرض الحالة الجديدة
+                    // أصلاً (أثرGROUP_CHANGED كان سيكون غير قابل للاختبار حتماً عبر أنبوب
+                    // combine متعدد القفزات — التخطي الصامت عقد التزامن هنا).
+                    if (mergedCount > 0) {
+                        val summary = DuplicatesReviewUiState.MergedSummary(mergedCount, lastSurvivorName)
+                        updateState { copy(lastMergedSummary = summary, isUndoBarVisible = true) }
+                        sendEffect(DuplicatesReviewEffect.MergeCompleted(summary))
+                    }
                 }
                 else -> {
                     updateState { copy(hasError = true) }

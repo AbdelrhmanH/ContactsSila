@@ -35,17 +35,17 @@ class MergeContactsUseCase(
         val now = clock.nowEpochMillis()
 
         // J-1 خطوة 2: المنصة أولاً — فشلها ينهي العملية بلا مساس Room.
-        val platform = when (val result =
+        val platformResult = when (val result =
             mergeWriter.mergeContacts(PlatformMergeRequest(survivor = plan.merged, absorbed = plan.absorbed))
         ) {
             is AppResult.Error -> return result
             is AppResult.Success -> result.data
         }
         // هويات raw الممتصين المسجَّلة في اللقطة للمسح المؤجل (agy F3b — «snapshot-recorded raw ids»)
-        val absorbedRawIds = platform.absorbedRawIds
+        val absorbedRawIds = platformResult.absorbedRawIds
         val migratedSurvivor = plan.merged.copy(
-            systemContactId = platform.unifiedSystemContactId,
-            lookupKey = platform.unifiedLookupKey ?: plan.merged.lookupKey,
+            systemContactId = platformResult.unifiedSystemContactId,
+            lookupKey = platformResult.unifiedLookupKey ?: plan.merged.lookupKey,
         )
 
         val absorbedVCards = plan.absorbed.associate { absorbed ->

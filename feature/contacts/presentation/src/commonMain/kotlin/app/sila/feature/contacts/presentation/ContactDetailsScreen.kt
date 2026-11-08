@@ -47,6 +47,7 @@ import app.sila.core.designsystem.ActionSheetItem
 import app.sila.core.designsystem.SilaActionSheet
 import app.sila.core.designsystem.SilaColors
 import app.sila.core.designsystem.SilaDimens
+import app.sila.core.designsystem.SilaUndoBar
 import app.sila.core.model.CallDirection
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
@@ -100,37 +101,14 @@ fun ContactDetailsContent(
             )
         }
 
-        // شريط التراجع (J-5) — يطفو فوق المحتوى أسفل الشاشة.
+        // شريط التراجع (J-5) — المكوّن الموحد [SilaUndoBar] المستخرج من هذه الشاشة.
         if (state.isUndoWindowActive) {
-            Surface(
-                shape = RoundedCornerShape(SilaDimens.SettingsGroupCornerRadius),
-                color = MaterialTheme.colorScheme.inverseSurface,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(SilaDimens.Space16)
-                    .fillMaxWidth(),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = SilaDimens.Space16, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = strings.deleteUndoMessage,
-                        color = MaterialTheme.colorScheme.inverseOnSurface,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = strings.undo,
-                        color = MaterialTheme.colorScheme.inversePrimary,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier
-                            .clickable { onIntent(ContactDetailsIntent.UndoDelete) }
-                            .padding(horizontal = SilaDimens.Space12, vertical = 6.dp),
-                    )
-                }
-            }
+            SilaUndoBar(
+                message = strings.deleteUndoMessage,
+                undoLabel = strings.undo,
+                onUndo = { onIntent(ContactDetailsIntent.UndoDelete) },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 

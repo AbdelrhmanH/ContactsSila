@@ -238,6 +238,9 @@ fun SilaCategoryChip(
 
 /**
  * 4.5 صف جهة الاتصال (DESIGN_SYSTEM.md §4.5).
+ *
+ * [onRowClick] اختياري — حين يُمرَّر يصبح الصف كله نقرة (مثل فتح التفاصيل من شاشة
+ * مراجعة المكررات T7) مع دمج دلالة المحتوى على الحاوية كما كان.
  */
 @Composable
 fun SilaContactRow(
@@ -245,7 +248,8 @@ fun SilaContactRow(
     categoryLabel: String,
     callLabel: String,
     onCallClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onRowClick: (() -> Unit)? = null
 ) {
     val categoryColor = SilaColors.forCategory(contact.category)
     val primaryPhone = contact.phones.firstOrNull()?.e164 ?: ""
@@ -255,6 +259,7 @@ fun SilaContactRow(
         color = MaterialTheme.colorScheme.surface,
         modifier = modifier
             .fillMaxWidth()
+            .let { base -> if (onRowClick != null) base.clickable(onClick = onRowClick) else base }
             .semantics(mergeDescendants = true) {
                 contentDescription = "${contact.name.displayName}, $categoryLabel"
             }
@@ -576,6 +581,59 @@ fun SilaSettingsItem(
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.padding(horizontal = SilaDimens.Space16)
             )
+        }
+    }
+}
+
+/**
+ * شريط التراجع الموحد (نمط J-5 — كان معتماً في شاشة التفاصيل T6 وأُعيد استخدامه في
+ * مراجعة المكررات T7): يطفو فوق المحتوى أسفل الشاشة، رسالة + فعل تراجع، و[onDismiss]
+ * اختياري (✕) للإغلاق بلا تراجع. لا تحمل أي منطق — النصوص والنوايا من المستدعي.
+ */
+@Composable
+fun SilaUndoBar(
+    message: String,
+    undoLabel: String,
+    onUndo: () -> Unit,
+    modifier: Modifier = Modifier,
+    onDismiss: (() -> Unit)? = null,
+) {
+    Surface(
+        shape = RoundedCornerShape(SilaDimens.SettingsGroupCornerRadius),
+        color = MaterialTheme.colorScheme.inverseSurface,
+        modifier = modifier
+            .padding(SilaDimens.Space16)
+            .fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = SilaDimens.Space16, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.inverseOnSurface,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = undoLabel,
+                color = MaterialTheme.colorScheme.inversePrimary,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier
+                    .clickable(onClick = onUndo)
+                    .padding(horizontal = SilaDimens.Space12, vertical = 6.dp),
+            )
+            if (onDismiss != null) {
+                Text(
+                    text = "✕",
+                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = SilaDimens.Space8, vertical = 6.dp),
+                )
+            }
         }
     }
 }
