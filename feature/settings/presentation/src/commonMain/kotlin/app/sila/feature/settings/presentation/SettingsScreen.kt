@@ -60,6 +60,7 @@ import app.sila.core.model.Category
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DefaultTab
 import app.sila.core.model.NameOrder
+import app.sila.feature.settings.domain.BackupErrorKind
 import app.sila.feature.settings.domain.RestoreMode
 
 /**
@@ -574,9 +575,9 @@ fun SettingsContent(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    if (state.backupErrorMessage != null) {
+                    state.backupErrorKind?.let { kind ->
                         Spacer(modifier = Modifier.height(SilaDimens.Space4))
-                        Text(text = state.backupErrorMessage, color = MaterialTheme.colorScheme.error)
+                        Text(text = strings.backupError(kind), color = MaterialTheme.colorScheme.error)
                     }
                 }
             },
@@ -632,9 +633,9 @@ fun SettingsContent(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    if (state.backupErrorMessage != null) {
+                    state.backupErrorKind?.let { kind ->
                         Spacer(modifier = Modifier.height(SilaDimens.Space4))
-                        Text(text = state.backupErrorMessage, color = MaterialTheme.colorScheme.error)
+                        Text(text = strings.backupError(kind), color = MaterialTheme.colorScheme.error)
                     }
                 }
             },
@@ -823,6 +824,14 @@ private fun formatSwipeAction(action: ContactSwipeAction, strings: SettingsStrin
     ContactSwipeAction.NONE -> strings.swipeNone
 }
 
+/** إسناد نوع خطأ النسخ إلى النص المترجم المناسب (لا رسائل استثناء خام للمستخدم). */
+private fun SettingsStrings.backupError(kind: BackupErrorKind): String = when (kind) {
+    BackupErrorKind.BLANK_PASSWORD -> backupErrorBlankPassword
+    BackupErrorKind.DECRYPTION_FAILED -> backupErrorDecryptionFailed
+    BackupErrorKind.NOT_CONFIGURED -> backupErrorNotConfigured
+    BackupErrorKind.GENERIC -> backupErrorGeneric
+}
+
 data class SettingsStrings(
     val title: String,
     val close: String,
@@ -872,6 +881,10 @@ data class SettingsStrings(
     val ringtoneExplain: String,
     val resetDefault: String,
     val noRingtonesAvailable: String,
+    val backupErrorBlankPassword: String,
+    val backupErrorDecryptionFailed: String,
+    val backupErrorNotConfigured: String,
+    val backupErrorGeneric: String,
     val sectionBackup: String,
     val localPrivacy: String,
     val localPrivacyValue: String,
@@ -952,6 +965,10 @@ data class SettingsStrings(
             ringtoneExplain = "سيتم تطبيق هذه النغمة تلقائياً على جهات الاتصال في هذا التصنيف التي ليس لها نغمة فردية.",
             resetDefault = "إعادة تعيين لنغمة النظام الافتراضية",
             noRingtonesAvailable = "لا توجد نغمات متاحة في هذا الجهاز. أضف نغمات من إعدادات النظام أو استخدم زر إعادة التعيين.",
+            backupErrorBlankPassword = "كلمة المرور فارغة — أدخل كلمة مرور ثم أعد المحاولة.",
+            backupErrorDecryptionFailed = "تعذر فك التشفير — تأكد من كلمة المرور وأن الملف نسخة صِلَة غير تالفة.",
+            backupErrorNotConfigured = "خدمة النسخ الاحتياطي غير مهيأة في هذه الحالة.",
+            backupErrorGeneric = "فشلت العملية — حاول مجدداً، وإذا تكرر ذلك أعد المحاولة بنسخة أخرى.",
             sectionBackup = "الخصوصية والنسخ الاحتياطي المشفر",
             localPrivacy = "ماذا نعرف عنك؟ (الخصوصية المحلية)",
             localPrivacyValue = "0 بيانات مرفوعة (محلي 100%)",
@@ -1032,6 +1049,10 @@ data class SettingsStrings(
             ringtoneExplain = "This ringtone will be assigned to category contacts without individual custom ringtones.",
             resetDefault = "Reset to System Default",
             noRingtonesAvailable = "No ringtones available on this device. Add tones in system settings or use Reset to System Default.",
+            backupErrorBlankPassword = "Password is empty — enter a password and try again.",
+            backupErrorDecryptionFailed = "Decryption failed — check the password and that the file is an intact Sila backup.",
+            backupErrorNotConfigured = "Backup service is not configured in this state.",
+            backupErrorGeneric = "The operation failed — try again, and if it keeps failing retry with a different backup.",
             sectionBackup = "Privacy & Encrypted Backup",
             localPrivacy = "What do we know about you?",
             localPrivacyValue = "0 data uploaded (100% offline)",

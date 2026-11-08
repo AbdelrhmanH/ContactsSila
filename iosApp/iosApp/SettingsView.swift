@@ -155,9 +155,9 @@ struct SettingsView: View {
     }
 
     private var backupImportMessage: String {
-        if let error = store.state.backupErrorMessage {
-            // رسالة الخطأ الفعلية من فك التشفير (كلمة مرور غير صحيحة) تظهر مرئياً
-            return error
+        if let kind = store.state.backupErrorKind {
+            // الخطأ المترجم من النوع — لا رسالة استثناء خام (مراجع T9 — S1)
+            return store.localizedBackupErrorText(for: kind)
         }
         return strings.restoreDialogDesc
     }
@@ -172,8 +172,8 @@ struct SettingsView: View {
                             .font(.footnote)
                             .foregroundColor(.secondary)
                     }
-                    if let error = store.state.backupErrorMessage {
-                        Text(error)
+                    if let kind = store.state.backupErrorKind {
+                        Text(store.localizedBackupErrorText(for: kind))
                             .foregroundColor(.red)
                             .font(.footnote)
                     }

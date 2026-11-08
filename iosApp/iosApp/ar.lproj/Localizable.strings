@@ -503,6 +503,10 @@
 "settings_start_restore" = "بدء الاستعادة";
 "settings_backup_file_read_failed" = "لم نتمكن من قراءة الملف المحدد";
 "settings_backup_file_empty" = "الملف المحدد فارغ أو غير صالح";
+"settings_backup_error_blank_password" = "كلمة المرور فارغة — أدخل كلمة مرور ثم أعد المحاولة.";
+"settings_backup_error_decryption_failed" = "تعذر فك التشفير — تأكد من كلمة المرور وأن الملف نسخة صِلَة غير تالفة.";
+"settings_backup_error_not_configured" = "خدمة النسخ الاحتياطي غير مهيأة في هذه الحالة.";
+"settings_backup_error_generic" = "فشلت العملية — حاول مجدداً، وإذا تكرر ذلك أعد المحاولة بنسخة أخرى.";
 "settings_restore_done" = "اكتملت الاستعادة ✓\nتصنيفات مطابقة: %ld (غير مطابق: %ld)\nأرحام مطابق: %ld (غير مطابق: %ld)";
 "settings_section_about" = "حول التطبيق";
 "settings_app_version" = "صِلَة · الإصدار 1.0.0";
