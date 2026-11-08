@@ -770,7 +770,7 @@ internal object LegacySchemaFingerprint {
             if (idx.hasExpression || idx.columns.isEmpty()) return false
             when (idx.origin) {
                 "pk" -> {
-                    val expectedPkColumns = expectedCompositePk ?: listOf(expectedPkColumn!!)
+                    val expectedPkColumns = expectedCompositePk ?: (expectedPkColumn?.let { listOf(it) } ?: return false)
                     if (!idx.unique || idx.partial ||
                         idx.columns != expectedPkColumns ||
                         idx.orders != expectedPkColumns.map { "ASC" }

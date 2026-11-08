@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
  *   (آخر دمج) — «التراجع خلال جلسة الشاشة»؛ مغادرة الشاشة تنهي الجلسة (اللقطة تنقضي
  *   زمنياً ويُتبعها المسح المؤجل — عقد ADR-0013).
  */
+@androidx.compose.runtime.Immutable
 data class DuplicatesReviewUiState(
     val isLoading: Boolean = true,
     val groups: List<DuplicateGroup> = emptyList(),

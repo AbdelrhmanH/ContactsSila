@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
  * - [rejectedIds] «ليست هذه الفئة» — يزيل البند من العرض ويسجل رفض التغذية الراجعة
  *   (وزن التوكن ينخفض في التقييمات القادمة — عقد docs/features/04 «يقلل وزنه»).
  */
+@androidx.compose.runtime.Immutable
 data class SmartFilterReviewUiState(
     val isLoading: Boolean = true,
     val groups: List<SmartFilterCategoryGroup> = emptyList(),

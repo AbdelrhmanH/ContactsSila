@@ -77,7 +77,7 @@ class MergeSweepCoordinator(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (failure: Throwable) {
-            println("[MergeSweep] merge sweep failed: ${failure::class.simpleName}: ${failure.message ?: "no message"}")
+            println("[MergeSweep] merge sweep failed: ${failure::class.simpleName}")
             null
         }
     }
