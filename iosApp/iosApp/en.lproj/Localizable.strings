@@ -448,6 +448,8 @@
 "settings_theme_dark" = "Dark";
 "settings_theme_system" = "System Default";
 "settings_language" = "Language";
+"settings_language_name_arabic" = "العربية";
+"settings_language_name_english" = "English";
 "settings_digits" = "Digits";
 "settings_digits_arabic" = "Western Arabic (1 2 3)";
 "settings_digits_hindi" = "Eastern Arabic / Hindi (١ ٢ ٣)";

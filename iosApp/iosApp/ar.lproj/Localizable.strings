@@ -448,6 +448,8 @@
 "settings_theme_dark" = "داكن";
 "settings_theme_system" = "حسب النظام";
 "settings_language" = "اللغة";
+"settings_language_name_arabic" = "العربية";
+"settings_language_name_english" = "English";
 "settings_digits" = "الأرقام";
 "settings_digits_arabic" = "أرقام عربية (1 2 3)";
 "settings_digits_hindi" = "أرقام هندية / مشرقية (١ ٢ ٣)";

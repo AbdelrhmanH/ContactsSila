@@ -26,6 +26,10 @@ struct SettingsLocalizedStrings {
     var themeDark: String { string("settings_theme_dark") }
     var themeSystem: String { string("settings_theme_system") }
     var languageTitle: String { string("settings_language") }
+    /// أسماء اللغات تُعرض دوماً بلغة نفسها في كل اللغات (نمط النظام القياسي) —
+    /// قيمتان ثابتتان في جدولي ar/en معاً لضمان لا نص حرفي في الكود.
+    var languageArabicName: String { string("settings_language_name_arabic") }
+    var languageEnglishName: String { string("settings_language_name_english") }
     var digits: String { string("settings_digits") }
     var digitsArabic: String { string("settings_digits_arabic") }
     var digitsHindi: String { string("settings_digits_hindi") }

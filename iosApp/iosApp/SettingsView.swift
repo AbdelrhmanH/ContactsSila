@@ -256,8 +256,8 @@ struct SettingsView: View {
                 get: { store.state.preferences.language },
                 set: { store.send(SettingsIntentSetLanguage(language: $0)) }
             )) {
-                Text("العربية").tag(AppLanguage.arabic)
-                Text("English").tag(AppLanguage.english)
+                Text(strings.languageArabicName).tag(AppLanguage.arabic)
+                Text(strings.languageEnglishName).tag(AppLanguage.english)
             }
 
             // الأرقام
@@ -388,7 +388,9 @@ struct SettingsView: View {
             }
 
             Button {
-                showRestoreAlert = true
+                // إصلاح متابَع (اكتشفه agy · gemini flash-high): الزر كان يفتح تنبيه
+                // كلمة المرور مباشرة وimportFileData صفر — مسار الاختيار غير مُوصل.
+                showFileImporter = true
             } label: {
                 Label(strings.importBackup, systemImage: "arrow.down.doc")
             }
