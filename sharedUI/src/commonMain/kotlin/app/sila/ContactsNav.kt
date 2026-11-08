@@ -25,11 +25,18 @@ import app.sila.feature.contacts.presentation.duplicates.DuplicatesReviewEffect
 import app.sila.feature.contacts.presentation.duplicates.DuplicatesReviewScreen
 import app.sila.feature.contacts.presentation.duplicates.DuplicatesReviewStrings
 import app.sila.feature.contacts.presentation.duplicates.DuplicatesReviewViewModel
+import app.sila.feature.contacts.presentation.duplicates.SmartFilterReviewEffect
+import app.sila.feature.contacts.presentation.duplicates.SmartFilterReviewErrorKey
+import app.sila.feature.contacts.presentation.duplicates.SmartFilterReviewScreen
+import app.sila.feature.contacts.presentation.duplicates.SmartFilterReviewStrings
+import app.sila.feature.contacts.presentation.duplicates.SmartFilterReviewViewModel
 import contactssila.sharedui.generated.resources.Res
 import contactssila.sharedui.generated.resources.details_delete_error
 import contactssila.sharedui.generated.resources.dup_error_merge
 import contactssila.sharedui.generated.resources.dup_error_undo
 import contactssila.sharedui.generated.resources.edit_save_error
+import contactssila.sharedui.generated.resources.sf_error_apply
+import contactssila.sharedui.generated.resources.sf_error_not_found
 import kotlinx.serialization.Serializable
 import org.jetbrains.compose.resources.stringResource
 import org.koin.core.Koin
@@ -61,6 +68,10 @@ data class ContactEditRoute(val contactId: Long? = null)
 /** شاشة مراجعة المكررات (T7 · Issue #28) — كشف حيّ ودمج/تراجع و«ليست مكررات». */
 @Serializable
 data object DuplicatesReviewRoute
+
+/** شاشة مراجعة الفلترة الذكية (T7 · Issue #28) — اقتراحات القواعد والتطبيق المؤكد. */
+@Serializable
+data object SmartFilterReviewRoute
 
 /**
  * الآثار المنصوية الوحيدة التي تُسلَّم لغلاف المضيف (`androidApp`) — التنقل لا يسكن
@@ -116,6 +127,7 @@ fun ContactsNavFlow(
     detailsStrings: ContactDetailsStrings,
     editStrings: ContactEditStrings,
     duplicatesStrings: DuplicatesReviewStrings,
+    smartFilterStrings: SmartFilterReviewStrings,
     navController: NavHostController,
     onPlatformEffect: (ContactsNavEffect) -> Unit,
     modifier: Modifier = Modifier,
@@ -125,6 +137,8 @@ fun ContactsNavFlow(
     val saveErrorText = stringResource(Res.string.edit_save_error)
     val mergeErrorText = stringResource(Res.string.dup_error_merge)
     val undoMergeErrorText = stringResource(Res.string.dup_error_undo)
+    val applyErrorText = stringResource(Res.string.sf_error_apply)
+    val contactNotFoundText = stringResource(Res.string.sf_error_not_found)
 
     NavHost(
         navController = navController,
@@ -141,6 +155,9 @@ fun ContactsNavFlow(
                 },
                 onOpenDuplicatesReview = {
                     navController.navigate(DuplicatesReviewRoute)
+                },
+                onOpenSmartFilterReview = {
+                    navController.navigate(SmartFilterReviewRoute)
                 }
             )
         }
@@ -189,6 +206,43 @@ fun ContactsNavFlow(
                         is DuplicatesReviewEffect.MergeCompleted -> Unit
                         DuplicatesReviewEffect.UndoCompleted -> Unit
                         DuplicatesReviewEffect.UndoFailed -> Unit
+                    }
+                }
+            }
+        }
+
+        // شاشة مراجعة الفلترة الذكية (T7 · Issue #28): اقتراحات القواعد — HIGH محدد
+        // مسبقاً داخل الـ VM، والتطبيق بعد تأكيد صريح حصراً (spec 04 §ب). الآثار الجامعة
+        // هنا: الرجوع بعد نجاح التطبيق وإشعارات الأخطاء المُترجمة.
+        composable<SmartFilterReviewRoute> {
+            val smartFilterViewModel: SmartFilterReviewViewModel = viewModel {
+                SmartFilterReviewViewModel(
+                    observeSuggestions = koin.get(),
+                    applySuggestions = koin.get(),
+                    recordFeedback = koin.get(),
+                    setExclude = koin.get(),
+                )
+            }
+
+            SmartFilterReviewScreen(
+                viewModel = smartFilterViewModel,
+                strings = smartFilterStrings,
+            )
+
+            // جامع واحد لقناة آثار المراجعة.
+            LaunchedEffect(smartFilterViewModel, onPlatformEffect) {
+                smartFilterViewModel.effects.collect { effect ->
+                    when (effect) {
+                        SmartFilterReviewEffect.NavigateBack -> navController.popBackStack()
+
+                        is SmartFilterReviewEffect.ShowError -> onPlatformEffect(
+                            ContactsNavEffect.ShowError(
+                                when (effect.messageKey) {
+                                    SmartFilterReviewErrorKey.APPLY_FAILED -> applyErrorText
+                                    SmartFilterReviewErrorKey.CONTACT_NOT_FOUND -> contactNotFoundText
+                                }
+                            )
+                        )
                     }
                 }
             }

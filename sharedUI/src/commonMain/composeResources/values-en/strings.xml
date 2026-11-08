@@ -429,4 +429,23 @@
     <string name="dup_open_member_description">Open contact details</string>
     <string name="dup_error_merge">Some groups couldn\'t be merged. Try again shortly.</string>
     <string name="dup_error_undo">Couldn\'t undo. The contacts are still merged.</string>
+
+    <!-- Smart filter review — T7 (Issue #28 · spec 04 §ب) -->
+    <string name="sf_screen_title">Review smart filter</string>
+    <string name="sf_back_description">Back</string>
+    <string name="sf_loading">Preparing…</string>
+    <string name="sf_empty_title">No categorization suggestions</string>
+    <string name="sf_empty_message">Nothing looks ready for smart categorization right now.</string>
+    <string name="sf_confidence_high">Strong match</string>
+    <string name="sf_confidence_medium">Likely</string>
+    <string name="sf_confidence_low">Weak</string>
+    <string name="sf_evidence_label">Evidence: %s</string>
+    <string name="sf_group_count">%d contacts</string>
+    <string name="sf_select_all">Select all</string>
+    <string name="sf_unselect_all">Unselect all</string>
+    <string name="sf_apply_selected">Apply selected (%d)</string>
+    <string name="sf_not_this_category">Not this category</string>
+    <string name="sf_never_ask">Don\'t ask again</string>
+    <string name="sf_error_apply">Couldn\'t apply the categories. Try again.</string>
+    <string name="sf_error_not_found">We can\'t find that contact anymore — refresh the list.</string>
 </resources>

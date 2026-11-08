@@ -417,3 +417,22 @@
 "dup_open_member_description" = "Open contact details";
 "dup_error_merge" = "Some groups couldn't be merged. Try again shortly.";
 "dup_error_undo" = "Couldn't undo. The contacts are still merged.";
+
+// Smart filter review — T7 (Issue #28)
+"sf_screen_title" = "Review smart filter";
+"sf_back_description" = "Back";
+"sf_loading" = "Preparing…";
+"sf_empty_title" = "No categorization suggestions";
+"sf_empty_message" = "Nothing looks ready for smart categorization right now.";
+"sf_confidence_high" = "Strong match";
+"sf_confidence_medium" = "Likely";
+"sf_confidence_low" = "Weak";
+"sf_evidence_label" = "Evidence: %s";
+"sf_group_count" = "%d contacts";
+"sf_select_all" = "Select all";
+"sf_unselect_all" = "Unselect all";
+"sf_apply_selected" = "Apply selected (%d)";
+"sf_not_this_category" = "Not this category";
+"sf_never_ask" = "Don't ask again";
+"sf_error_apply" = "Couldn't apply the categories. Try again.";
+"sf_error_not_found" = "We can't find that contact anymore — refresh the list.";

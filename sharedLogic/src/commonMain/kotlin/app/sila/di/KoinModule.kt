@@ -66,12 +66,16 @@ import app.sila.feature.contacts.domain.DeleteContactWithUndoUseCase
 import app.sila.feature.contacts.domain.FindDuplicateContactUseCase
 import app.sila.feature.contacts.domain.DeleteContactsUseCase
 import app.sila.feature.contacts.domain.DismissDuplicateGroupUseCase
+import app.sila.feature.contacts.domain.ApplySmartFilterSuggestionsUseCase
 import app.sila.feature.contacts.domain.MergeContactsUseCase
 import app.sila.feature.contacts.domain.UndoMergeUseCase
 import app.sila.feature.contacts.domain.DetectDuplicatesUseCase
 import app.sila.feature.contacts.domain.ObserveCategoryCountsUseCase
 import app.sila.feature.contacts.domain.ObserveContactDetailsUseCase
 import app.sila.feature.contacts.domain.ObserveDuplicateGroupsUseCase
+import app.sila.feature.contacts.domain.ObserveSmartFilterSuggestionsUseCase
+import app.sila.feature.contacts.domain.RecordSmartFilterFeedbackUseCase
+import app.sila.feature.contacts.domain.SetExcludeFromSmartFilterUseCase
 import app.sila.feature.contacts.domain.ObserveContactsPagedUseCase
 import app.sila.feature.contacts.domain.ObserveContactsUseCase
 import app.sila.feature.contacts.domain.ObserveFavoriteContactsUseCase
@@ -93,6 +97,7 @@ import app.sila.feature.contacts.presentation.ContactDetailsViewModel
 import app.sila.feature.contacts.presentation.ContactEditViewModel
 import app.sila.feature.contacts.presentation.ContactsViewModel
 import app.sila.feature.contacts.presentation.duplicates.DuplicatesReviewViewModel
+import app.sila.feature.contacts.presentation.duplicates.SmartFilterReviewViewModel
 import app.sila.feature.contacts.presentation.onboarding.OnboardingViewModel
 import app.sila.feature.main.MainViewModel
 import app.sila.feature.services.data.ServicesRepositoryImpl
@@ -255,6 +260,20 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             mergeContacts = get(),
             undoMerge = get(),
             dismissGroup = get(),
+        )
+    }
+    // T7 S9: محرك الفلترة الذكية — القواعد الافتراضية، البوابة والتغذية الراجعة عبر
+    // المنافذ، وVM شاشة المراجعة (تطبيق مؤكد + «لا تسألني مجدداً»).
+    factory { ObserveSmartFilterSuggestionsUseCase(repository = get(), listPreferences = get(), mergeStore = get()) }
+    factory { ApplySmartFilterSuggestionsUseCase(repository = get(), mergeStore = get()) }
+    factory { RecordSmartFilterFeedbackUseCase(mergeStore = get()) }
+    factory { SetExcludeFromSmartFilterUseCase(repository = get()) }
+    factory {
+        SmartFilterReviewViewModel(
+            observeSuggestions = get(),
+            applySuggestions = get(),
+            recordFeedback = get(),
+            setExclude = get(),
         )
     }
     // T6 — ViewModels التفاصيل/التحرير (معرفات تُمرَّر من التنقل عبر parametersOf).

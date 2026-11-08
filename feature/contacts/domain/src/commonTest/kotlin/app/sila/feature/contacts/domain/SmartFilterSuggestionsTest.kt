@@ -1,6 +1,7 @@
 package app.sila.feature.contacts.domain
 
 import app.sila.core.common.AppClock
+import app.sila.core.common.AppResult
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
@@ -33,6 +34,7 @@ class SmartFilterSuggestionsTest {
     private class FakeContactsRepository(initial: List<Contact> = emptyList()) : ContactsRepository {
         val state = MutableStateFlow(initial)
         val categoryWrites = mutableListOf<Pair<List<Long>, Category>>()
+        var failNextCategoriesWrite: Throwable? = null
 
         override fun observeContacts(category: Category?, searchQuery: String): Flow<List<Contact>> = state
         override fun observeFavorites(): Flow<List<Contact>> = state
@@ -46,6 +48,10 @@ class SmartFilterSuggestionsTest {
         override fun searchContacts(query: String): Flow<List<Contact>> = state
         override suspend fun setFavorite(contactId: Long, isFavorite: Boolean) {}
         override suspend fun updateCategories(contactIds: Collection<Long>, category: Category) {
+            failNextCategoriesWrite?.let { failure ->
+                failNextCategoriesWrite = null
+                throw failure
+            }
             categoryWrites += contactIds.toList() to category
         }
         override suspend fun setFavorites(contactIds: Collection<Long>, isFavorite: Boolean) {}
@@ -223,6 +229,19 @@ class SmartFilterSuggestionsTest {
         ApplySmartFilterSuggestionsUseCase(repo, store)(emptyList())
         assertTrue(repo.categoryWrites.isEmpty())
         assertTrue(store.recorded.isEmpty())
+    }
+
+    @Test
+    fun apply_repositoryFailure_isHonestError_withoutFeedbackRecorded() = runTest {
+        val repo = FakeContactsRepository()
+        val store = FakeMergeStore()
+        repo.failNextCategoriesWrite = IllegalStateException("disk full")
+        val result = ApplySmartFilterSuggestionsUseCase(repo, store)(
+            listOf(SmartFilterItem(1, "دكتور أحمد", Category.SERVICES, SmartFilterConfidence.HIGH, "دكتور")),
+        )
+
+        assertTrue(result is AppResult.Error, "الفشل أثر صادق — لا نجاح زائف")
+        assertTrue(store.recorded.isEmpty(), "فشل الكتابة لا يسجل قبولاً — التغذية الراجعة تتبع الكتابة الفعلية")
     }
 
     @Test

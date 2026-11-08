@@ -2,9 +2,12 @@ package app.sila.feature.contacts.domain
 
 import app.sila.core.common.ArabicTextNormalizer
 import app.sila.core.common.ArabicTokenizer
+import app.sila.core.common.AppResult
+import app.sila.core.common.DataError
 import app.sila.core.common.PhoneNormalizer
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -103,21 +106,32 @@ class ObserveSmartFilterSuggestionsUseCase(
 /**
  * تطبيق اقتراحات الفلترة الذكية بعد التأكيد الصريح (T7 · spec 04 §ب): كتابة
  * التصنيفات المحددة حصراً (تحديث جماعي بالتصنيف) + تسجيل قبول التغذية الراجعة لكل
- * (token, category) — التعلّم المحلي لا يكتب في المنصة ولا يرفع شيئاً.
+ * (token, category) — التعلّم المحلي لا يكتب في المنصة ولا يرفع شيئاً. الفشل أثر
+ * صادق [AppResult.Error] — لا نجاح زائف.
  */
 class ApplySmartFilterSuggestionsUseCase(
     private val repository: ContactsRepository,
     private val mergeStore: ContactsMergeStore,
 ) {
 
-    suspend operator fun invoke(items: List<SmartFilterItem>) {
-        if (items.isEmpty()) return
-        items.groupBy { it.category }.forEach { (category, groupItems) ->
-            repository.updateCategories(groupItems.map { it.contactId }, category)
+    suspend operator fun invoke(items: List<SmartFilterItem>): AppResult<Unit> = try {
+        if (items.isNotEmpty()) {
+            items.groupBy { it.category }.forEach { (category, groupItems) ->
+                repository.updateCategories(groupItems.map { it.contactId }, category)
+            }
+            items.forEach { item ->
+                mergeStore.recordFeedback(token = item.matchedToken, category = item.category, accepted = true)
+            }
         }
-        items.forEach { item ->
-            mergeStore.recordFeedback(token = item.matchedToken, category = item.category, accepted = true)
-        }
+        AppResult.Success(Unit)
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (failure: Throwable) {
+        AppResult.Error(
+            DataError.Unknown(
+                causeMessage = failure::class.simpleName + ": " + (failure.message ?: "no message"),
+            ),
+        )
     }
 }
 

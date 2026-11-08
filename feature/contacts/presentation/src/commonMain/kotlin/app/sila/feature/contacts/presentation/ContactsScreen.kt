@@ -76,6 +76,7 @@ fun ContactsScreen(
     modifier: Modifier = Modifier,
     onOpenContact: (Long) -> Unit = {},
     onOpenDuplicatesReview: () -> Unit = {},
+    onOpenSmartFilterReview: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     ContactsContent(
@@ -84,7 +85,8 @@ fun ContactsScreen(
         onIntent = viewModel::onIntent,
         modifier = modifier,
         onOpenContact = onOpenContact,
-        onOpenDuplicatesReview = onOpenDuplicatesReview
+        onOpenDuplicatesReview = onOpenDuplicatesReview,
+        onOpenSmartFilterReview = onOpenSmartFilterReview
     )
 }
 
@@ -97,6 +99,7 @@ fun ContactsContent(
     modifier: Modifier = Modifier,
     onOpenContact: (Long) -> Unit = {},
     onOpenDuplicatesReview: () -> Unit = {},
+    onOpenSmartFilterReview: () -> Unit = {},
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showCategorizeMenu by remember { mutableStateOf(false) }
@@ -134,7 +137,8 @@ fun ContactsContent(
                     state = state,
                     strings = strings,
                     onIntent = onIntent,
-                    onOpenDuplicatesReview = onOpenDuplicatesReview
+                    onOpenDuplicatesReview = onOpenDuplicatesReview,
+                    onOpenSmartFilterReview = onOpenSmartFilterReview
                 )
                 ContactsListArea(state = state, strings = strings, onIntent = onIntent, onOpenContact = onOpenContact)
             }
@@ -299,7 +303,8 @@ private fun SuggestionCards(
     state: ContactsUiState,
     strings: ContactsStrings,
     onIntent: (ContactsIntent) -> Unit,
-    onOpenDuplicatesReview: () -> Unit = {}
+    onOpenDuplicatesReview: () -> Unit = {},
+    onOpenSmartFilterReview: () -> Unit = {}
 ) {
     if (state.suggestions.isEmpty()) return
 
@@ -310,13 +315,12 @@ private fun SuggestionCards(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
                 onClick = {
-                    // "راجعها": بطاقة المكررات تفتح شاشة مراجعة الدمج (T7 · Issue #28)؛
-                    // بطاقة الفلترة الذكية تنقلك لتصنيف غير المصنّف (تُستبدل بشاشة
-                    // المراجعة الخاصة بها ضمن T7 — S9).
+                    // "راجعها": بطاقتا T7 تفتحان شاشتي المراجعة الخاصتين بهما
+                    // (المكررات → الدمج، الفلترة الذكية → التصنيف المؤكد).
                     if (card.kind == SuggestionCard.Kind.DUPLICATES) {
                         onOpenDuplicatesReview()
                     } else {
-                        onIntent(ContactsIntent.SelectCategory(Category.UNCATEGORIZED))
+                        onOpenSmartFilterReview()
                     }
                 }
             ) {

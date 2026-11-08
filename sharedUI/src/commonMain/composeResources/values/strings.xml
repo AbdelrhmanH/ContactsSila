@@ -429,4 +429,23 @@
     <string name="dup_open_member_description">فتح تفاصيل الجهة</string>
     <string name="dup_error_merge">تعذر دمج بعض المجموعات. جرّب مجدداً بعد قليل.</string>
     <string name="dup_error_undo">تعذر التراجع. الجهات ما تزال مدموجة.</string>
+
+    <!-- مراجعة الفلترة الذكية — T7 (Issue #28 · spec 04 §ب) -->
+    <string name="sf_screen_title">مراجعة الفلترة الذكية</string>
+    <string name="sf_back_description">رجوع</string>
+    <string name="sf_loading">جارٍ التحضير…</string>
+    <string name="sf_empty_title">لا اقتراحات تصنيف</string>
+    <string name="sf_empty_message">لم نجد جهات تصلح للتصنيف الذكي الآن.</string>
+    <string name="sf_confidence_high">مطابقة قوية</string>
+    <string name="sf_confidence_medium">محتملة</string>
+    <string name="sf_confidence_low">ضعيفة</string>
+    <string name="sf_evidence_label">الدليل: %s</string>
+    <string name="sf_group_count">%d جهة</string>
+    <string name="sf_select_all">تحديد الكل</string>
+    <string name="sf_unselect_all">إلغاء تحديد الكل</string>
+    <string name="sf_apply_selected">تطبيق المحدد (%d)</string>
+    <string name="sf_not_this_category">ليست هذه الفئة</string>
+    <string name="sf_never_ask">لا تسألني مجدداً</string>
+    <string name="sf_error_apply">تعذر تطبيق التصنيفات. حاول مجدداً.</string>
+    <string name="sf_error_not_found">لم نعد نجد هذه الجهة — حدّث القائمة.</string>
 </resources>

@@ -417,3 +417,22 @@
 "dup_open_member_description" = "فتح تفاصيل الجهة";
 "dup_error_merge" = "تعذر دمج بعض المجموعات. جرّب مجدداً بعد قليل.";
 "dup_error_undo" = "تعذر التراجع. الجهات ما تزال مدموجة.";
+
+// مراجعة الفلترة الذكية — T7 (Issue #28)
+"sf_screen_title" = "مراجعة الفلترة الذكية";
+"sf_back_description" = "رجوع";
+"sf_loading" = "جارٍ التحضير…";
+"sf_empty_title" = "لا اقتراحات تصنيف";
+"sf_empty_message" = "لم نجد جهات تصلح للتصنيف الذكي الآن.";
+"sf_confidence_high" = "مطابقة قوية";
+"sf_confidence_medium" = "محتملة";
+"sf_confidence_low" = "ضعيفة";
+"sf_evidence_label" = "الدليل: %s";
+"sf_group_count" = "%d جهة";
+"sf_select_all" = "تحديد الكل";
+"sf_unselect_all" = "إلغاء تحديد الكل";
+"sf_apply_selected" = "تطبيق المحدد (%d)";
+"sf_not_this_category" = "ليست هذه الفئة";
+"sf_never_ask" = "لا تسألني مجدداً";
+"sf_error_apply" = "تعذر تطبيق التصنيفات. حاول مجدداً.";
+"sf_error_not_found" = "لم نعد نجد هذه الجهة — حدّث القائمة.";
