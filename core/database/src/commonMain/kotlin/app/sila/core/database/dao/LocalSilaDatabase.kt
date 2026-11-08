@@ -504,28 +504,55 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
     /** خطاف حقن فشل داخل معاملة الاسترجاع قبل COMMIT — اختبار idempotency القفل حصراً. */
     internal var restoreFaultHook: (() -> Throwable)? = null
 
+    /** الأدلة المرجعية المكتشفة داخل معاملة الدمج — تُغذّى إلى باني الحمولة وتُعاد للناتج. */
+    class MergeReferences(
+        val callLogIds: List<String>,
+        val parentLinks: List<Pair<Long, Long>>,
+    )
+
+    /** ناتج معاملة الدمج: معرّف اللقطة + نفس المراجع المسجَّلة في حمولتها. */
+    class MergeCommitResult(val snapshotId: Long, val references: MergeReferences)
+
     /**
      * دمج Room كامل داخل **معاملة واحدة** (عهد الواجهة — الكاش بعد COMMIT حصراً):
-     * 1. لقطة ما-قبل-الدمج (ACTIVE) تُكتب أولاً — الحمولة JSON معتمة يملكها طبقة الميزة.
+     * 1. اكتشاف المراجع (أحداث المكالمات الممتصة + روابط القرابة المشيرة إليهم) **داخل**
+     *    المعاملة — فلا سباق بين القراءة والكتابة — وبناؤ الحمولة عبر [buildPayloadJson]
+     *    (JSON معتم يملكه مستهلكو الواجهة — عقد `contacts_sync_checkpoints`) بحيث تُكتب
+     *    اللقطة بحمولتها الكاملة ذرّياً.
      * 2. صف الناجي الكامل + أبناؤه + أرحامه (الهوية المهاجرة بعد التجميع المنصوي داخل
      *    [mergedContact] — agy F2c) عبر [writeContactToSqlite] (upsert بمعرّف).
-     * 3. إعادة توجيه أحداث المكالمات الممتصة إلى الناجي (القائمة مرتّبة من طبقة الميزة).
-     * 4. قبور دمج الممتصين: `systemDeletedAt` (نفس عمود القبر ودلالته — القبر يُخفي من
-     *    القائمة والفهرس، ويُحفظ الصفُّ والأبناء للاسترجاع) + إسقاط صفوف FTS (القبور لا تُفهرس).
-     * يعيد معرّف صف اللقطة (مفتاح التراجع خلال الجلسة).
+     * 3. إعادة توجيه الأحداث والروابط بالمراجع المكتشفة نفسها.
+     * 4. قبور دمج الممتصين: `systemDeletedAt` (القبر يُخفي من القائمة والفهرس، ويُحفظ الصفُّ
+     *    والأبناء للاسترجاع الحرفي) + إسقاط صفوف FTS (القبور لا تُفهرس).
+     * يعيد معرّف اللقطة (مفتاح التراجع خلال الجلسة) والمراجع المسجَّلة.
      */
     suspend fun mergeContactsInRoom(
         survivorId: Long,
         mergedContact: Contact,
         absorbedIds: List<Long>,
         snapshotGroupId: String,
-        snapshotPayloadJson: String,
         snapshotExpiresAt: Long,
-        rePointedCallLogIds: List<String>,
         nowMillis: Long,
-    ): Long = withContext(dispatchers.io) {
+        buildPayloadJson: (MergeReferences) -> String,
+    ): MergeCommitResult = withContext(dispatchers.io) {
         dbMutex.withLock {
-            val snapshotId = inWriteTransaction { conn ->
+            val result = inWriteTransaction { conn ->
+                val callLogIds = mutableListOf<String>()
+                val parentLinks = mutableListOf<Pair<Long, Long>>()
+                for (absorbedId in absorbedIds) {
+                    conn.usePrepared("SELECT callLogId FROM call_events WHERE contactId = ?") { stmt ->
+                        stmt.bindLong(1, absorbedId)
+                        while (stmt.step()) callLogIds += stmt.getText(0)
+                    }
+                }
+                for (absorbedId in absorbedIds) {
+                    conn.usePrepared("SELECT contactId, parentContactId FROM arham WHERE parentContactId = ?") { stmt ->
+                        stmt.bindLong(1, absorbedId)
+                        while (stmt.step()) parentLinks += stmt.getLong(0)!! to (stmt.getLong(1) ?: 0L)
+                    }
+                }
+                val references = MergeReferences(callLogIds, parentLinks)
+
                 conn.usePrepared(
                     """
                     INSERT INTO contact_merge_snapshots (groupId, payloadJson, contactCount, createdAt, status, restoredAt, expiresAt)
@@ -533,7 +560,7 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
                     """.trimIndent()
                 ) { stmt ->
                     stmt.bindText(1, snapshotGroupId)
-                    stmt.bindText(2, snapshotPayloadJson)
+                    stmt.bindText(2, buildPayloadJson(references))
                     stmt.bindLong(3, (absorbedIds.size + 1).toLong())
                     stmt.bindLong(4, nowMillis)
                     stmt.bindLong(5, snapshotExpiresAt)
@@ -547,7 +574,7 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
 
                 writeContactToSqlite(conn, mergedContact)
 
-                for (callLogId in rePointedCallLogIds) {
+                for (callLogId in references.callLogIds) {
                     conn.usePrepared("UPDATE call_events SET contactId = ? WHERE callLogId = ?") { stmt ->
                         stmt.bindLong(1, survivorId)
                         stmt.bindText(2, callLogId)
@@ -574,13 +601,13 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
                     }
                 }
                 mergeFaultHook?.invoke()?.let { throw it }
-                snapshotId
+                MergeCommitResult(snapshotId, references)
             }
             contactsState.update { current ->
                 val withoutAbsorbed = current.filterNot { it.id in absorbedIds.toSet() }
                 withoutAbsorbed.map { if (it.id == survivorId) mergedContact else it }
             }
-            snapshotId
+            result
         }
     }
 

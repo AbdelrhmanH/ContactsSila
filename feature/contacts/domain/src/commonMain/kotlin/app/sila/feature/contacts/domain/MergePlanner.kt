@@ -74,7 +74,10 @@ object MergePlanner {
             excludeFromSmartFilter = contacts.any { it.excludeFromSmartFilter },
             notes = mergedNotes(contacts),
             account = survivor.account,
-            arham = survivor.arham,
+            // أرحام: من الأقدم إنشاءً لديه بيانات قرابة، وlastContactedAt = الأحدث الصالح
+            // عبر كل الأعضاء (spec 04 §أ «للأقدم إنشاءً؛ lastContactedAt = الأحدث» —
+            // وأقدمُ بلا قرابة لا يُهدر عليها قرابة الأصغر سناً — البيانات تُحفظ).
+            arham = mergedArham(contacts),
             linkedService = survivor.linkedService ?: absorbed.firstNotNullOfOrNull { it.linkedService },
             normalizedName = survivor.normalizedName,
             createdAt = survivor.createdAt,
@@ -148,6 +151,13 @@ object MergePlanner {
         CATEGORY_PRIORITY.firstOrNull { priority -> contacts.any { it.category == priority } }
             ?: contacts.firstOrNull { it.category != Category.UNCATEGORIZED }?.category
             ?: Category.UNCATEGORIZED
+
+    /** أرحام الدمج: من الأقدم إنشاءً لديه صف أرحام، و`lastContactedAt` = الأحدث الصالح. */
+    private fun mergedArham(contacts: List<Contact>) =
+        contacts.firstNotNullOfOrNull { it.arham }?.let { oldestArham ->
+            val newest = contacts.mapNotNull { it.arham?.lastContactedAt }.maxOrNull()
+            oldestArham.copy(lastContactedAt = newest ?: oldestArham.lastContactedAt)
+        }
 
     private fun mergedNotes(contacts: List<Contact>): String? {
         val distinct = contacts.mapNotNull { it.notes?.trim()?.takeIf(String::isNotEmpty) }.distinct()
