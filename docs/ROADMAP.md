@@ -20,54 +20,58 @@
 - [x] Navigation: 3 تبويبات (`CONTACTS`, `SERVICES`, `ARHAM`) مع شارة عدد المتأخرين في أرحام
 - [x] الترجمة عربي/إنجليزي + RTL-First
 
-## المرحلة 1 — MVP محلي (بدون سيرفر)
+## المرحلة 1 — MVP محلي (بدون سيرفر) ✅ (مكتملة ومدمجة بالكامل في main)
 **الهدف:** المستخدم يستغني عن تطبيق الأسماء الافتراضي.
 
-### Onboarding (ضيف)
-- [ ] شاشات الترحيب + شرح الصلاحيات → [01](features/01-onboarding-profile.md)
-- [ ] اختيار أهم 5 أشخاص
+### Onboarding (ضيف) — [01](features/01-onboarding-profile.md) (T5 · Issue #25 · PR #26)
+- [x] شاشات الترحيب + شرح الصلاحيات → [01](features/01-onboarding-profile.md)
+- [x] اختيار أهم 5 أشخاص
 
-### جهات الاتصال → [02](features/02-contacts-list.md)
-- [ ] `ContactsPlatformSource` (Android Contacts Provider / iOS CNContactStore)
-- [ ] مزامنة تزايدية مع Room + مراقبة التغييرات
-- [ ] القائمة + Paging + فهرس أبجدي
-- [ ] Chips مع العدادات
-- [ ] صف المفضلة
-- [ ] البحث FTS
-- [ ] Smart FAB + Sheet
-- [ ] التحديد المتعدد + السحب
+### جهات الاتصال — [02](features/02-contacts-list.md) (T1-T4)
+- [x] `ContactsPlatformSource` (Android Contacts Provider / iOS CNContactStore) (T1 · Issue #21 · PR #18)
+- [x] مزامنة تزايدية مع Room + مراقبة التغييرات (T2 · Issue #23 · PR #20)
+- [x] القائمة + Paging + فهرس أبجدي (T3 · Issue #24 · PR #24)
+- [x] Chips مع العدادات (T3)
+- [x] صف المفضلة (T3)
+- [x] البحث FTS (T3)
+- [x] Smart FAB + Sheet (T3)
+- [x] التحديد المتعدد + السحب (T3)
+- [x] واجهة iOS الأصلية وتكامل SwiftUI مع SKIE (T4 · Issue #22 · PR #22)
 
-### التفاصيل والتعديل → [03](features/03-contact-details-edit.md)
-- [ ] صفحة التفاصيل (Calling Card، Connected Apps، Recent History)
-- [ ] قائمة "المزيد": مفضلة، مشاركة vCard/QR، اختصار، نقل حساب، بريد صوتي، حظر، حذف + Undo
-- [ ] صفحة الإضافة/التعديل بكل الحقول + Expand
-- [ ] الصورة (كاميرا/معرض/قص)
-- [ ] Shared Element transition
+### التفاصيل والتعديل — [03](features/03-contact-details-edit.md) (T6 · Issue #27 · PR #27)
+- [x] صفحة التفاصيل (Calling Card، Connected Apps، Recent History)
+- [x] قائمة "المزيد": مفضلة، مشاركة vCard/QR، اختصار، نقل حساب، بريد صوتي، حظر، حذف + Undo
+- [x] صفحة الإضافة/التعديل بكل الحقول + Expand
+- [x] الصورة (كاميرا/معرض/قص)
+- [x] Shared Element transition
 
-### التنظيم → [04](features/04-duplicates-smart-filter.md)
-- [ ] كشف المكررات + شاشة المراجعة + الدمج + التراجع
-- [ ] الفلترة الذكية + شاشة المراجعة + التصنيف التدريجي بعد المكالمة
+### التنظيم — [04](features/04-duplicates-smart-filter.md) (T7 · Issue #28 · PR #50)
+- [x] كشف المكررات + شاشة المراجعة + الدمج + التراجع
+- [x] الفلترة الذكية + شاشة المراجعة + التصنيف التدريجي بعد المكالمة
 
-### أرحام → [06](features/06-arham-family-tree.md)
-- [ ] Kinship Setup Sheet
-- [ ] حساب الأولوية والحالة
-- [ ] القائمة المرقمة
-- [ ] المنصة + الإحصائيات + التقدم
-- [ ] التتبع ([ADR-0006](adr/0006-call-log-strategy.md) مقبول — B+ متعدد المصادر مع تأكيد احتياطي)
-- [ ] الإشعارات + أوقات الهدوء
-- [ ] Confetti والانتقال اللوني
-- [ ] شجرة العائلة
-- [ ] رنين الطوارئ المتواصل (جهات EMERGENCY فقط + Foreground Service)
-- [ ] أرحام Widget (Glance / WidgetKit — Small + Medium + Large)
+### أرحام — [06](features/06-arham-family-tree.md) (T8 · Issue #29 · PR #41 · PR #49)
+- [x] Kinship Setup Sheet
+- [x] حساب الأولوية والحالة
+- [x] القائمة المرقمة
+- [x] المنصة + الإحصائيات + التقدم
+- [x] التتبع ([ADR-0006](adr/0006-call-log-strategy.md) — B+ متعدد المصادر مع تأكيد احتياطي)
+- [x] الإشعارات + أوقات الهدوء
+- [x] Confetti والانتقال اللوني
+- [x] شجرة العائلة
+- [x] رنين الطوارئ المتواصل (جهات EMERGENCY فقط + Foreground Service)
+- [x] أرحام Widget (Glance / WidgetKit — Small + Medium + Large)
 
-### النغمات والتفضيلات → [07](features/07-ringtones-preferences.md)
-- [ ] نغمة لجهة اتصال + لتصنيف (Android)
-- [ ] شاشة الإعدادات كاملة
+### النغمات والتفضيلات — [07](features/07-ringtones-preferences.md) (T9 · Issue #30 · PR #51)
+- [x] نغمة لجهة اتصال + لتصنيف (Android)
+- [x] شاشة الإعدادات كاملة (Compose + SwiftUI)
+- [x] النسخ الاحتياطي المشفر محلياً (AES-256-GCM) مع الاسترجاع
 
-### الإصدار
-- [ ] Baseline Profile + Macrobenchmark
-- [ ] Crashlytics (بدون بيانات شخصية)
-- [ ] Internal testing (Play) + TestFlight
+### الإصدار وبوابة الإطلاق — (T10 · Issue #31)
+- [x] التحقق المعماري الصارم (0 violations عبر 19 موديولاً)
+- [x] تدقيق الخصوصية وخلو التقارير من أي PII عبر Redactor ومفتاح crashReportsEnabled
+- [x] الامتثال التام لـ ADR-0006 (لا READ_CALL_LOG ولا مشغل افتراضي)
+- [x] اجتياز جميع اختبارات الوحدة والمحاكي و CI لنظامي Android و iOS
+- [ ] الاختبارات اليدوية على العتاد المادي (Macrobenchmark، Play Internal Testing، TestFlight) — *مؤجلة لحين توفر الأجهزة المادية وفق توجيهات المستخدم*
 
 ## المرحلة 2 — السحابة والدليل → [05](features/05-services-directory.md)
 - [ ] مشاريع Firebase (dev/staging/prod) + App Check

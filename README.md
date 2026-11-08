@@ -1,35 +1,120 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# صِلَة (ContactsSila) — تطبيق إدارة جهات الاتصال وصلة الرحم
 
-* [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
-
-* [/sharedLogic](./sharedLogic/src) is for the code that will be shared between app targets in the project.
-  The most important subfolder is [commonMain](./sharedLogic/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
-
-* [/sharedUI](./sharedUI/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./sharedUI/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./sharedUI/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./sharedUI/src/jvmMain/kotlin)
-    folder is the appropriate location.
-
-### Running the apps
-
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
-
-- Android app: `./gradlew :androidApp:assembleDebug`
-- iOS app: open the [/iosApp](./iosApp) directory in Xcode and run it from there.
-
-### Running tests
-
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
-
-- Android tests: `./gradlew :sharedUI:testAndroidHostTest :sharedLogic:testAndroidHostTest`
-- iOS tests: `./gradlew :sharedLogic:iosSimulatorArm64Test`
+<p align="center">
+  <strong>تطبيق ذكي، محلي أولاً (Local-First)، يحترم الخصوصية 100%، متعدد المنصات (Android & iOS)</strong><br>
+  تنظيم جهات الاتصال · كشف المكررات والفلترة الذكية · صلة الرحم والتواصل العائلي · النسخ الاحتياطي المشفر
+</p>
 
 ---
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+## 🌟 نظرة عامة (Overview)
+
+**صِلَة (ContactsSila)** هو تطبيق حديث متعدد المنصات مبني باستخدام تقنية **Kotlin Multiplatform (KMP)** و **Compose Multiplatform** و **SwiftUI**، يقدم بديلاً كاملاً ومتطوراً لتطبيق جهات الاتصال الافتراضي على هاتفك مع التركيز المطلق على:
+1. **الخصوصية الصارمة (Local-First & Offline-First):** بياناتك لا تغادر جهازك أبداً في المرحلة 1؛ لا توجد خوادم وسيطة ولا رفع سحابي للأسماء أو الأرقام أو سجلات المكالمات.
+2. **تنظيم جهات الاتصال والفلترة الذكية:** تصنيف تلقائي عبر معجم محلي ذكي متعدد اللهجات، وكشف متقدم للمكررات مع الدمج الآمن وإمكانية التراجع الكامل.
+3. **أرحام (صلة الرحم والترابط الأسري):** خوارزميات ذكية لحساب أولويات الوصال، تذكيرات ذكية تحترم أوقات الهدوء، وتتبع عملي للمكالمات دون انتهاك سياسات الخصوصية.
+4. **نغمات الرنين المخصصة والتفضيلات:** تخصيص نغمات الرنين حسب الفئات وجهات الاتصال، وإدارة كاملة للمظهر واللغة والأرقام.
+5. **النسخ الاحتياطي المشفر محلياً:** تصدير واسترجاع نسخة احتياطية محلية مشفرة بـ AES-256-GCM وبكلمة مرور مشتقة عبر PBKDF2.
+
+---
+
+## 🏗 المعمارية الهندسية (Architecture)
+
+يتبع المشروع معمارية **التقسيم الهجين للميزات (Hybrid Layers-inside-Features Modularization — ADR-0007)**، حيث يحتوي كل موديول ميزة على حزم Clean Architecture الثلاث (`domain`, `data`, `presentation`):
+
+```text
+ContactsSila/
+├── core/
+│   ├── common/          # الأدوات المشتركة، معالجة النصوص، Redactor، تطبيع الأرقام
+│   ├── model/           # النماذج الأساسية وحساب الأولويات (Domain Models & Enums)
+│   ├── database/        # قاعدة البيانات المحلية Room KMP و DAOs و Migrations
+│   ├── datastore/       # استدامة التفضيلات المحلية عبر DataStore Preferences
+│   └── designsystem/    # مكونات التصميم المشتركة، الثيمات، الألوان، الخطوط
+├── feature/
+│   ├── contacts/        # [domain, data, presentation] إدارة وجهات الاتصال والمزامنة
+│   ├── arham/           # [domain, data, presentation] صلة الرحم والتذكيرات والأولويات
+│   ├── services/        # [domain, data, presentation] دليل الخدمات
+│   └── settings/        # [domain, data, presentation] الإعدادات والنغمات والنسخ المشفر
+├── sharedLogic/         # حقن التبعيات Koin، تنسيق المنصات، تصدير SKIE لـ iOS
+├── sharedUI/            # شاشات Compose Multiplatform المشتركة
+├── androidApp/          # تطبيق أندرويد الأصلي (Jetpack Compose & Foreground Services)
+└── iosApp/              # تطبيق iOS الأصلي (SwiftUI + Observation + WidgetKit)
+```
+
+### القواعد المعمارية الصارمة (Architecture Invariants)
+- **عزل الميزات (Zero Feature-to-Feature Coupling):** لا تعتمد أي ميزة على ميزة أخرى أبداً؛ التواصل يتم حصراً عبر النماذج في `:core:model` وقاعدة البيانات في `:core:database`.
+- **الخصوصية التامة (Zero Network in Private Features):** موديولات `:feature:contacts` و `:feature:arham` **لا تعتمد إطلاقاً** على `:core:network` أو أي مكتبة شبكية/سحابية.
+- **سياسة سجل المكالمات (ADR-0006):** لا يُطلب إذن `READ_CALL_LOG` ولا دور المشغل الافتراضي `ROLE_DIALER` إطلاقاً.
+- **نمط العرض UDF / MVI:** طبقات العرض تعرض `UiState` غير قابل للتعديل وترسل نوايا `Intent`؛ منطق الأعمال معزول تماماً في UseCases و ViewModels.
+- **دعم كامل للغة العربية (RTL-First):** جميع الواجهات مصممة ومختبرة لتعمل بشكل مثالي باللغتين العربية والإنجليزية.
+
+---
+
+## 🚀 ميزات المرحلة الأولى (Phase 1 Deliverables)
+
+- **T1: مزود جهات الاتصال المنصوي (`ContactsPlatformSource`):** قراءة وإدارة جهات اتصال النظام على Android و iOS (`CNContactStore`).
+- **T2: محرك المزامنة التزايدية (`ContactsSyncEngine`):** مزامنة ذكية وسريعة مع قاعدة بيانات Room مع دعم الحذف الناعم والاسترجاع.
+- **T3: قائمة جهات الاتصال والبحث الفوري:** فرز أبجدي، بحث سريع FTS، تصفية حسب الفئات، قائمة المفضلة، وإجراءات السحب السريعة.
+- **T4: تطبيق iOS الأصلي:** واجهات SwiftUI متجاوبة ترتبط بسلاسة مع ViewModels المشتركة عبر SKIE.
+- **T5: تجربة المستخدم الضيف (Onboarding):** تهيئة فورية دون تعقيد، طلب الصلاحيات بأعلى شفافية في أقل من 90 ثانية.
+- **T6: صفحة التفاصيل والبطاقة التفاعلية:** عرض متكامل لوسائل الاتصال والتطبيقات المتصلة (واتساب، تيليجرام، سيجنال).
+- **T7: كشف المكررات والفلترة الذكية:** خوارزميات اتحاد الأدلة (Union-Find) لكشف المكررات ودمجها بأمان تام مع إمكانية التراجع الفوري، وتصنيف ذكي للمهن والعلاقات.
+- **T8: أرحام (صلة الرحم):** بطاقات القرابة، حساب الأولويات، تنبيهات دورية ذكية تحترم أوقات الهدوء، وودجت للشاشة الرئيسية (Glance / WidgetKit).
+- **T9: النغمات والتفضيلات والنسخ الاحتياطي:** تخصيص النغمات لكل فئة، إعدادات شاملة للمظهر واللغة، وتصدير/استرجاع نسخة مشفرة بـ AES-256-GCM.
+- **T10: بوابة الإطلاق والتدقيق الشامل:** تدقيق الأداء والخصوصية وصفر خروقات معمارية عبر 19 موديولاً.
+
+---
+
+## 🛠 أوامر التطوير والتشغيل (Build & Verification)
+
+### المتطلبات الأساسية
+- **JDK 17** (Temurin أو Zulu موصى به)
+- **Android SDK** (API 34 / 35)
+- **Xcode 16+** و macOS (لتجميع وتشغيل أهداف iOS)
+
+### أوامر Gradle الشائعة
+```bash
+# فحص الحدود المعمارية والخصوصية الصارمة (19 موديولاً)
+./gradlew checkArchitectureBoundaries
+
+# تشغيل جميع اختبارات الوحدة للمشروع (Core + Features + SharedLogic)
+./gradlew allTests
+
+# تجميع تطبيق أندرويد التجريبي (Debug APK)
+./gradlew :androidApp:assembleDebug
+
+# تجميع تطبيق أندرويد للإنتاج مع فحص ProGuard / R8
+./gradlew :androidApp:assembleRelease
+
+# تجميع حزمة SKIE Framework لنظام iOS
+./gradlew :sharedLogic:linkDebugFrameworkIosSimulatorArm64
+```
+
+---
+
+## 🔒 الأمان والخصوصية (Security & Privacy)
+
+- **تنقية السجلات (PII Scrubber):** أداة `Redactor` المضمنة تحجب تلقائياً أرقام الهواتف ورسائل البريد الإلكتروني في أي سجلات أو تقارير تشخيصية.
+- **التحكم في تقارير الأعطال:** يمكن للمستخدم تفعيل أو تعطيل تقارير الأعطال المجهولة تماماً في أي وقت من شاشة الإعدادات.
+- **تشفير قوي للنسخ الاحتياطي:** تُشفر ملفات `.sila.backup` باستخدام خوارزمية **AES-256-GCM** مع مفتاح مشتق من كلمة مرور المستخدم عبر **PBKDF2** بـ 100,000 تكرار، ومصممة للتوافق التام عبر مختلف المنصات.
+
+---
+
+## 📄 التوثيق الهندسي المرجعي (Documentation Index)
+
+- [مستند متطلبات المنتج (PRD)](docs/PRD.md)
+- [المعمارية العامة للنظام (ARCHITECTURE.md)](docs/ARCHITECTURE.md)
+- [قواعد كتابة الكود وإرشادات التطوير (CODING_GUIDELINES.md)](docs/CODING_GUIDELINES.md)
+- [سجل القرارات المعمارية (ADRs)](docs/adr/)
+  - [ADR-0004: التخزين المحلي أولاً وقواعد Room](docs/adr/0004-room-offline-first.md)
+  - [ADR-0006: استراتيجية سجل المكالمات والخصوصية](docs/adr/0006-call-log-strategy.md)
+  - [ADR-0007: المعمارية الهجينة للموديولات](docs/adr/0007-hybrid-feature-modularization.md)
+  - [ADR-0010: محرك المزامنة التزايدية](docs/adr/0010-contacts-sync-engine.md)
+- [وثيقة اعتماد بوابة إطلاق المرحلة 1 (RELEASE_GATE_PHASE1.md)](docs/RELEASE_GATE_PHASE1.md)
+- [سجل التغييرات (CHANGELOG.md)](CHANGELOG.md)
+
+---
+
+<p align="center">
+  صنع بحب وإتقان لتعزيز الروابط الأسرية والخصوصية الرقمية ❤️
+</p>
