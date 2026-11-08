@@ -8,6 +8,7 @@ import androidx.sqlite.async.step
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import app.sila.core.common.ArabicTextNormalizer
 import app.sila.core.database.CallEventsV3Ddl
+import app.sila.core.database.MergeTablesDdl
 import app.sila.core.database.StandardFieldTablesDdl
 
 /** فشل آمن: مخطط قاعدة غير مصنَّف — لا يُعدَّل ولا يُفتح (فحص الدخول قبل أي شيء). */
@@ -249,6 +250,7 @@ internal class LegacyDatabaseAdopter(
                 ensureCheckpointsTable(conn)
                 ensureStandardFieldTables(conn)
                 rebuildCallEventsToV3(conn)
+                ensureMergeTables(conn)
                 normalizeContactsIndices(conn)
                 ensurePhonesIndices(conn)
                 backfillFtsFromContacts(conn)
@@ -351,6 +353,17 @@ internal class LegacyDatabaseAdopter(
      */
     private suspend fun rebuildCallEventsToV3(conn: SQLiteConnection) {
         CallEventsV3Ddl.rebuildCallEventsToV3AndCreateEmergencySessionsTable(conn)
+    }
+
+    /**
+     * جداول الدمج الثلاثة (v4 — T7 · Issue #28) — بنفس DDL الموحد حرفاً مع
+     * [app.sila.core.database.MergeTablesDdl] الذي يستهلكه `MIGRATION_3_4` أيضاً، فيُنتج
+     * المساران الشكل الفيزيائي نفسه. idempotent (`IF NOT EXISTS`) — القواعد التاريخية
+     * بلا جداول والشيم هو من ينشئها.
+     */
+    private suspend fun ensureMergeTables(conn: SQLiteConnection) {
+        MergeTablesDdl.CREATE_TABLE_STATEMENTS.forEach { conn.executeSQL(it) }
+        MergeTablesDdl.CREATE_INDEX_STATEMENTS.forEach { conn.executeSQL(it) }
     }
 
     /**

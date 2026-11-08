@@ -106,15 +106,20 @@ internal object LegacySchemaFingerprint {
         "contact_emails", "contact_addresses", "contact_dates", "contact_custom_fields", "contact_websites",
     )
 
+    /** جداول الدمج الثلاثة (v4 — T7 · Issue #28) — تُفحص عند وجودها حصراً في الأشكال التاريخية. */
+    private val MERGE_TABLES = setOf(
+        "contact_merge_snapshots", "duplicate_dismissals", "smart_filter_feedback",
+    )
+
     /**
      * جداول المستخدم المستهدفة (8 فعلية + FTS + جداول الحقول القياسية الخمسة + جلسات
-     * الطوارئ — T6 · v2، ثم T8-02 · v3).
+     * الطوارئ — T6 · v2، ثم T8-02 · v3، ثم جداول الدمج الثلاثة — T7 · v4).
      */
     private val TARGET_TABLES = setOf(
         "contacts", "contact_phones", "arham", "services", "call_events",
         "arham_inbox", "dispute_logs", "contacts_sync_checkpoints", "contacts_fts",
         "emergency_ringing_sessions",
-    ) + STANDARD_FIELD_TABLES
+    ) + STANDARD_FIELD_TABLES + MERGE_TABLES
 
     private val CORE_TABLES = setOf(
         "contacts", "contact_phones", "arham", "services", "call_events", "arham_inbox", "dispute_logs",
@@ -351,6 +356,41 @@ internal object LegacySchemaFingerprint {
         LegacyColumn("value", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
     )
 
+    /**
+     * أعمدة جداول الدمج الثلاثة (v4 — T7 · Issue #28) — حرفياً من
+     * `schemas/.../4.json` المولَّد (نفس عهد [app.sila.core.database.MergeTablesDdl]).
+     */
+    private val MERGE_SNAPSHOTS_COLUMN_SPECS: Set<LegacyColumn> = setOf(
+        LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
+        LegacyColumn("groupId", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("payloadJson", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("contactCount", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("createdAt", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("status", "TEXT", notNull = true, pkPosition = 0, defaultValue = "'ACTIVE'"),
+        LegacyColumn("restoredAt", "INTEGER", notNull = false, pkPosition = 0, defaultValue = null),
+        LegacyColumn("expiresAt", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+    )
+
+    private val DUPLICATE_DISMISSALS_COLUMN_SPECS: Set<LegacyColumn> = setOf(
+        LegacyColumn("id", "INTEGER", notNull = true, pkPosition = 1, defaultValue = null),
+        LegacyColumn("groupKey", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("reason", "TEXT", notNull = true, pkPosition = 0, defaultValue = null),
+        LegacyColumn("createdAt", "INTEGER", notNull = true, pkPosition = 0, defaultValue = null),
+    )
+
+    private val SMART_FILTER_FEEDBACK_COLUMN_SPECS: Set<LegacyColumn> = setOf(
+        LegacyColumn("token", "TEXT", notNull = true, pkPosition = 1, defaultValue = null),
+        LegacyColumn("suggestedCategory", "TEXT", notNull = true, pkPosition = 2, defaultValue = null),
+        LegacyColumn("acceptedCount", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+        LegacyColumn("rejectedCount", "INTEGER", notNull = true, pkPosition = 0, defaultValue = "0"),
+    )
+
+    private val MERGE_TABLE_COLUMN_SPECS: Map<String, Set<LegacyColumn>> = mapOf(
+        "contact_merge_snapshots" to MERGE_SNAPSHOTS_COLUMN_SPECS,
+        "duplicate_dismissals" to DUPLICATE_DISMISSALS_COLUMN_SPECS,
+        "smart_filter_feedback" to SMART_FILTER_FEEDBACK_COLUMN_SPECS,
+    )
+
     private val EXPECTED_PK_COLUMN_BY_TABLE: Map<String, String> = mapOf(
         "contacts" to "id",
         "contact_phones" to "id",
@@ -366,6 +406,16 @@ internal object LegacySchemaFingerprint {
         "contact_dates" to "id",
         "contact_custom_fields" to "id",
         "contact_websites" to "id",
+        "contact_merge_snapshots" to "id",
+        "duplicate_dismissals" to "id",
+    )
+
+    /**
+     * الجداول بمفتاح أساسي مركب (v4 — agy F1): فرع "pk" في [validateTableIndices] يتحقق
+     * ضد القائمة كاملة بدل عمود واحد.
+     */
+    private val COMPOSITE_PK_COLUMNS_BY_TABLE: Map<String, List<String>> = mapOf(
+        "smart_filter_feedback" to listOf("token", "suggestedCategory"),
     )
 
     private val INVARIANT_TABLE_INDEX_SPECS: Map<String, Set<LegacyIndex>> = mapOf(
@@ -401,6 +451,16 @@ internal object LegacySchemaFingerprint {
         ),
         "contact_websites" to setOf(
             LegacyIndex("idx_contact_websites_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC")),
+        ),
+        "contact_merge_snapshots" to setOf(
+            LegacyIndex("idx_contact_merge_snapshots_groupId", unique = false, origin = "c", partial = false, columns = listOf("groupId"), orders = listOf("ASC")),
+            LegacyIndex("idx_contact_merge_snapshots_createdAt", unique = false, origin = "c", partial = false, columns = listOf("createdAt"), orders = listOf("ASC")),
+        ),
+        "duplicate_dismissals" to setOf(
+            LegacyIndex("idx_duplicate_dismissals_groupKey", unique = false, origin = "c", partial = false, columns = listOf("groupKey"), orders = listOf("ASC")),
+        ),
+        "smart_filter_feedback" to setOf(
+            LegacyIndex("idx_smart_filter_feedback_token", unique = false, origin = "c", partial = false, columns = listOf("token"), orders = listOf("ASC")),
         ),
     )
 
@@ -594,17 +654,19 @@ internal object LegacySchemaFingerprint {
         if (contactsColumns != TARGET_CONTACT_COLUMN_SPECS) return UNKNOWN
         if (!hasValidV2ContactsIndices(snapshot)) return UNKNOWN
 
-        // الحالة الهدف (v3 — T8-02 · Issue #29): كامل شكل المخطط الحالي — FTS موحّد،
+        // الحالة الهدف (v4 منذ T7 · Issue #28): كامل شكل المخطط الحالي — FTS موحّد،
         // فهارس contacts، PK هواتف يعلن NOT NULL، عمودا الهواتف، الجداول الخمسة،
-        // `call_events` بالصورة v3 (18 عموداً)، وجدول جلسات الطوارئ موجود.
-        val reachesFullV3Parity = ftsShapeIsTarget(snapshot) &&
+        // `call_events` بالصورة v3 (18 عموداً)، جدول جلسات الطوارئ موجود، وجداول الدمج
+        // الثلاثة موجودة (الأشكال الدقيقة تُفحص في hasExpectedInvariantColumns عند الوجود).
+        val reachesFullV4Parity = ftsShapeIsTarget(snapshot) &&
             hasTargetContactsIndices(snapshot) &&
             phonesPkDeclaresNotNull(snapshot) &&
             phonesHaveV2Columns(snapshot) &&
             snapshot.columnsByTable.keys.containsAll(STANDARD_FIELD_TABLES) &&
             snapshot.columnsByTable["call_events"]?.map { it.normalized() }?.toSet() == CALL_EVENTS_V3_COLUMN_SPECS &&
-            "emergency_ringing_sessions" in snapshot.columnsByTable
-        if (reachesFullV3Parity) return PARITY_DONE
+            "emergency_ringing_sessions" in snapshot.columnsByTable &&
+            snapshot.columnsByTable.keys.containsAll(MERGE_TABLES)
+        if (reachesFullV4Parity) return PARITY_DONE
 
         return when {
             ftsShapeIsTarget(snapshot) -> L2_OR_L3
@@ -663,6 +725,15 @@ internal object LegacySchemaFingerprint {
                 return false
             }
         }
+        // جداول الدمج الثلاثة (v4 — T7): تُفحص عند وجودها حصراً — القواعد التاريخية بلا
+        // جداول، والشيم هو من ينشئها بالشكل الموحد ([app.sila.core.database.MergeTablesDdl]).
+        for ((table, expectedSpecs) in MERGE_TABLE_COLUMN_SPECS) {
+            if (table !in tables) continue
+            val actualList = snapshot.columnsByTable[table]?.map { it.normalized() } ?: return false
+            if (actualList.size != expectedSpecs.size || actualList.toSet() != expectedSpecs) {
+                return false
+            }
+        }
         if ("contacts_sync_checkpoints" in tables) {
             val actualCheckpoints = snapshot.columnsByTable["contacts_sync_checkpoints"]
                 ?.map { it.normalized() } ?: return false
@@ -691,15 +762,18 @@ internal object LegacySchemaFingerprint {
         actualIndices: List<LegacyIndex>,
         expectedExplicitIndices: Set<LegacyIndex>,
     ): Boolean {
-        val expectedPkColumn = EXPECTED_PK_COLUMN_BY_TABLE[table] ?: return false
+        val expectedPkColumn = EXPECTED_PK_COLUMN_BY_TABLE[table]
+        val expectedCompositePk = COMPOSITE_PK_COLUMNS_BY_TABLE[table]
+        if (expectedPkColumn == null && expectedCompositePk == null) return false
         val explicitIndices = mutableListOf<LegacyIndex>()
         for (idx in actualIndices) {
             if (idx.hasExpression || idx.columns.isEmpty()) return false
             when (idx.origin) {
                 "pk" -> {
+                    val expectedPkColumns = expectedCompositePk ?: listOf(expectedPkColumn!!)
                     if (!idx.unique || idx.partial ||
-                        idx.columns != listOf(expectedPkColumn) ||
-                        idx.orders != listOf("ASC")
+                        idx.columns != expectedPkColumns ||
+                        idx.orders != expectedPkColumns.map { "ASC" }
                     ) {
                         return false
                     }
