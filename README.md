@@ -70,7 +70,7 @@ ContactsSila/
 ### المتطلبات الأساسية
 - **JDK 17** (Temurin أو Zulu موصى به)
 - **Android SDK** (API 34 / 35)
-- **Xcode 16+** و macOS (لتجميع وتشغيل أهداف iOS)
+- **Xcode 26.4.1** و macOS (لتجميع وتشغيل أهداف iOS؛ تُختار صراحةً في CI عبر `DEVELOPER_DIR` — انظر `.github/workflows/ci.yml`)
 
 ### أوامر Gradle الشائعة
 ```bash
@@ -109,7 +109,7 @@ ContactsSila/
   - [ADR-0004: التخزين المحلي أولاً وقواعد Room](docs/adr/0004-room-offline-first.md)
   - [ADR-0006: استراتيجية سجل المكالمات والخصوصية](docs/adr/0006-call-log-strategy.md)
   - [ADR-0007: المعمارية الهجينة للموديولات](docs/adr/0007-hybrid-feature-modularization.md)
-  - [ADR-0010: محرك المزامنة التزايدية](docs/adr/0010-contacts-sync-engine.md)
+  - [ADR-0010: محرك المزامنة التزايدية لجهات الاتصال](docs/adr/0010-incremental-contacts-sync.md)
 - [وثيقة اعتماد بوابة إطلاق المرحلة 1 (RELEASE_GATE_PHASE1.md)](docs/RELEASE_GATE_PHASE1.md)
 - [سجل التغييرات (CHANGELOG.md)](CHANGELOG.md)
 
