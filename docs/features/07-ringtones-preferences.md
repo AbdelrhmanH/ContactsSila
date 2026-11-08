@@ -9,13 +9,13 @@
 - **US-07.2** أريد نغمة خاصة لشخص معين.
 
 ### معايير القبول
-- [ ] الإعدادات ← النغمات: لكل تصنيف نغمة (افتراضي النظام).
-- [ ] صفحة جهة الاتصال ← النغمة: نغمات النظام (`RingtoneManager.ACTION_RINGTONE_PICKER`) أو ملف صوتي (`ACTION_OPEN_DOCUMENT` + `takePersistableUriPermission`).
-- [ ] الأولوية: نغمة جهة الاتصال > نغمة التصنيف > نغمة النظام.
-- [ ] تغيير نغمة تصنيف ← `ApplyCategoryRingtoneWorker` يكتب `CUSTOM_RINGTONE` لكل الأعضاء الذين ليس لديهم نغمة فردية.
-- [ ] تغيير تصنيف جهة اتصال ← تُطبق نغمة التصنيف الجديد (إن لم تكن فردية).
-- [ ] الملفات الصوتية المخصصة تُنسخ إلى `MediaStore.Audio` (Ringtones) لضمان بقائها.
-- [ ] iOS: الخيار يعرض شرحاً + زر "فتح في جهات الاتصال" (`CNContactViewController`).
+- [ ] الإعدادات ← النغمات: لكل تصنيف نغمة (افتراضي النظام). — نُفِّذ في T9 (قائمة النغمات من المنصة + نية `SetCategoryRingtone`).
+- [ ] صفحة جهة الاتصال ← النغمة: نغمات النظام (`RingtoneManager.ACTION_RINGTONE_PICKER`) أو ملف صوتي (`ACTION_OPEN_DOCUMENT` + `takePersistableUriPermission`). — خارج نطاق المرحلة 1: تذكرة #59.
+- [ ] الأولوية: نغمة جهة الاتصال > نغمة التصنيف > نغمة النظام. — مثبتة اختباراً في `GetEffectiveRingtoneUseCase`؛ بلا مستهلك إنتاجي بعد (تذكرة #59).
+- [ ] تغيير نغمة تصنيف ← `ApplyCategoryRingtoneWorker` يكتب `CUSTOM_RINGTONE` لكل الأعضاء الذين ليس لديهم نغمة فردية. — نُفِّذ في T9؛ اختبارات الـ Worker تذكرة #63.
+- [ ] تغيير تصنيف جهة اتصال ← تُطبق نغمة التصنيف الجديد (إن لم تكن فردية). — خارج المرحلة 1: تذكرة #59 (`UpdateContactCategoryUseCase` لا يلمس مسار النغمات).
+- [ ] الملفات الصوتية المخصصة تُنسخ إلى `MediaStore.Audio` (Ringtones) لضمان بقائها. — خارج المرحلة 1: تذكرة #59.
+- [ ] iOS: الخيار يعرض شرحاً + زر "فتح في جهات الاتصال" — الشرط الحالي بلا عرض (زوج Show/Dismiss متتاليان)؛ التوصيل في تذكرة #65.
 
 ## ب. التفضيلات
 
@@ -37,11 +37,11 @@
 | المفتاح | النوع | الافتراضي |
 |---|---|---|
 | `theme_mode` | SYSTEM/LIGHT/DARK | SYSTEM |
-| `language` | ar/en | لغة الجهاز |
-| `digits` | ARABIC/HINDI | حسب اللغة |
+| `language` | ar/en | ثابت (ARABIC)؛ سلوك «لغة الجهاز» خارج المرحلة 1 (تذكرة #68) |
+| `digits` | ARABIC/HINDI | ثابت ARABIC؛ بلا مستهلك عرض حالياً (تذكرة #68) |
 | `default_tab` | CONTACTS/SERVICES/ARHAM | CONTACTS |
 | `name_order` | FIRST_LAST/LAST_FIRST | FIRST_LAST |
-| `visible_accounts` | Set<String> | الكل |
+| `visible_accounts` | Set<String> | ∅؛ لا فلترة مستهلكة بعد (تذكرة #68) |
 | `swipe_start` / `swipe_end` | CALL/MESSAGE/NONE | CALL / MESSAGE |
 | `arham_notifications` | Boolean | true |
 | `arham_reminder_time` | LocalTime | 19:00 |
@@ -79,8 +79,7 @@
 | الوسوم المخصصة | ✅ | Tags |
 | التفضيلات | ✅ | كل DataStore |
 | نغمات التصنيفات | ✅ | URI فقط (ليس ملف الصوت) |
-| جداول الأتمتة | ✅ | `scheduled_messages` |
-| سجل النزاعات | ✅ | نص فقط (بدون صور) |
+| سجل النزاعات | ❌ | بجدول محلي `dispute_logs`؛ تصديره منافٍ عن المرحلة 1 وقراءته عبر الواجهة: تذكرة #60 |
 | جهات الاتصال نفسها | ❌ | تُقرأ من دفتر الهاتف — لا حاجة لنسخها |
 | سجل المكالمات | ❌ | يبقى محلياً في Room ولا يُصدَّر ([ADR-0006](../adr/0006-call-log-strategy.md): لا `READ_CALL_LOG`) |
 
@@ -96,20 +95,18 @@
   "arham": [ { "lookupKey": "abc123", "relation": "UNCLE_PATERNAL", "frequency": "MONTHLY" } ],
   "tags": [ { "lookupKey": "abc123", "tags": ["سباك", "السويس"] } ],
   "preferences": { "theme_mode": "DARK", "language": "ar", ... },
-  "categoryRingtones": { "FAMILY": "content://media/..." },
-  "automations": [ { "contactLookupKey": "...", "type": "IN_APP_MESSAGE", "recurrence": {...} } ],
-  "disputes": [ { "serviceCloudId": "...", "description": "...", "status": "OPEN" } ]
+  "categoryRingtones": { "FAMILY": "content://media/..." }
 }
 ```
 
 **الأمان:**
 - الملف مشفّر بـ **AES-256-GCM** مع مفتاح مشتق من كلمة مرور المستخدم (PBKDF2).
-- الامتداد: `.sila.backup` — يُحفظ في مجلد التنزيلات أو يُشارك.
+- الامتداد: `.sila.backup` — يُحفظ في مجلد التنزيلات أو يُشارك. (التطبيق الفعلي: إحالة ملفات النظام SAF على أندرويد ومشاركة على iOS — PR #73)
 - حجم الملف المتوقع: < 1 MB لـ 5000 جهة اتصال.
 
 **الاستعادة:**
 - [ ] إدخال كلمة المرور ← فك التشفير ← معاينة المحتويات (عدد التصنيفات/الأقارب).
-- [ ] الربط بـ `lookupKey` — إن لم يوجد تطابق → عرض قائمة "لم يُطابق (N)" مع خيار الربط اليدوي.
+- [ ] الربط بـ `lookupKey` — إن لم يوجد تطابق → عرض قائمة "لم يُطابق (N)" مع خيار الربط اليدوي. (البيانات تُبنى؛ التعرض في الواجهة: تذكرة #62)
 - [ ] خيار: "دمج مع البيانات الحالية" أو "استبدال بالكامل".
 - [ ] لا تُستعاد التفضيلات تلقائياً — يُسأل المستخدم.
 
