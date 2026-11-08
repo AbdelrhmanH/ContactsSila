@@ -11,8 +11,11 @@ struct iOSApp: App {
     /// Koin حصراً، وبلا مالك ثانٍ للحالة (نمط MainViewModelStore نفسه).
     @State private var contactsStore: ContactsViewModelStore
 
-    /// مخزن شاشة أرحام المشترك (T8-14 — §L.1) — النمط نفسه: بعد `ensureStarted` حصراً.
+    /// مخزن شاشة أرحام المشترك (T8-14 — §L.1) — النمط نفسه: بعد ensureStarted حصراً.
     @State private var arhamStore: ArhamViewModelStore
+
+    /// مخزن شاشة الإعدادات المشترك (T9 — Issue #30).
+    @State private var settingsStore: SettingsViewModelStore
 
     init() {
         _ = IosKoinBootstrap.shared.ensureStarted()
@@ -24,11 +27,17 @@ struct iOSApp: App {
         _store = State(initialValue: MainViewModelStore())
         _contactsStore = State(initialValue: ContactsViewModelStore())
         _arhamStore = State(initialValue: ArhamViewModelStore())
+        _settingsStore = State(initialValue: SettingsViewModelStore())
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(store: store, contactsStore: contactsStore, arhamStore: arhamStore)
+            ContentView(
+                store: store,
+                contactsStore: contactsStore,
+                arhamStore: arhamStore,
+                settingsStore: settingsStore
+            )
         }
     }
 }
