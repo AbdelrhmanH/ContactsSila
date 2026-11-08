@@ -96,7 +96,7 @@ struct SmartFilterReviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(store.state.groups, id: \.category) { group in
-                    let visible = group.items.filter { !store.state.rejectedIds.contains($0.contactId) }
+                    let visible = group.items.filter { !store.state.rejectedIds.contains(KotlinLong(value: $0.contactId)) }
                     if !visible.isEmpty {
                         GroupHeaderSwift(
                             group: group,
@@ -107,7 +107,7 @@ struct SmartFilterReviewView: View {
                         ForEach(visible, id: \.contactId) { item in
                             SuggestionItemRowSwift(
                                 item: item,
-                                checked: store.state.checkedIds.contains(item.contactId),
+                                checked: store.state.checkedIds.contains(KotlinLong(value: item.contactId)),
                                 strings: strings,
                                 store: store
                             )

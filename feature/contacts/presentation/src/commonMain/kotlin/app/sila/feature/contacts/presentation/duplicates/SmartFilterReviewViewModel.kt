@@ -214,4 +214,7 @@ class SmartFilterReviewViewModel(
         updateState { copy(pendingArhamOffer = emptyList()) }
         sendEffect(SmartFilterReviewEffect.NavigateBack)
     }
+    /** تحرير صريح من مضيف iOS عند pop (لا ViewModelStoreOwner هناك). */
+    fun clear() {
+    }
 }

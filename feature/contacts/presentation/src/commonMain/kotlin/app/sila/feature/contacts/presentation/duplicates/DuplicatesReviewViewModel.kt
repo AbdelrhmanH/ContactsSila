@@ -207,4 +207,7 @@ class DuplicatesReviewViewModel(
         }
     }
 
+    /** تحرير صريح من مضيف iOS عند pop (لا ViewModelStoreOwner هناك). */
+    fun clear() {
+    }
 }
