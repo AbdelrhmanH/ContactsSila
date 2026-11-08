@@ -88,6 +88,10 @@ struct SettingsLocalizedStrings {
     var startRestore: String { string("settings_start_restore") }
     var backupFileEmpty: String { string("settings_backup_file_empty") }
     var backupFileReadFailed: String { string("settings_backup_file_read_failed") }
+    var backupErrorBlankPassword: String { string("settings_backup_error_blank_password") }
+    var backupErrorDecryptionFailed: String { string("settings_backup_error_decryption_failed") }
+    var backupErrorNotConfigured: String { string("settings_backup_error_not_configured") }
+    var backupErrorGeneric: String { string("settings_backup_error_generic") }
     var restoreDoneFormat: String { string("settings_restore_done") }
 
     var sectionAbout: String { string("settings_section_about") }

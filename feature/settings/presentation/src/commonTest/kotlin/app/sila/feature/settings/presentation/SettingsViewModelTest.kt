@@ -11,6 +11,8 @@ import app.sila.core.model.DefaultTab
 import app.sila.core.model.NameOrder
 import app.sila.core.model.UserPreferences
 import app.sila.feature.settings.domain.BackupCryptoEngine
+import app.sila.feature.settings.domain.BackupDecryptionException
+import app.sila.feature.settings.domain.BackupErrorKind
 import app.sila.feature.settings.domain.BackupPayload
 import app.sila.feature.settings.domain.BackupPreferencesEntry
 import app.sila.feature.settings.domain.ObserveUserPreferencesUseCase
@@ -129,6 +131,13 @@ class SettingsViewModelTest {
         override suspend fun applyCategoryRingtone(category: Category, ringtoneUri: String?) = Unit
         override fun getSystemDefaultRingtoneUri(): String = "content://media/default.ogg"
         override fun getAvailableRingtones(): List<RingtoneItem> = listOf(RingtoneItem("Default", "default.ogg"))
+    }
+
+    /** محرك يفشل دائماً في الفك — لمحاكاة كلمة مرور خاطئة/ملف تالف. */
+    private class FailingCryptoEngine : BackupCryptoEngine {
+        override fun encrypt(plainBytes: ByteArray, password: String): ByteArray = plainBytes
+        override fun decrypt(cipherBytes: ByteArray, password: String): ByteArray =
+            throw BackupDecryptionException("Corrupted backup: authentication tag mismatch (tampering detected)")
     }
 
     private fun TestScope.settle() {
@@ -255,6 +264,48 @@ class SettingsViewModelTest {
         assertNotNull(vm.state.value.restoreResult)
         assertEquals(3, vm.state.value.restoreResult?.matchedCategories)
         assertTrue(effects.any { it is SettingsEffect.BackupRestored })
+    }
+
+    @Test
+    fun previewFailure_decryptionFailure_mapsToDecryptionFailedKindNotRawMessage() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = FailingCryptoEngine(),
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.PreviewBackupFile(cipherBytes = byteArrayOf(1, 2, 3), password = "Whatever"))
+        settle()
+
+        assertEquals(BackupErrorKind.DECRYPTION_FAILED, vm.state.value.backupErrorKind)
+        vm.onIntent(SettingsIntent.DismissError)
+        settle()
+        assertEquals(null, vm.state.value.backupErrorKind)
+    }
+
+    @Test
+    fun previewFailure_blankPassword_mapsToBlankPasswordKindNotRawMessage() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val crypto = TestCryptoEngine()
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = crypto,
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.PreviewBackupFile(cipherBytes = "anything".encodeToByteArray(), password = "  "))
+        settle()
+
+        assertEquals(BackupErrorKind.BLANK_PASSWORD, vm.state.value.backupErrorKind)
     }
 
     @Test

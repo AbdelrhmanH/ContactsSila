@@ -503,6 +503,10 @@
 "settings_start_restore" = "Start Restore";
 "settings_backup_file_read_failed" = "Could not read the selected file";
 "settings_backup_file_empty" = "The selected file is empty or invalid";
+"settings_backup_error_blank_password" = "Password is empty — enter a password and try again.";
+"settings_backup_error_decryption_failed" = "Decryption failed — check the password and that the file is an intact Sila backup.";
+"settings_backup_error_not_configured" = "Backup service is not configured in this state.";
+"settings_backup_error_generic" = "The operation failed — try again, and if it keeps failing retry with a different backup.";
 "settings_restore_done" = "Restore completed ✓\nMatched categories: %ld (unmatched: %ld)\nMatched kinship: %ld (unmatched: %ld)";
 "settings_section_about" = "About";
 "settings_app_version" = "Sila · Version 1.0.0";

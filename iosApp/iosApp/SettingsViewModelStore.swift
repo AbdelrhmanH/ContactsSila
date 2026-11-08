@@ -68,11 +68,12 @@ final class SettingsViewModelStore {
 
     func observeState() async {
         for await newState in viewModel.state {
-            if let error = newState.backupErrorMessage, error != lastBackupError {
-                // خطأ النسخ الاحتياطي يظهر للمستخدم كرسالة مرئية لا كطباعة سجل
-                toastMessage = error
+            if let kind = newState.backupErrorKind, kind != lastBackupErrorKind {
+                // خطأ النسخ الاحتياطي يظهر للمستخدم كرسالة مرئية مترجَمة من النوع —
+                // لا رسالة استثناء خام (مراجع T9 — S1)
+                toastMessage = localizedBackupErrorText(for: kind)
             }
-            lastBackupError = newState.backupErrorMessage
+            lastBackupErrorKind = newState.backupErrorKind
             self.state = newState
         }
     }
@@ -107,7 +108,18 @@ final class SettingsViewModelStore {
         toastMessage = message
     }
 
-    private var lastBackupError: String?
+    private var lastBackupErrorKind: BackupErrorKind?
+
+    /// نص الخطأ المترجم من نوع خطأ النسخ المشترك (لا رسائل خام أبداً).
+    func localizedBackupErrorText(for kind: BackupErrorKind) -> String {
+        let strings = SettingsLocalizedStrings(language: state.preferences.language)
+        switch kind {
+        case .blankPassword: return strings.backupErrorBlankPassword
+        case .decryptionFailed: return strings.backupErrorDecryptionFailed
+        case .notConfigured: return strings.backupErrorNotConfigured
+        default: return strings.backupErrorGeneric
+        }
+    }
 
     /// رسالة نجاح الاستعادة بصيغة مترجمة من أرقام النتيجة.
     private func restoreCompletionMessage(for result: RestoreResult) -> String {

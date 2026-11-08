@@ -137,3 +137,29 @@ data class RestoreResult(
     val restoredPreferences: Boolean,
     val unmatchedEntries: List<UnmatchedBackupEntry>
 )
+
+/**
+ * أنواع أخطاء النسخ الاحتياطي القابلة للعرض للمستخدم — عقد عابر-المنصات:
+ * كل منصة (Compose / SwiftUI) تحوّل النوع إلى نصّها المترجم محلياً —
+ * لا رسالة استثناء خام تصل المستخدم أبداً (مراجع T9 — S1).
+ */
+enum class BackupErrorKind {
+    BLANK_PASSWORD,
+    DECRYPTION_FAILED,
+    NOT_CONFIGURED,
+    GENERIC
+}
+
+/**
+ * مخطط نقي من استثناءات مسار النسخ إلى النوع العرضي (قابل للاختبار بلا منصة):
+ * - [BackupDecryptionException] ⇒ كلمة مرور خاطئة أو ملف تالف/متلاعب به (شعار ناقص/إصدار غير مدعوم/POST-HOC تعذّر التفريق).
+ * - [IllegalArgumentException] ⇒ فشل التحقق المسبق (كلمة مرور فارغة) عبر `require` في UseCases.
+ * - [IllegalStateException] ⇒ عدم تهيئة خدمة النسخ في الربط.
+ * - أي شيء آخر (DB/IO) ⇒ عام.
+ */
+fun Throwable.asBackupErrorKind(): BackupErrorKind = when (this) {
+    is BackupDecryptionException -> BackupErrorKind.DECRYPTION_FAILED
+    is IllegalArgumentException -> BackupErrorKind.BLANK_PASSWORD
+    is IllegalStateException -> BackupErrorKind.NOT_CONFIGURED
+    else -> BackupErrorKind.GENERIC
+}

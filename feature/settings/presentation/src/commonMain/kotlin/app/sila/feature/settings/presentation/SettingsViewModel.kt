@@ -27,6 +27,7 @@ import app.sila.feature.settings.domain.RingtoneItem
 import app.sila.feature.settings.domain.SetArhamNotificationTimeUseCase
 import app.sila.feature.settings.domain.SetArhamNotificationsUseCase
 import app.sila.feature.settings.domain.SetAutoTrackingEnabledUseCase
+import app.sila.feature.settings.domain.BackupErrorKind
 import app.sila.feature.settings.domain.SetCategoryRingtoneUseCase
 import app.sila.feature.settings.domain.SetCrashReportsUseCase
 import app.sila.feature.settings.domain.SetDashboardPeriodUseCase
@@ -37,6 +38,7 @@ import app.sila.feature.settings.domain.SetNameOrderUseCase
 import app.sila.feature.settings.domain.SetQuietHoursUseCase
 import app.sila.feature.settings.domain.SetSmartFilterUseCase
 import app.sila.feature.settings.domain.SetSwipeActionsUseCase
+import app.sila.feature.settings.domain.asBackupErrorKind
 import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
 import kotlinx.coroutines.CancellationException
@@ -60,7 +62,7 @@ data class SettingsUiState(
     val lastExportedFilePath: String? = null,
     val backupPreview: BackupPreview? = null,
     val restoreResult: RestoreResult? = null,
-    val backupErrorMessage: String? = null,
+    val backupErrorKind: BackupErrorKind? = null,
     // حالات الحوارات
     val showExportPasswordDialog: Boolean = false,
     val showImportPasswordDialog: Boolean = false,
@@ -274,11 +276,11 @@ class SettingsViewModel(
 
             // النسخ الاحتياطي والاستعادة
             is SettingsIntent.ShowExportDialog -> _uiState.update {
-                it.copy(showExportPasswordDialog = true, backupErrorMessage = null, backupExportSuccess = false)
+                it.copy(showExportPasswordDialog = true, backupErrorKind = null, backupExportSuccess = false)
             }
             is SettingsIntent.DismissExportDialog -> _uiState.update { it.copy(showExportPasswordDialog = false) }
             is SettingsIntent.ExportBackup -> viewModelScope.launch {
-                _uiState.update { it.copy(isExportingBackup = true, backupErrorMessage = null) }
+                _uiState.update { it.copy(isExportingBackup = true, backupErrorKind = null) }
                 try {
                     val bytes = exportBackup?.invoke(intent.password)
                         ?: throw IllegalStateException("Backup export not configured")
@@ -292,15 +294,15 @@ class SettingsViewModel(
                     sendEffect(SettingsEffect.BackupExported(bytes))
                 } catch (err: Exception) {
                     if (err is CancellationException) throw err
-                    _uiState.update { it.copy(isExportingBackup = false, backupErrorMessage = err.message) }
+                    _uiState.update { it.copy(isExportingBackup = false, backupErrorKind = err.asBackupErrorKind()) }
                 }
             }
             is SettingsIntent.ShowImportDialog -> _uiState.update {
-                it.copy(showImportPasswordDialog = true, backupErrorMessage = null)
+                it.copy(showImportPasswordDialog = true, backupErrorKind = null)
             }
             is SettingsIntent.DismissImportDialog -> _uiState.update { it.copy(showImportPasswordDialog = false) }
             is SettingsIntent.PreviewBackupFile -> viewModelScope.launch {
-                _uiState.update { it.copy(isImportingBackup = true, backupErrorMessage = null) }
+                _uiState.update { it.copy(isImportingBackup = true, backupErrorKind = null) }
                 try {
                     val preview = previewBackup?.invoke(intent.cipherBytes, intent.password)
                         ?: throw IllegalStateException("Backup preview not configured")
@@ -314,11 +316,11 @@ class SettingsViewModel(
                     }
                 } catch (err: Exception) {
                     if (err is CancellationException) throw err
-                    _uiState.update { it.copy(isImportingBackup = false, backupErrorMessage = err.message) }
+                    _uiState.update { it.copy(isImportingBackup = false, backupErrorKind = err.asBackupErrorKind()) }
                 }
             }
             is SettingsIntent.ConfirmRestore -> viewModelScope.launch {
-                _uiState.update { it.copy(isImportingBackup = true, backupErrorMessage = null) }
+                _uiState.update { it.copy(isImportingBackup = true, backupErrorKind = null) }
                 try {
                     val result = restoreBackup?.invoke(
                         cipherBytes = intent.cipherBytes,
@@ -336,13 +338,13 @@ class SettingsViewModel(
                     sendEffect(SettingsEffect.BackupRestored(result))
                 } catch (err: Exception) {
                     if (err is CancellationException) throw err
-                    _uiState.update { it.copy(isImportingBackup = false, backupErrorMessage = err.message) }
+                    _uiState.update { it.copy(isImportingBackup = false, backupErrorKind = err.asBackupErrorKind()) }
                 }
             }
             is SettingsIntent.DismissRestorePreviewDialog -> _uiState.update {
                 it.copy(showRestorePreviewDialog = false, backupPreview = null)
             }
-            is SettingsIntent.DismissError -> _uiState.update { it.copy(backupErrorMessage = null) }
+            is SettingsIntent.DismissError -> _uiState.update { it.copy(backupErrorKind = null) }
 
             // النغمات
             is SettingsIntent.OpenRingtonePicker -> _uiState.update { it.copy(showRingtonePickerCategory = intent.category) }
