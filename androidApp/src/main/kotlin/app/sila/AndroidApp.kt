@@ -282,16 +282,15 @@ fun SilaAndroidApp() {
                             TextButton(
                                 onClick = {
                                     numberPicker = null
-                                    contactsViewModel.onIntent(
-                                        when (picker.action) {
-                                            ContactSwipeAction.CALL ->
-                                                ContactsIntent.CallNumber(picker.contactId, phone.e164)
+                                    when (picker.action) {
+                                        ContactSwipeAction.CALL ->
+                                            contactsViewModel.onIntent(ContactsIntent.CallNumber(picker.contactId, phone.e164))
 
-                                            ContactSwipeAction.NONE,
-                                            ContactSwipeAction.MESSAGE ->
-                                                ContactsIntent.Message(picker.contactId, phone.e164)
-                                        }
-                                    )
+                                        ContactSwipeAction.MESSAGE ->
+                                            contactsViewModel.onIntent(ContactsIntent.Message(picker.contactId, phone.e164))
+
+                                        ContactSwipeAction.NONE -> Unit
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {

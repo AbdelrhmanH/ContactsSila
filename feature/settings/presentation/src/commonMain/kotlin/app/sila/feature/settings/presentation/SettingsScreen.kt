@@ -764,7 +764,7 @@ fun SettingsContent(
         AlertDialog(
             onDismissRequest = { onIntent(SettingsIntent.DismissRingtonePicker) },
             title = {
-                Text("${strings.chooseRingtone}: ${category.name}")
+                Text("${strings.chooseRingtone}: ${formatCategory(category, isArabic)}")
             },
             text = {
                 Column {
@@ -1062,4 +1062,13 @@ data class SettingsStrings(
             rateApp = "Rate App & Feedback"
         )
     }
+}
+
+private fun formatCategory(category: Category, isArabic: Boolean): String = when (category) {
+    Category.FAMILY -> if (isArabic) "العائلة 👨‍👩‍👧‍👦" else "Family"
+    Category.FRIENDS -> if (isArabic) "الأصدقاء 🤝" else "Friends"
+    Category.WORK -> if (isArabic) "العمل 💼" else "Work"
+    Category.SERVICES -> if (isArabic) "الخدمات 🛠️" else "Services"
+    Category.EMERGENCY -> if (isArabic) "الطوارئ 🚨" else "Emergency"
+    Category.UNCATEGORIZED -> if (isArabic) "غير مصنف" else "Uncategorized"
 }

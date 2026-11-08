@@ -186,9 +186,11 @@ class SettingsViewModel(
     private val _uiState = MutableStateFlow(SettingsUiState())
 
     init {
-        val ringtones = platformRingtoneSource?.getAvailableRingtones() ?: emptyList()
-        if (ringtones.isNotEmpty()) {
-            _uiState.update { it.copy(availableRingtones = ringtones) }
+        viewModelScope.launch(dispatchers.io) {
+            val ringtones = platformRingtoneSource?.getAvailableRingtones() ?: emptyList()
+            if (ringtones.isNotEmpty()) {
+                _uiState.update { it.copy(availableRingtones = ringtones) }
+            }
         }
     }
 

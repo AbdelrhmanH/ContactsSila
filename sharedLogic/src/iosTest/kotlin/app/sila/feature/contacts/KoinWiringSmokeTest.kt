@@ -20,7 +20,7 @@ import app.sila.feature.settings.domain.BackupCryptoEngine
 import app.sila.feature.settings.domain.PlatformRingtoneSource
 import app.sila.feature.settings.domain.SettingsRepository
 import app.sila.feature.settings.presentation.SettingsViewModel
-import app.sila.settings.ringtone.IosRingtoneSource
+import app.sila.feature.settings.data.ringtone.IosRingtoneSource
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import kotlin.test.AfterTest

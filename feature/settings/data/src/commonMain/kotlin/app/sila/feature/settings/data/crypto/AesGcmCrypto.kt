@@ -231,10 +231,10 @@ object AesGcmCrypto : BackupCryptoEngine {
     // AES block encryption (16 bytes input -> 16 bytes output with 32-byte key)
     private fun aesEncryptBlock(input: ByteArray, output: ByteArray, key: ByteArray) {
         val w = expandKey(key)
-        var s0 = (input[0].toInt() and 0xFF shl 24) or (input[1].toInt() and 0xFF shl 16) or (input[2].toInt() and 0xFF shl 8) or (input[3].toInt() and 0xFF) xor w[0]
-        var s1 = (input[4].toInt() and 0xFF shl 24) or (input[5].toInt() and 0xFF shl 16) or (input[6].toInt() and 0xFF shl 8) or (input[7].toInt() and 0xFF) xor w[1]
-        var s2 = (input[8].toInt() and 0xFF shl 24) or (input[9].toInt() and 0xFF shl 16) or (input[10].toInt() and 0xFF shl 8) or (input[11].toInt() and 0xFF) xor w[2]
-        var s3 = (input[12].toInt() and 0xFF shl 24) or (input[13].toInt() and 0xFF shl 16) or (input[14].toInt() and 0xFF shl 8) or (input[15].toInt() and 0xFF) xor w[3]
+        var s0 = (((input[0].toInt() and 0xFF) shl 24) or ((input[1].toInt() and 0xFF) shl 16) or ((input[2].toInt() and 0xFF) shl 8) or (input[3].toInt() and 0xFF)) xor w[0]
+        var s1 = (((input[4].toInt() and 0xFF) shl 24) or ((input[5].toInt() and 0xFF) shl 16) or ((input[6].toInt() and 0xFF) shl 8) or (input[7].toInt() and 0xFF)) xor w[1]
+        var s2 = (((input[8].toInt() and 0xFF) shl 24) or ((input[9].toInt() and 0xFF) shl 16) or ((input[10].toInt() and 0xFF) shl 8) or (input[11].toInt() and 0xFF)) xor w[2]
+        var s3 = (((input[12].toInt() and 0xFF) shl 24) or ((input[13].toInt() and 0xFF) shl 16) or ((input[14].toInt() and 0xFF) shl 8) or (input[15].toInt() and 0xFF)) xor w[3]
 
         for (r in 1 until 14) {
             val t0 = TE0[(s0 ushr 24) and 0xFF] xor TE1[(s1 ushr 16) and 0xFF] xor TE2[(s2 ushr 8) and 0xFF] xor TE3[s3 and 0xFF] xor w[r * 4]
@@ -245,10 +245,10 @@ object AesGcmCrypto : BackupCryptoEngine {
         }
 
         // Final round
-        val r0 = (SBOX[(s0 ushr 24) and 0xFF].toInt() and 0xFF shl 24) or (SBOX[(s1 ushr 16) and 0xFF].toInt() and 0xFF shl 16) or (SBOX[(s2 ushr 8) and 0xFF].toInt() and 0xFF shl 8) or (SBOX[s3 and 0xFF].toInt() and 0xFF) xor w[56]
-        val r1 = (SBOX[(s1 ushr 24) and 0xFF].toInt() and 0xFF shl 24) or (SBOX[(s2 ushr 16) and 0xFF].toInt() and 0xFF shl 16) or (SBOX[(s3 ushr 8) and 0xFF].toInt() and 0xFF shl 8) or (SBOX[s0 and 0xFF].toInt() and 0xFF) xor w[57]
-        val r2 = (SBOX[(s2 ushr 24) and 0xFF].toInt() and 0xFF shl 24) or (SBOX[(s3 ushr 16) and 0xFF].toInt() and 0xFF shl 16) or (SBOX[(s0 ushr 8) and 0xFF].toInt() and 0xFF shl 8) or (SBOX[s1 and 0xFF].toInt() and 0xFF) xor w[58]
-        val r3 = (SBOX[(s3 ushr 24) and 0xFF].toInt() and 0xFF shl 24) or (SBOX[(s0 ushr 16) and 0xFF].toInt() and 0xFF shl 16) or (SBOX[(s1 ushr 8) and 0xFF].toInt() and 0xFF shl 8) or (SBOX[s2 and 0xFF].toInt() and 0xFF) xor w[59]
+        val r0 = (((SBOX[(s0 ushr 24) and 0xFF].toInt() and 0xFF) shl 24) or ((SBOX[(s1 ushr 16) and 0xFF].toInt() and 0xFF) shl 16) or ((SBOX[(s2 ushr 8) and 0xFF].toInt() and 0xFF) shl 8) or (SBOX[s3 and 0xFF].toInt() and 0xFF)) xor w[56]
+        val r1 = (((SBOX[(s1 ushr 24) and 0xFF].toInt() and 0xFF) shl 24) or ((SBOX[(s2 ushr 16) and 0xFF].toInt() and 0xFF) shl 16) or ((SBOX[(s3 ushr 8) and 0xFF].toInt() and 0xFF) shl 8) or (SBOX[s0 and 0xFF].toInt() and 0xFF)) xor w[57]
+        val r2 = (((SBOX[(s2 ushr 24) and 0xFF].toInt() and 0xFF) shl 24) or ((SBOX[(s3 ushr 16) and 0xFF].toInt() and 0xFF) shl 16) or ((SBOX[(s0 ushr 8) and 0xFF].toInt() and 0xFF) shl 8) or (SBOX[s1 and 0xFF].toInt() and 0xFF)) xor w[58]
+        val r3 = (((SBOX[(s3 ushr 24) and 0xFF].toInt() and 0xFF) shl 24) or ((SBOX[(s0 ushr 16) and 0xFF].toInt() and 0xFF) shl 16) or ((SBOX[(s1 ushr 8) and 0xFF].toInt() and 0xFF) shl 8) or (SBOX[s2 and 0xFF].toInt() and 0xFF)) xor w[59]
 
         output[0] = (r0 ushr 24).toByte(); output[1] = (r0 ushr 16).toByte(); output[2] = (r0 ushr 8).toByte(); output[3] = r0.toByte()
         output[4] = (r1 ushr 24).toByte(); output[5] = (r1 ushr 16).toByte(); output[6] = (r1 ushr 8).toByte(); output[7] = r1.toByte()
@@ -259,9 +259,9 @@ object AesGcmCrypto : BackupCryptoEngine {
     private fun expandKey(key: ByteArray): IntArray {
         val w = IntArray(60)
         for (i in 0 until 8) {
-            w[i] = (key[i * 4].toInt() and 0xFF shl 24) or
-                   (key[i * 4 + 1].toInt() and 0xFF shl 16) or
-                   (key[i * 4 + 2].toInt() and 0xFF shl 8) or
+            w[i] = ((key[i * 4].toInt() and 0xFF) shl 24) or
+                   ((key[i * 4 + 1].toInt() and 0xFF) shl 16) or
+                   ((key[i * 4 + 2].toInt() and 0xFF) shl 8) or
                    (key[i * 4 + 3].toInt() and 0xFF)
         }
         for (i in 8 until 60) {
@@ -279,9 +279,9 @@ object AesGcmCrypto : BackupCryptoEngine {
     }
 
     private fun subWord(w: Int): Int {
-        return (SBOX[(w ushr 24) and 0xFF].toInt() and 0xFF shl 24) or
-               (SBOX[(w ushr 16) and 0xFF].toInt() and 0xFF shl 16) or
-               (SBOX[(w ushr 8) and 0xFF].toInt() and 0xFF shl 8) or
+        return ((SBOX[(w ushr 24) and 0xFF].toInt() and 0xFF) shl 24) or
+               ((SBOX[(w ushr 16) and 0xFF].toInt() and 0xFF) shl 16) or
+               ((SBOX[(w ushr 8) and 0xFF].toInt() and 0xFF) shl 8) or
                (SBOX[w and 0xFF].toInt() and 0xFF)
     }
 
@@ -361,14 +361,14 @@ object AesGcmCrypto : BackupCryptoEngine {
 
     // Pure SHA-256
     private fun sha256(data: ByteArray): ByteArray {
-        var h0 = 0x6a09e667
-        var h1 = -0x4498517b
-        var h2 = 0x3c6ef372
-        var h3 = -0x5ab00ac6
-        var h4 = 0x510e527f
-        var h5 = -0x64fa9773
-        var h6 = 0x1f83d9ab
-        var h7 = 0x5be0cd19
+        var h0 = 0x6a09e667.toInt()
+        var h1 = 0xbb67ae85.toInt()
+        var h2 = 0x3c6ef372.toInt()
+        var h3 = 0xa54ff53a.toInt()
+        var h4 = 0x510e527f.toInt()
+        var h5 = 0x9b05688c.toInt()
+        var h6 = 0x1f83d9ab.toInt()
+        var h7 = 0x5be0cd19.toInt()
 
         val bitLen = data.size.toLong() * 8L
         val padLen = (64 - ((data.size + 9) % 64)) % 64
@@ -384,9 +384,9 @@ object AesGcmCrypto : BackupCryptoEngine {
         var offset = 0
         while (offset < totalLen) {
             for (i in 0 until 16) {
-                w[i] = (padded[offset + i * 4].toInt() and 0xFF shl 24) or
-                       (padded[offset + i * 4 + 1].toInt() and 0xFF shl 16) or
-                       (padded[offset + i * 4 + 2].toInt() and 0xFF shl 8) or
+                w[i] = ((padded[offset + i * 4].toInt() and 0xFF) shl 24) or
+                       ((padded[offset + i * 4 + 1].toInt() and 0xFF) shl 16) or
+                       ((padded[offset + i * 4 + 2].toInt() and 0xFF) shl 8) or
                        (padded[offset + i * 4 + 3].toInt() and 0xFF)
             }
             for (i in 16 until 64) {
@@ -481,14 +481,14 @@ object AesGcmCrypto : BackupCryptoEngine {
     }
 
     private val K = intArrayOf(
-        0x428a2f98, 0x71374491, -0x4a3f0431, -0x164a245b, 0x3956c25b, 0x59f111f1, -0x6dc07d5c, -0x54e3a12b,
-        -0x27f85568, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, -0x7f214e02, -0x6423f959, -0x3e640e7c,
-        -0x1b64963f, -0x1041b87a, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        -0x67c1aeae, -0x57ce3993, -0x4ffcd838, -0x40a68039, -0x391ff40d, -0x2a5c4014, 0x06ca6351, 0x14292967,
-        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, -0x7e3d36d2, -0x6d8dd37b,
-        -0x5d40175f, -0x57e599b5, -0x3db47490, -0x3893ae5d, -0x2e6d17e7, -0x2966f9dc, 0x0061c2e6, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, -0x7b37a6f4, -0x7338fdf8, -0x6f410006, -0x5b1231a4, -0x414c9ce9, -0x3f0aa407
+        0x428a2f98.toInt(), 0x71374491.toInt(), 0xb5c0fbcf.toInt(), 0xe9b5dba5.toInt(), 0x3956c25b.toInt(), 0x59f111f1.toInt(), 0x923f82a4.toInt(), 0xab1c5ed5.toInt(),
+        0xd807aa98.toInt(), 0x12835b01.toInt(), 0x243185be.toInt(), 0x550c7dc3.toInt(), 0x72be5d74.toInt(), 0x80deb1fe.toInt(), 0x9bdc06a7.toInt(), 0xc19bf174.toInt(),
+        0xe49b69c1.toInt(), 0xefbe4786.toInt(), 0x0fc19dc6.toInt(), 0x240ca1cc.toInt(), 0x2de92c6f.toInt(), 0x4a7484aa.toInt(), 0x5cb0a9dc.toInt(), 0x76f988da.toInt(),
+        0x983e5152.toInt(), 0xa831c66d.toInt(), 0xb00327c8.toInt(), 0xbf597fc7.toInt(), 0xc6e00bf3.toInt(), 0xd5a79147.toInt(), 0x06ca6351.toInt(), 0x14292967.toInt(),
+        0x27b70a85.toInt(), 0x2e1b2138.toInt(), 0x4d2c6dfc.toInt(), 0x53380d13.toInt(), 0x650a7354.toInt(), 0x766a0abb.toInt(), 0x81c2c92e.toInt(), 0x92722c85.toInt(),
+        0xa2bfe8a1.toInt(), 0xa81a664b.toInt(), 0xc24b8b70.toInt(), 0xc76c51a3.toInt(), 0xd192e819.toInt(), 0xd6990624.toInt(), 0xf40e3585.toInt(), 0x106aa070.toInt(),
+        0x19a4c116.toInt(), 0x1e376c08.toInt(), 0x2748774c.toInt(), 0x34b0bcb5.toInt(), 0x391c0cb3.toInt(), 0x4ed8aa4a.toInt(), 0x5b9cca4f.toInt(), 0x682e6ff3.toInt(),
+        0x748f82ee.toInt(), 0x78a5636f.toInt(), 0x84c87814.toInt(), 0x8cc70208.toInt(), 0x90befffa.toInt(), 0xa4506ceb.toInt(), 0xbef9a3f7.toInt(), 0xc67178f2.toInt()
     )
 }
 

@@ -25,7 +25,12 @@ data class BackupCategoryEntry(
 data class BackupArhamEntry(
     val lookupKey: String,
     val relation: Relation,
-    val frequency: ArhamFrequency
+    val frequency: ArhamFrequency,
+    val layer: app.sila.core.model.KinshipLayer = relation.layer,
+    val parentLookupKey: String? = null,
+    val lastContactedAt: Long? = null,
+    val pausedUntil: Long? = null,
+    val dates: List<app.sila.core.model.ImportantDate> = emptyList()
 )
 
 @Serializable

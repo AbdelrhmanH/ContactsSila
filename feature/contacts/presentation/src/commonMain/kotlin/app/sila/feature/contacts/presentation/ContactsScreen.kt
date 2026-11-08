@@ -601,16 +601,28 @@ private fun SwipeToDismissContactRow(
         return
     }
 
+    val enableStartToEnd = state.swipeStartAction != ContactSwipeAction.NONE
+    val enableEndToStart = state.swipeEndAction != ContactSwipeAction.NONE
+
+    if (!enableStartToEnd && !enableEndToStart) {
+        row()
+        return
+    }
+
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             when (value) {
                 SwipeToDismissBoxValue.StartToEnd -> {
-                    onIntent(ContactsIntent.Swipe(contact.id, state.swipeStartAction))
+                    if (enableStartToEnd) {
+                        onIntent(ContactsIntent.Swipe(contact.id, state.swipeStartAction))
+                    }
                     false // فعل عابر — الصف يعيد الاستقرار.
                 }
 
                 SwipeToDismissBoxValue.EndToStart -> {
-                    onIntent(ContactsIntent.Swipe(contact.id, state.swipeEndAction))
+                    if (enableEndToStart) {
+                        onIntent(ContactsIntent.Swipe(contact.id, state.swipeEndAction))
+                    }
                     false
                 }
 
@@ -622,8 +634,8 @@ private fun SwipeToDismissContactRow(
 
     SwipeToDismissBox(
         state = dismissState,
-        enableDismissFromStartToEnd = true,
-        enableDismissFromEndToStart = true,
+        enableDismissFromStartToEnd = enableStartToEnd,
+        enableDismissFromEndToStart = enableEndToStart,
         backgroundContent = {
             val (label, color, alignment) = when (dismissState.dismissDirection) {
                 SwipeToDismissBoxValue.StartToEnd -> Triple(

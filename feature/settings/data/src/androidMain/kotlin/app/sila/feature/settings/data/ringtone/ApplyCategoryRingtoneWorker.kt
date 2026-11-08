@@ -1,6 +1,7 @@
 package app.sila.feature.settings.data.ringtone
 
 import android.Manifest
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
@@ -48,15 +49,18 @@ class ApplyCategoryRingtoneWorker(
 
             val contentResolver = applicationContext.contentResolver
             for (contact in membersWithoutIndividualRingtone) {
-                val key = contact.lookupKey ?: contact.systemContactId
-                if (key.isBlank()) continue
+                val targetUri = if (!contact.lookupKey.isNullOrBlank()) {
+                    Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, Uri.encode(contact.lookupKey))
+                } else {
+                    val systemId = contact.systemContactId.toLongOrNull() ?: continue
+                    ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, systemId)
+                }
 
-                val lookupUri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, key)
                 val values = ContentValues().apply {
                     put(ContactsContract.Contacts.CUSTOM_RINGTONE, ringtoneUri)
                 }
                 runCatching {
-                    contentResolver.update(lookupUri, values, null, null)
+                    contentResolver.update(targetUri, values, null, null)
                 }
             }
             Result.success()

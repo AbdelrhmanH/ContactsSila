@@ -83,10 +83,18 @@ class SettingsRepositoryImpl(
 
         val arhamEntries = allContacts.filter { it.arham != null }.map { c ->
             val arham = c.arham!!
+            val parentLookupKey = arham.parentContactId?.let { pid ->
+                allContacts.find { it.id == pid }?.let { it.lookupKey ?: it.systemContactId }
+            }
             BackupArhamEntry(
                 lookupKey = c.lookupKey ?: c.systemContactId,
                 relation = arham.relation,
-                frequency = arham.frequency
+                frequency = arham.frequency,
+                layer = arham.layer,
+                parentLookupKey = parentLookupKey,
+                lastContactedAt = arham.lastContactedAt,
+                pausedUntil = arham.pausedUntil,
+                dates = c.dates
             )
         }
 
@@ -156,7 +164,8 @@ class SettingsRepositoryImpl(
 
         if (mode == RestoreMode.REPLACE) {
             for (c in allContacts) {
-                contactDao?.upsertContact(c.copy(category = Category.UNCATEGORIZED, tags = emptyList()))
+                contactDao?.upsertContact(c.copy(category = Category.UNCATEGORIZED, tags = emptyList(), arham = null))
+                arhamDao?.deleteArhamInfo(c.id)
             }
         }
 
@@ -179,13 +188,24 @@ class SettingsRepositoryImpl(
         for (arham in payload.arham) {
             val contactId = contactByLookup[arham.lookupKey]
             if (contactId != null) {
+                val parentId = arham.parentLookupKey?.let { contactByLookup[it] }
                 arhamDao?.upsertArhamInfo(
                     contactId = contactId,
                     info = ArhamInfo(
                         relation = arham.relation,
-                        frequency = arham.frequency
+                        layer = arham.layer,
+                        parentContactId = parentId,
+                        frequency = arham.frequency,
+                        lastContactedAt = arham.lastContactedAt,
+                        pausedUntil = arham.pausedUntil
                     )
                 )
+                if (arham.dates.isNotEmpty()) {
+                    val existing = contactDao?.getContactById(contactId)
+                    if (existing != null) {
+                        contactDao?.upsertContact(existing.copy(dates = arham.dates))
+                    }
+                }
                 matchedArhamCount++
             } else {
                 unmatchedArhamList += arham
@@ -217,6 +237,7 @@ class SettingsRepositoryImpl(
                 dataSource.setQuietHours(p.quietHoursStartHour, p.quietHoursEndHour)
                 dataSource.setArhamNotificationTime(p.arhamNotificationHour, p.arhamNotificationMinute)
                 dataSource.setArhamMaxPerDay(p.arhamMaxPerDay)
+                dataSource.setArhamOccasionDayBeforeEnabled(p.arhamOccasionDayBeforeEnabled)
                 dataSource.setDashboardPeriod(p.dashboardPeriod)
                 dataSource.setConfettiEnabled(p.confettiEnabled)
                 dataSource.setAutoTrackingEnabled(p.autoTrackingEnabled)

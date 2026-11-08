@@ -91,4 +91,21 @@ class AndroidBackupCryptoEngineTest {
             engine.decrypt(bytes, "")
         }
     }
+
+    @Test
+    fun crossEngineInteroperability_androidEncryptAesGcmDecrypt_andViceVersa() {
+        val originalText = "Cross-Engine Interoperability Test 2026"
+        val originalBytes = originalText.encodeToByteArray()
+        val password = "CrossPlatformPassword_123"
+
+        // 1. Android encrypt -> AesGcmCrypto decrypt
+        val androidEncrypted = engine.encrypt(originalBytes, password)
+        val aesGcmDecrypted = app.sila.feature.settings.data.crypto.AesGcmCrypto.decrypt(androidEncrypted, password)
+        assertEquals(originalText, aesGcmDecrypted.decodeToString())
+
+        // 2. AesGcmCrypto encrypt -> Android decrypt
+        val aesGcmEncrypted = app.sila.feature.settings.data.crypto.AesGcmCrypto.encrypt(originalBytes, password)
+        val androidDecrypted = engine.decrypt(aesGcmEncrypted, password)
+        assertEquals(originalText, androidDecrypted.decodeToString())
+    }
 }

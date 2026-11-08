@@ -402,15 +402,20 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
         val websitesByContact = contactEntityDao.getAllWebsites().groupBy { it.contactId }
 
         return contactEntities.map { entity ->
+            val rawFields = customFieldsByContact[entity.id].orEmpty()
+            val tags = rawFields.filter { it.label == "TAG" }.map { it.value }
+            val customFields = rawFields.filterNot { it.label == "TAG" }.map { it.toDomain() }
             entity.toDomain(
                 phones = phonesByContact[entity.id].orEmpty(),
                 arham = arhamByContact[entity.id],
+                tags = tags
             ).copy(
                 emails = emailsByContact[entity.id].orEmpty().map { it.toDomain() },
                 addresses = addressesByContact[entity.id].orEmpty().map { it.toDomain() },
                 dates = datesByContact[entity.id].orEmpty().map { it.toDomain() },
-                customFields = customFieldsByContact[entity.id].orEmpty().map { it.toDomain() },
+                customFields = customFields,
                 websites = websitesByContact[entity.id].orEmpty().map { it.toDomain() },
+                tags = tags,
             )
         }
     }
@@ -1070,6 +1075,23 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
             }
             updatedContact?.let { inWriteTransaction { conn -> writeContactToSqlite(conn, it) } }
             notifyArhamDataChanged() // T8-10 · D3: آخر تواصل/علاقة أرحام تغيّرت — بعد COMMIT حصراً
+        }
+    }
+
+    override suspend fun deleteArhamInfo(contactId: Long): Unit = withContext(dispatchers.io) {
+        dbMutex.withLock {
+            var updatedContact: Contact? = null
+            contactsState.update { current ->
+                current.map {
+                    if (it.id == contactId) {
+                        it.copy(arham = null).also { u -> updatedContact = u }
+                    } else {
+                        it
+                    }
+                }
+            }
+            updatedContact?.let { inWriteTransaction { conn -> writeContactToSqlite(conn, it) } }
+            notifyArhamDataChanged()
         }
     }
 
@@ -1997,8 +2019,9 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
             stmt.bindLong(1, contactId)
             stmt.step()
         }
-        contact.customFields.forEachIndexed { index, field ->
-            val fe = field.toEntity(contactId, sortOrder = index)
+        var fieldOrder = 0
+        contact.customFields.forEach { field ->
+            val fe = field.toEntity(contactId, sortOrder = fieldOrder++)
             conn.usePrepared(
                 "INSERT INTO contact_custom_fields (contactId, label, value, sortOrder) VALUES (?, ?, ?, ?)"
             ) { stmt ->
@@ -2006,6 +2029,17 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
                 stmt.bindText(2, fe.label)
                 stmt.bindText(3, fe.value)
                 stmt.bindLong(4, fe.sortOrder.toLong())
+                stmt.step()
+            }
+        }
+        contact.tags.forEach { tag ->
+            conn.usePrepared(
+                "INSERT INTO contact_custom_fields (contactId, label, value, sortOrder) VALUES (?, ?, ?, ?)"
+            ) { stmt ->
+                stmt.bindLong(1, contactId)
+                stmt.bindText(2, "TAG")
+                stmt.bindText(3, tag)
+                stmt.bindLong(4, (fieldOrder++).toLong())
                 stmt.step()
             }
         }

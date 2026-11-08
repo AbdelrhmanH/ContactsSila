@@ -94,6 +94,10 @@ class SettingsRepositoryImplTest {
             arhamMap[contactId] = info
         }
 
+        override suspend fun deleteArhamInfo(contactId: Long) {
+            arhamMap.remove(contactId)
+        }
+
         override fun observePendingCallEvents(): Flow<List<CallEvent>> = MutableStateFlow(emptyList())
         override fun observeCallEventsBetween(fromMillis: Long, toMillis: Long): Flow<List<CallEvent>> = MutableStateFlow(emptyList())
         override suspend fun getCallEventById(eventId: String): CallEvent? = null
