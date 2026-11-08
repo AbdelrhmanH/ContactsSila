@@ -94,6 +94,66 @@ struct SettingsLocalizedStrings {
     var backupErrorGeneric: String { string("settings_backup_error_generic") }
     var restoreDoneFormat: String { string("settings_restore_done") }
 
+    // نتائج الاستعادة والربط اليدوي (S1-15 — تذكرة #62)
+    var restoreResultTitle: String { string("settings_restore_result_title") }
+    var restoreResultCountsFormat: String { string("settings_restore_result_counts") }
+    var restoreUnmatchedRemainingFormat: String { string("settings_restore_unmatched_remaining") }
+    var linkManualButton: String { string("settings_link_manual_button") }
+    var linkSearchHint: String { string("settings_link_search_hint") }
+    var linkNoCandidates: String { string("settings_link_no_candidates") }
+    var linkFailedLabel: String { string("settings_link_failed_label") }
+    var linkAllDone: String { string("settings_link_all_done") }
+    var manuallyLinkedFormat: String { string("settings_manually_linked_count") }
+    var resultDone: String { string("action_done") }
+    var linkedToFormat: String { string("settings_link_dialog_title") }
+
+    /// تسمية التصنيف من مفاتيح category_* المشتركة (لا تكرار في الموارد)
+    func categoryLabel(_ category: SharedLogic.Category) -> String {
+        switch category {
+        case .family: return string("category_family")
+        case .friends: return string("category_friends")
+        case .work: return string("category_work")
+        case .services: return string("category_services")
+        case .emergency: return string("category_emergency")
+        case .uncategorized: return string("category_uncategorized")
+        @unknown default: return string("category_uncategorized")
+        }
+    }
+
+    /// تسمية علاقة الرحم من مفاتيح arham_relation_* المشتركة (لا تكرار في الموارد)
+    func relationLabel(_ relation: Relation) -> String {
+        switch relation {
+        case .grandfather: return string("arham_relation_grandfather")
+        case .grandmother: return string("arham_relation_grandmother")
+        case .father: return string("arham_relation_father")
+        case .mother: return string("arham_relation_mother")
+        case .brother: return string("arham_relation_brother")
+        case .sister: return string("arham_relation_sister")
+        case .son: return string("arham_relation_son")
+        case .daughter: return string("arham_relation_daughter")
+        case .spouse: return string("arham_relation_spouse")
+        case .unclePaternal: return string("arham_relation_uncle_paternal")
+        case .auntPaternal: return string("arham_relation_aunt_paternal")
+        case .uncleMaternal: return string("arham_relation_uncle_maternal")
+        case .auntMaternal: return string("arham_relation_aunt_maternal")
+        case .cousinPaternal: return string("arham_relation_cousin_paternal")
+        case .cousinMaternal: return string("arham_relation_cousin_maternal")
+        case .inLaw: return string("arham_relation_in_law")
+        case .closeFriend: return string("arham_relation_close_friend")
+        case .custom: return string("arham_relation_custom")
+        @unknown default: return string("arham_relation_custom")
+        }
+    }
+
+    /// قيم السجل غير المطابق (تصنيف وصلة رحم) مفصولة عمودياً
+    func unmatchedEntryLabel(_ entry: UnmatchedBackupEntry) -> String {
+        let parts: [String] = [
+            entry.category.map(categoryLabel),
+            entry.arhamRelation.map(relationLabel)
+        ].compactMap { $0 }
+        return parts.joined(separator: " · ")
+    }
+
     var sectionAbout: String { string("settings_section_about") }
     var appVersion: String { string("settings_app_version") }
     var offlineNotice: String { string("settings_offline_first_notice") }

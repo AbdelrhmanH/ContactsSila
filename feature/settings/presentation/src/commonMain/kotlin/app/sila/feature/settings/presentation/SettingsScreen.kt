@@ -57,11 +57,14 @@ import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.Category
+import app.sila.core.model.Contact
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DefaultTab
 import app.sila.core.model.NameOrder
+import app.sila.core.model.Relation
 import app.sila.feature.settings.domain.BackupErrorKind
 import app.sila.feature.settings.domain.RestoreMode
+import app.sila.feature.settings.domain.UnmatchedBackupEntry
 
 /**
  * شاشة الإعدادات والتفضيلات لـ ContactsSila (T9 — Issue #30).
@@ -780,6 +783,153 @@ fun SettingsContent(
         }
     }
 
+    // حوار نتائج الاستعادة مع قائمة السجلات غير المطابقة وربطها اليدوي (S1-15 — تذكرة #62)
+    if (state.showRestoreResultDialog) {
+        AlertDialog(
+            onDismissRequest = { onIntent(SettingsIntent.DismissRestoreResultDialog) },
+            title = { Text(strings.restoreResultTitle) },
+            text = {
+                Column {
+                    val result = state.restoreResult
+                    if (result != null) {
+                        Text(
+                            text = if (isArabic)
+                                "• تصنيفات مطابقة: ${result.matchedCategories} (غير مطابق: ${result.unmatchedCategories})\n• أرحام مطابقة: ${result.matchedArham} (غير مطابق: ${result.unmatchedArham})"
+                            else
+                                "• Matched categories: ${result.matchedCategories} (unmatched: ${result.unmatchedCategories})\n• Matched kinship: ${result.matchedArham} (unmatched: ${result.unmatchedArham})"
+                        )
+                    }
+                    if (state.unmatchedLinkedCount > 0) {
+                        Text(
+                            text = if (isArabic) "• رُبط يدوياً: ${state.unmatchedLinkedCount}"
+                            else "• Manually linked: ${state.unmatchedLinkedCount}",
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(SilaDimens.Space12))
+                    if (state.unmatchedRemaining.isEmpty()) {
+                        Text(
+                            text = strings.linkAllDone,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Text(
+                            text = if (isArabic)
+                                "لم يُطابق ${state.unmatchedRemaining.size} سجل — اربطها يدوياً بجهات موجودة:"
+                            else
+                                "${state.unmatchedRemaining.size} entries not matched — link them manually:",
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Spacer(modifier = Modifier.height(SilaDimens.Space4))
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                        ) {
+                            items(state.unmatchedRemaining) { entry ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = entry.displayName, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = formatUnmatchedLabel(entry, isArabic),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    TextButton(onClick = { onIntent(SettingsIntent.OpenLinkEntry(entry)) }) {
+                                        Text(strings.linkManualButton)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onIntent(SettingsIntent.DismissRestoreResultDialog) }) {
+                    Text(strings.resultDone)
+                }
+            }
+        )
+    }
+
+    // حوار الربط اليدوي لسجل غير مطابق مع جهة من دفتر العناوين (S1-15 — تذكرة #62)
+    state.linkEntry?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { onIntent(SettingsIntent.DismissLinkEntry) },
+            title = {
+                Text(
+                    text = if (isArabic) "ربط «${entry.displayName}» بجهة"
+                    else "Link \"${entry.displayName}\" to a contact"
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = formatUnmatchedLabel(entry, isArabic),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(SilaDimens.Space8))
+                    OutlinedTextField(
+                        value = state.linkQuery,
+                        onValueChange = { onIntent(SettingsIntent.SetLinkQuery(it)) },
+                        label = { Text(strings.linkSearchHint) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(SilaDimens.Space4))
+                    if (state.linkFailed) {
+                        Text(text = strings.linkFailedLabel, color = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.height(SilaDimens.Space4))
+                    }
+                    if (state.linkQuery.trim().length >= 2) {
+                        if (state.linkCandidates.isEmpty()) {
+                            Text(
+                                text = strings.linkNoCandidates,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                            ) {
+                                items(state.linkCandidates) { candidate ->
+                                    TextButton(
+                                        onClick = { onIntent(SettingsIntent.LinkUnmatchedEntry(candidate.id)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column {
+                                            Text(candidate.name.displayName)
+                                            val phones = candidate.phones.take(2)
+                                            if (phones.isNotEmpty()) {
+                                                Text(
+                                                    text = phones.joinToString(" · ") { it.e164 },
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onIntent(SettingsIntent.DismissLinkEntry) }) {
+                    Text(strings.cancel)
+                }
+            }
+        )
+    }
+
     // حوار اختيار النغمة
     state.showRingtonePickerCategory?.let { category ->
         AlertDialog(
@@ -936,7 +1086,14 @@ data class SettingsStrings(
     val versionTitle: String,
     val versionValue: String,
     val privacyTerms: String,
-    val rateApp: String
+    val rateApp: String,
+    val linkManualButton: String,
+    val linkSearchHint: String,
+    val linkNoCandidates: String,
+    val linkFailedLabel: String,
+    val linkAllDone: String,
+    val resultDone: String,
+    val restoreResultTitle: String
 ) {
     companion object {
         fun arabic(): SettingsStrings = SettingsStrings(
@@ -1023,7 +1180,14 @@ data class SettingsStrings(
             versionTitle = "رقم الإصدار",
             versionValue = "1.0.0 (Phase 1 Local MVP)",
             privacyTerms = "سياسة الخصوصية والشروط",
-            rateApp = "تقييم التطبيق والدعم"
+            rateApp = "تقييم التطبيق والدعم",
+            linkManualButton = "ربط يدوي",
+            linkSearchHint = "ابحث بالاسم أو الرقم (حرفان على الأقل)",
+            linkNoCandidates = "لا توجد جهات مطابقة",
+            linkFailedLabel = "تعذر الربط — جهة الهدف غير موجودة",
+            linkAllDone = "كل السجلات غير المطابقة رُبطت بنجاح ✓",
+            resultDone = "تم",
+            restoreResultTitle = "نتيجة الاستعادة"
         )
 
         fun english(): SettingsStrings = SettingsStrings(
@@ -1110,7 +1274,14 @@ data class SettingsStrings(
             versionTitle = "Version",
             versionValue = "1.0.0 (Phase 1 Local MVP)",
             privacyTerms = "Privacy Policy & Terms",
-            rateApp = "Rate App & Feedback"
+            rateApp = "Rate App & Feedback",
+            linkManualButton = "Link manually",
+            linkSearchHint = "Search by name or number (min 2 chars)",
+            linkNoCandidates = "No matching contacts",
+            linkFailedLabel = "Link failed — target contact not found",
+            linkAllDone = "All unmatched entries linked ✓",
+            resultDone = "Done",
+            restoreResultTitle = "Restore Results"
         )
     }
 }
@@ -1123,3 +1294,56 @@ private fun formatCategory(category: Category, isArabic: Boolean): String = when
     Category.EMERGENCY -> if (isArabic) "الطوارئ 🚨" else "Emergency"
     Category.UNCATEGORIZED -> if (isArabic) "غير مصنف" else "Uncategorized"
 }
+
+/** تسميات علاقات الأرحام مترجمة (S1-15 — تذكرة #62) — مرآة مفاتيح arham_relation_* على iOS. */
+private val relationLabelsArabic: Map<Relation, String> = mapOf(
+    Relation.GRANDFATHER to "جد",
+    Relation.GRANDMOTHER to "جدة",
+    Relation.FATHER to "والد",
+    Relation.MOTHER to "والدة",
+    Relation.BROTHER to "أخ",
+    Relation.SISTER to "أخت",
+    Relation.SON to "ابن",
+    Relation.DAUGHTER to "ابنة",
+    Relation.SPOUSE to "زوج/زوجة",
+    Relation.UNCLE_PATERNAL to "عم",
+    Relation.AUNT_PATERNAL to "عمة",
+    Relation.COUSIN_PATERNAL to "ابن عم",
+    Relation.UNCLE_MATERNAL to "خال",
+    Relation.AUNT_MATERNAL to "خالة",
+    Relation.COUSIN_MATERNAL to "ابن خالة",
+    Relation.IN_LAW to "صهر/حماة",
+    Relation.CLOSE_FRIEND to "صديق قريب",
+    Relation.CUSTOM to "علاقة أخرى"
+)
+
+private val relationLabelsEnglish: Map<Relation, String> = mapOf(
+    Relation.GRANDFATHER to "Grandfather",
+    Relation.GRANDMOTHER to "Grandmother",
+    Relation.FATHER to "Father",
+    Relation.MOTHER to "Mother",
+    Relation.BROTHER to "Brother",
+    Relation.SISTER to "Sister",
+    Relation.SON to "Son",
+    Relation.DAUGHTER to "Daughter",
+    Relation.SPOUSE to "Spouse",
+    Relation.UNCLE_PATERNAL to "Uncle (Paternal)",
+    Relation.AUNT_PATERNAL to "Aunt (Paternal)",
+    Relation.COUSIN_PATERNAL to "Cousin (Paternal)",
+    Relation.UNCLE_MATERNAL to "Uncle (Maternal)",
+    Relation.AUNT_MATERNAL to "Aunt (Maternal)",
+    Relation.COUSIN_MATERNAL to "Cousin (Maternal)",
+    Relation.IN_LAW to "In-law",
+    Relation.CLOSE_FRIEND to "Close Friend",
+    Relation.CUSTOM to "Other relation"
+)
+
+private fun formatRelation(relation: Relation, isArabic: Boolean): String =
+    (if (isArabic) relationLabelsArabic else relationLabelsEnglish)[relation] ?: "؟"
+
+/** قيم السجل غير المطابق (التصنيف وصلة الرحم) بتسميات مترجمة مفصولة عمودياً. */
+private fun formatUnmatchedLabel(entry: UnmatchedBackupEntry, isArabic: Boolean): String =
+    buildList {
+        entry.category?.let { add(formatCategory(it, isArabic)) }
+        entry.arhamRelation?.let { add(formatRelation(it, isArabic)) }
+    }.joinToString(" · ")

@@ -508,6 +508,17 @@
 "settings_backup_error_not_configured" = "خدمة النسخ الاحتياطي غير مهيأة في هذه الحالة.";
 "settings_backup_error_generic" = "فشلت العملية — حاول مجدداً، وإذا تكرر ذلك أعد المحاولة بنسخة أخرى.";
 "settings_restore_done" = "اكتملت الاستعادة ✓\nتصنيفات مطابقة: %ld (غير مطابق: %ld)\nأرحام مطابق: %ld (غير مطابق: %ld)";
+"settings_restore_result_title" = "نتيجة الاستعادة";
+"settings_restore_result_counts" = "تصنيفات مطابقة: %ld (غير مطابق: %ld)\nأرحام مطابقة: %ld (غير مطابق: %ld)";
+"settings_restore_unmatched_remaining" = "سجلات لم تُطابق أي جهة: %ld — الربط اليدوي متاح:";
+"settings_manually_linked_count" = "رُبط يدوياً: %ld";
+"settings_link_manual_button" = "ربط يدوي";
+"settings_link_dialog_title" = "ربط «%@» بجهة";
+"settings_link_search_hint" = "ابحث بالاسم أو الرقم (حرفان على الأقل)";
+"settings_link_no_candidates" = "لا توجد جهات مطابقة";
+"settings_link_failed_label" = "تعذر الربط — جهة الهدف غير موجودة";
+"settings_link_all_done" = "كل السجلات غير المطابقة رُبطت بنجاح ✓";
+"action_done" = "تم";
 "settings_section_about" = "حول التطبيق";
 "settings_app_version" = "صِلَة · الإصدار 1.0.0";
 "settings_offline_first_notice" = "تطبيق محلي بالكامل يحافظ على خصوصيتك 100%.";

@@ -27,6 +27,8 @@ struct SettingsView: View {
     @State private var restorePreferences = false
     @State private var importFileData: Data?
     @State private var showFileImporter = false
+    /// استعلام بحث الربط اليدوي المحلي — المنبع يُرسل عبر نية SetLinkQuery عند كل تغيير
+    @State private var linkQueryText = ""
 
     /// وضع الاستعادة مشتق من الفهرس لتفادي الاعتماد على Hashable الناجمة عن SKIE
     private var restoreMode: RestoreMode {
@@ -116,6 +118,16 @@ struct SettingsView: View {
             }
         )) {
             restorePreviewSheet
+        }
+        .sheet(isPresented: Binding(
+            get: { store.state.showRestoreResultDialog },
+            set: { visible in
+                if !visible {
+                    store.send(SettingsIntentDismissRestoreResultDialog.shared)
+                }
+            }
+        )) {
+            restoreResultSheet
         }
         .alert("", isPresented: Binding(
             get: { store.toastMessage != nil },
@@ -225,6 +237,122 @@ struct SettingsView: View {
             mode: restoreMode,
             restorePreferences: restorePreferences
         ))
+    }
+
+    // MARK: - نتائج الاستعادة والربط اليدوي (S1-15 — تذكرة #62)
+
+    /// ورقة نتيجة الاستعادة: الحصيلة + قائمة السجلات غير المطابقة مع بحث الربط اليدوي.
+    private var restoreResultSheet: some View {
+        NavigationStack {
+            Form {
+                if let result = store.state.restoreResult {
+                    Section(header: Text(strings.restoreResultTitle)) {
+                        Text(String(
+                            format: strings.restoreResultCountsFormat,
+                            Int(result.matchedCategories),
+                            Int(result.unmatchedCategories),
+                            Int(result.matchedArham),
+                            Int(result.unmatchedArham)
+                        ))
+                        if store.state.unmatchedLinkedCount > 0 {
+                            Text(String(format: strings.manuallyLinkedFormat, Int(store.state.unmatchedLinkedCount)))
+                                .foregroundColor(.green)
+                        }
+                    }
+                }
+                Section(header: Text(String(
+                    format: strings.restoreUnmatchedRemainingFormat,
+                    Int(store.state.unmatchedRemaining.count)
+                ))) {
+                    if store.state.unmatchedRemaining.isEmpty {
+                        Text(strings.linkAllDone)
+                            .foregroundColor(.green)
+                    } else {
+                        ForEach(store.state.unmatchedRemaining.indices, id: \.self) { index in
+                            unmatchedEntryRow(store.state.unmatchedRemaining[index])
+                        }
+                    }
+                }
+                if store.state.linkEntry != nil {
+                    linkEntrySection
+                }
+            }
+            .navigationTitle(strings.restoreResultTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(strings.resultDone) {
+                        store.send(SettingsIntentDismissRestoreResultDialog.shared)
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    /// صف سجل غير مطابق: الاسم والقيم (تصنيف/صلة رحم) وزر الربط اليدوي.
+    private func unmatchedEntryRow(_ entry: UnmatchedBackupEntry) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.displayName)
+                    .fontWeight(.semibold)
+                Text(strings.unmatchedEntryLabel(entry))
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Button(strings.linkManualButton) {
+                linkQueryText = ""
+                store.send(SettingsIntentOpenLinkEntry(entry: entry))
+            }
+        }
+    }
+
+    /// قسم اختيار جهة الهدف: بحث فوري عبر ViewModel + اختيار من المرشحين.
+    private var linkEntrySection: some View {
+        Section(header: Text(String(
+            format: strings.linkedToFormat,
+            store.state.linkEntry?.displayName ?? ""
+        ))) {
+            TextField(strings.linkSearchHint, text: $linkQueryText)
+                .onChange(of: linkQueryText) { _, newValue in
+                    store.send(SettingsIntentSetLinkQuery(query: newValue))
+                }
+            if store.state.linkFailed {
+                Text(strings.linkFailedLabel)
+                    .font(.footnote)
+                    .foregroundColor(.red)
+            }
+            let trimmedQuery = store.state.linkQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedQuery.count >= 2 {
+                if store.state.linkCandidates.isEmpty {
+                    Text(strings.linkNoCandidates)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(store.state.linkCandidates.indices, id: \.self) { index in
+                        candidateRow(store.state.linkCandidates[index])
+                    }
+                }
+            }
+        }
+    }
+
+    /// صف مرشح للربط — ال لمس يطبق السجل غير المطابق على هذه الجهة (نية LinkUnmatchedEntry).
+    private func candidateRow(_ candidate: Contact) -> some View {
+        Button(action: {
+            store.send(SettingsIntentLinkUnmatchedEntry(targetContactId: candidate.id))
+        }) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(candidate.name.displayName)
+                let phones = candidate.phones.prefix(2).map(\.e164)
+                if !phones.isEmpty {
+                    Text(phones.joined(separator: " · "))
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
     }
 
     private func previewSummaryText(_ preview: BackupPreview) -> String {

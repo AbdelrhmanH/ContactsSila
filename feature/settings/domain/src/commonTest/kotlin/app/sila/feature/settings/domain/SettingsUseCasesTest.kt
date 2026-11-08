@@ -5,6 +5,7 @@ import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.Category
+import app.sila.core.model.Contact
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DashboardPeriod
 import app.sila.core.model.DefaultTab
@@ -141,6 +142,18 @@ class SettingsUseCasesTest {
                 unmatchedEntries = emptyList()
             )
         }
+
+        // S1-15 (تذكرة #62): مسارات الربط اليدوي — لا UseCase خاص بهما في النطاق
+        // (يُنفَّذان مباشرة من الـ ViewModel عبر المستودع)، فالتنفيذ هنا عقد اكتمال لا سلوكاً
+        // يُشكَّل عليه.
+        var lastLinkCandidatesQuery: String? = null
+
+        override suspend fun searchLinkCandidates(query: String): List<Contact> {
+            lastLinkCandidatesQuery = query
+            return emptyList()
+        }
+
+        override suspend fun linkUnmatchedEntry(entry: UnmatchedBackupEntry, targetContactId: Long): Boolean = false
     }
 
     @Test
