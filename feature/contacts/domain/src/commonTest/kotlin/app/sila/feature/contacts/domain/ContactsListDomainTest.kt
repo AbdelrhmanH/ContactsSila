@@ -98,6 +98,7 @@ class ContactsListDomainTest {
         override suspend fun dismissSuggestion(id: String) {
             dismissed.value = dismissed.value + id
         }
+        override val smartFilterEnabled: Flow<Boolean> = MutableStateFlow(true)
         override val swipeActions: Flow<SwipeActionConfig> =
             MutableStateFlow(SwipeActionConfig(ContactSwipeAction.CALL, ContactSwipeAction.MESSAGE))
         override suspend fun setSwipeActions(config: SwipeActionConfig) {}

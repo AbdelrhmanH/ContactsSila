@@ -15,6 +15,9 @@ interface ContactsListPreferencesRepository {
     /** استبعاد بطاقة نهائياً (لا تعود لنفس العناصر). */
     suspend fun dismissSuggestion(id: String)
 
+    /** بوابة الفلترة الذكية (إعداد المستخدم — T7 · Issue #28 · agy F6): بلا تقييم/بطاقة حين تُطفأ. */
+    val smartFilterEnabled: Flow<Boolean>
+
     /** أفعال السحب الحالية (بداية/نهاية منطقيتان). */
     val swipeActions: Flow<SwipeActionConfig>
 

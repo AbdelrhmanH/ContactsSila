@@ -23,8 +23,17 @@ class ContactsDomainTest {
 
     @Test
     fun openClosedPrinciple_customCategorizationRuleExtendsBehaviorWithoutModifyingUseCase() {
-        val universityFriendsRule = ContactCategorizationRule { normalizedName, _, _, _ ->
-            if (normalizedName.contains("دفعه")) Category.FRIENDS else null
+        val universityFriendsRule = ContactCategorizationRule { candidate ->
+            if (candidate.nameTokens.any { app.sila.core.common.ArabicTokenizer.tokensMatch(it, "دفعه") }) {
+                CategorizationSuggestion(
+                    contactId = candidate.contactId,
+                    category = Category.FRIENDS,
+                    confidence = SmartFilterConfidence.HIGH,
+                    matchedToken = "دفعه",
+                )
+            } else {
+                null
+            }
         }
         val extendedUseCase = SmartCategorizeContactUseCase(
             rules = SmartCategorizeContactUseCase.defaultRules() + universityFriendsRule
