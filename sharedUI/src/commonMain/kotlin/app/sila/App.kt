@@ -84,7 +84,14 @@ fun App(
      * T8-11 (AC-4): طلب دور فرز المكالمات منصويٌ حصراً — المضيف يطلق النية ثم يُعيد
      * التقييم عبر [ArhamIntent.RefreshScreeningConsent] على نفس نسخة الـ VM من Koin.
      */
-    onArhamRequestScreeningRole: () -> Unit = {}
+    onArhamRequestScreeningRole: () -> Unit = {},
+
+    /**
+     * T9-fix (S1-8): إسلاك حفظ نسخة التصدير واختيار ملف الاستيراد إلى المنصة —
+     * مضيف Android يمرره عبر SAF؛ على غيره تبقى null فلا تعرّف الشاشة قدرةً غير موجودة.
+     */
+    onPersistBackup: ((ByteArray) -> Unit)? = null,
+    onPickBackupFile: (() -> Unit)? = null
 ) {
     val koin = remember(storageDirPath) { ensureKoinStarted(storageDirPath) }
     val mainViewModel = remember(koin) { koin.get<MainViewModel>() }
@@ -155,7 +162,9 @@ fun App(
                 settingsContent = {
                     SettingsScreen(
                         viewModel = settingsViewModel,
-                        onDismiss = { mainViewModel.onIntent(MainIntent.DismissSettingsSheet) }
+                        onDismiss = { mainViewModel.onIntent(MainIntent.DismissSettingsSheet) },
+                        onPersistBackup = onPersistBackup,
+                        onPickBackupFile = onPickBackupFile
                     )
                 }
             )
