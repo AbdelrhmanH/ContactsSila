@@ -26,7 +26,8 @@ data class MergeSnapshotContent(
 
 /** المراجع المكتشفة داخل معاملة الدمج قبل أي كتابة — مدخل باني المحتوى. */
 data class DiscoveredReferences(
-    val callLogIds: List<String>,
+    /** ثنائية (callLogId, absorbedId) — المالك الأصلي لكل حدث محفوظ للتراجع الحرفي. */
+    val callEventLinks: List<Pair<String, Long>>,
     val parentLinks: List<Pair<Long, Long>>,
 )
 
@@ -129,11 +130,14 @@ data class PlatformMergeResult(
     val absorbedRawIds: Map<String, List<String>> = emptyMap(),
 )
 
-/** طلب فك الدمج المنصوي — بطاقات vCard للإعادة الإنشاء على iOS (agy F3a). */
+/** طلب فك الدمج المنصوي — بطاقات vCard للإعادة الإنشاء على iOS (agy F3a)، وهوية raw المسجَّلة
+ *  في اللقطة لكل ممتص على أندرويد (agy P1#2: الاستعلام الحي بعد KEEP_TOGETHER يعيد raws المجمّعة
+ *  كلها بما فيها الناجي — الحارس هو اللقطة حصراً، عقد ADR-0013 §3). */
 data class PlatformUnmergeRequest(
     val survivor: Contact,
     val absorbed: List<Contact>,
     val absorbedVCards: Map<String, String>,
+    val absorbedRawIds: Map<String, List<String>> = emptyMap(),
 )
 
 /**

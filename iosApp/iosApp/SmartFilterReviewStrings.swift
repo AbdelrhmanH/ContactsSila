@@ -48,6 +48,13 @@ struct SmartFilterReviewLocalizedStrings {
     var neverAsk: String { string("sf_never_ask") }
     var errorApply: String { string("sf_error_apply") }
     var errorContactNotFound: String { string("sf_error_not_found") }
+    var errorArhamLink: String { string("sf_error_arham_link") }
+
+    func arhamOfferTitle(_ count: Int32) -> String {
+        string("sf_arham_offer_title").replacingOccurrences(of: "%d", with: String(count))
+    }
+    var arhamOfferAccept: String { string("sf_arham_offer_accept") }
+    var cancel: String { string("action_cancel") }
 
     var categoryTitle: (SharedLogic.Category) -> String {
         let family = string("category_family")

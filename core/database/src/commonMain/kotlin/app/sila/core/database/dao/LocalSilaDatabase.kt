@@ -506,7 +506,8 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
 
     /** الأدلة المرجعية المكتشفة داخل معاملة الدمج — تُغذّى إلى باني الحمولة وتُعاد للناتج. */
     class MergeReferences(
-        val callLogIds: List<String>,
+        /** ثنائية (callLogId, absorbedId) — مالك الحدث الأصلي محفوظ للتراجع الحرفي (agy: تسجيل الناجي كان يُفقد الانتماء). */
+        val callEventLinks: List<Pair<String, Long>>,
         val parentLinks: List<Pair<Long, Long>>,
     )
 
@@ -537,21 +538,21 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
     ): MergeCommitResult = withContext(dispatchers.io) {
         dbMutex.withLock {
             val result = inWriteTransaction { conn ->
-                val callLogIds = mutableListOf<String>()
+                val callEventLinks = mutableListOf<Pair<String, Long>>()
                 val parentLinks = mutableListOf<Pair<Long, Long>>()
                 for (absorbedId in absorbedIds) {
                     conn.usePrepared("SELECT callLogId FROM call_events WHERE contactId = ?") { stmt ->
                         stmt.bindLong(1, absorbedId)
-                        while (stmt.step()) callLogIds += stmt.getText(0)
+                        while (stmt.step()) callEventLinks += stmt.getText(0) to absorbedId
                     }
                 }
                 for (absorbedId in absorbedIds) {
                     conn.usePrepared("SELECT contactId, parentContactId FROM arham WHERE parentContactId = ?") { stmt ->
                         stmt.bindLong(1, absorbedId)
-                        while (stmt.step()) parentLinks += stmt.getLong(0)!! to (stmt.getLong(1) ?: 0L)
+                        while (stmt.step()) parentLinks += (requireNotNull(stmt.getLong(0)) { "arham child id NULL" }) to (stmt.getLong(1) ?: 0L)
                     }
                 }
-                val references = MergeReferences(callLogIds, parentLinks)
+                val references = MergeReferences(callEventLinks, parentLinks)
 
                 conn.usePrepared(
                     """
@@ -574,7 +575,7 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
 
                 writeContactToSqlite(conn, mergedContact)
 
-                for (callLogId in references.callLogIds) {
+                for ((callLogId, _) in references.callEventLinks) {
                     conn.usePrepared("UPDATE call_events SET contactId = ? WHERE callLogId = ?") { stmt ->
                         stmt.bindLong(1, survivorId)
                         stmt.bindText(2, callLogId)
@@ -650,7 +651,7 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
                     stmt.step()
                 }
 
-                val decoded = decodePayload(payload!!)
+                val decoded = decodePayload(requireNotNull(payload) { "merge snapshot payload NULL" })
                 val members = membersOf(decoded)
                 val absorbed = absorbedIdsOf(decoded)
 
@@ -741,8 +742,8 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
                     rows += SmartFilterFeedbackEntity(
                         token = stmt.getText(0),
                         suggestedCategory = stmt.getText(1),
-                        acceptedCount = stmt.getLong(2)!!.toInt(),
-                        rejectedCount = stmt.getLong(3)!!.toInt(),
+                        acceptedCount = requireNotNull(stmt.getLong(2)) { "feedback acceptedCount NULL" }.toInt(),
+                        rejectedCount = requireNotNull(stmt.getLong(3)) { "feedback rejectedCount NULL" }.toInt(),
                     )
                 }
             }
@@ -792,14 +793,14 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
                 stmt.bindLong(1, snapshotId)
                 if (stmt.step()) {
                     row = ContactMergeSnapshotEntity(
-                        id = stmt.getLong(0)!!,
+                        id = requireNotNull(stmt.getLong(0)) { "merge snapshot id NULL" },
                         groupId = stmt.getText(1),
                         payloadJson = stmt.getText(2),
-                        contactCount = stmt.getLong(3)!!.toInt(),
-                        createdAt = stmt.getLong(4)!!,
+                        contactCount = requireNotNull(stmt.getLong(3)) { "merge snapshot contactCount NULL" }.toInt(),
+                        createdAt = requireNotNull(stmt.getLong(4)) { "merge snapshot createdAt NULL" },
                         status = stmt.getText(5),
                         restoredAt = if (stmt.isNull(6)) null else stmt.getLong(6),
-                        expiresAt = stmt.getLong(7)!!,
+                        expiresAt = requireNotNull(stmt.getLong(7)) { "merge snapshot expiresAt NULL" },
                     )
                 }
             }
@@ -817,14 +818,14 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
                 stmt.bindLong(1, olderThan)
                 while (stmt.step()) {
                     rows += ContactMergeSnapshotEntity(
-                        id = stmt.getLong(0)!!,
+                        id = requireNotNull(stmt.getLong(0)) { "merge snapshot id NULL" },
                         groupId = stmt.getText(1),
                         payloadJson = stmt.getText(2),
-                        contactCount = stmt.getLong(3)!!.toInt(),
-                        createdAt = stmt.getLong(4)!!,
+                        contactCount = requireNotNull(stmt.getLong(3)) { "merge snapshot contactCount NULL" }.toInt(),
+                        createdAt = requireNotNull(stmt.getLong(4)) { "merge snapshot createdAt NULL" },
                         status = stmt.getText(5),
                         restoredAt = if (stmt.isNull(6)) null else stmt.getLong(6),
-                        expiresAt = stmt.getLong(7)!!,
+                        expiresAt = requireNotNull(stmt.getLong(7)) { "merge snapshot expiresAt NULL" },
                     )
                 }
             }

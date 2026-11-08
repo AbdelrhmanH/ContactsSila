@@ -10,6 +10,7 @@ import app.sila.core.model.Phone
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -70,7 +71,7 @@ class MergeUndoUseCaseTest {
             calls += "room-merge"
             mergeError?.let { throw it }
             val id = ++snapshotIdCounter
-            val content = buildContent(DiscoveredReferences(listOf("log_1"), listOf(9L to 2L)))
+            val content = buildContent(DiscoveredReferences(listOf("log_1" to 2L), listOf(9L to 2L)))
             builtContent = content
             snapshots[id] = content
             activeSnapshots += id
@@ -148,13 +149,50 @@ class MergeUndoUseCaseTest {
     }
 
     @Test
-    fun merge_roomFailure_afterPlatformSuccess_isHonestError_notSilentSuccess() = runTest {
+    fun merge_roomFailure_afterPlatformSuccess_triggersCompensationUnmerge_andReturnsHonestError() = runTest {
         val writer = RecordingMergeWriter()
         val store = FakeMergeStore().apply { mergeError = IllegalStateException("disk full") }
         val result = MergeContactsUseCase(writer, store, FixedClock())(twoMembers())
 
         assertTrue(result is AppResult.Error, "فشل Room = خطأ صادق (لا نجاح زائف — J-1 §4)")
-        assertEquals(listOf("platform-merge", "room-merge"), writer.calls + store.calls)
+        assertEquals(listOf("platform-merge", "platform-unmerge"), writer.calls, "التعويض يستدعي unmergeContacts")
+        assertEquals(listOf("room-merge"), store.calls)
+    }
+
+    @Test
+    fun merge_roomFailure_whenCompensationFails_stillReturnsOriginalError() = runTest {
+        val writer = RecordingMergeWriter().apply {
+            unmergeResult = AppResult.Error(DataError.Unknown(causeMessage = "compensation failed"))
+        }
+        val store = FakeMergeStore().apply { mergeError = IllegalStateException("disk full") }
+        val result = MergeContactsUseCase(writer, store, FixedClock())(twoMembers())
+
+        assertTrue(result is AppResult.Error)
+        assertEquals("disk full", (result.error as DataError.Unknown).causeMessage)
+        assertEquals(listOf("platform-merge", "platform-unmerge"), writer.calls)
+        assertEquals(listOf("room-merge"), store.calls)
+    }
+
+    @Test
+    fun merge_roomFailure_whenCompensationThrows_stillReturnsOriginalError() = runTest {
+        val writer = object : ContactsMergeWriter {
+            val calls = mutableListOf<String>()
+            override suspend fun mergeContacts(request: PlatformMergeRequest): AppResult<PlatformMergeResult> {
+                calls += "platform-merge"
+                return AppResult.Success(PlatformMergeResult("sys_1", "lk_1"))
+            }
+            override suspend fun unmergeContacts(request: PlatformUnmergeRequest): AppResult<PlatformUnmergeResult> {
+                calls += "platform-unmerge"
+                throw RuntimeException("unmerge crashed")
+            }
+            override suspend fun sweepAbsorbedRawContacts(request: PlatformSweepRequest): AppResult<Unit> = AppResult.Success(Unit)
+        }
+        val store = FakeMergeStore().apply { mergeError = IllegalStateException("disk full") }
+        val result = MergeContactsUseCase(writer, store, FixedClock())(twoMembers())
+
+        assertTrue(result is AppResult.Error)
+        assertEquals("disk full", (result.error as DataError.Unknown).causeMessage)
+        assertEquals(listOf("platform-merge", "platform-unmerge"), writer.calls)
     }
 
     // ——— التراجع ———
@@ -189,5 +227,71 @@ class MergeUndoUseCaseTest {
 
         val second = useCase(1L)
         assertTrue(second is AppResult.Error, "القفل لمرة-واحدة: النداء الثاني مرفوض")
+    }
+
+    @Test
+    fun undo_remapUpdatesSystemContactIdAndLookupKey_preservesNullLookupKey() = runTest {
+        val writer = RecordingMergeWriter().apply {
+            unmergeResult = AppResult.Success(
+                PlatformUnmergeResult(
+                    mapOf("sys_2" to "new_sys_2", "sys_3" to "new_sys_3"),
+                ),
+            )
+        }
+        val store = FakeMergeStore()
+        val useCase = UndoMergeUseCase(writer, store, FixedClock())
+
+        val members = listOf(
+            contact(1, createdAt = 100L, systemId = "sys_1"),
+            Contact(
+                id = 2,
+                systemContactId = "sys_2",
+                lookupKey = "sys_2",
+                name = ContactName(displayName = "عضو 2"),
+                phones = listOf(Phone(raw = "+201000000002", e164 = "+201000000002")),
+                createdAt = 200L,
+            ),
+            Contact(
+                id = 3,
+                systemContactId = "sys_3",
+                lookupKey = null,
+                name = ContactName(displayName = "عضو 3"),
+                phones = listOf(Phone(raw = "+201000000003", e164 = "+201000000003")),
+                createdAt = 300L,
+            ),
+        )
+
+        MergeContactsUseCase(RecordingMergeWriter(), store, FixedClock())(members)
+
+        val result = useCase(1L)
+        assertTrue(result is AppResult.Success)
+
+        val restored = store.snapshots.getValue(1L)
+        val member2 = restored.members.first { it.id == 2L }
+        val member3 = restored.members.first { it.id == 3L }
+
+        assertEquals("new_sys_2", member2.systemContactId)
+        assertEquals("new_sys_2", member2.lookupKey, "lookupKey يُهاجر مع الهوية الجديدة (agy P1#2b)")
+
+        assertEquals("new_sys_3", member3.systemContactId)
+        assertNull(member3.lookupKey, "lookupKey الخالي يبقى خالياً")
+    }
+
+    @Test
+    fun merge_recordsOriginalAbsorbedIdsForCallEventRepoints_F1Provenance() = runTest {
+        val writer = RecordingMergeWriter()
+        val store = FakeMergeStore()
+        val members = listOf(
+            contact(1, createdAt = 100L, systemId = "sys_1"),
+            contact(2, createdAt = 200L, systemId = "sys_2"),
+            contact(3, createdAt = 300L, systemId = "sys_3"),
+        )
+        // في مخزن الدمج، ربط سجلين بممتصين مختلفين
+        val result = MergeContactsUseCase(writer, store, FixedClock())(members)
+        assertTrue(result is AppResult.Success)
+        val content = store.builtContent!!
+        assertEquals(1, content.callEventRepoints.size)
+        // log_1 مربوط بـ 2L (الممتص الأصلي)
+        assertEquals(2L, content.callEventRepoints.first().oldContactId, "الحدث يعود للممتص الأصلي لا للناجي")
     }
 }

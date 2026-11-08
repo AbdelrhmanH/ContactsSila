@@ -33,8 +33,9 @@ class ObserveSuggestionsUseCase(
         listPreferences.dismissedSuggestionIds,
         listPreferences.smartFilterEnabled,
         mergeStore.observeFeedback(),
-    ) { contacts, dismissedIds, smartFilterEnabled, feedback ->
-        buildSuggestions(contacts, dismissedIds, smartFilterEnabled, feedback)
+        mergeStore.observeDismissedPairKeys(),
+    ) { contacts, dismissedIds, smartFilterEnabled, feedback, dismissedPairKeys ->
+        buildSuggestions(contacts, dismissedIds, smartFilterEnabled, feedback, dismissedPairKeys)
     }.flowOn(dispatchers.default) // كشف 5k + تقييم القواعد خارج Main (عرف الأداء — عقد first-frame)
 
     private fun buildSuggestions(
@@ -42,10 +43,13 @@ class ObserveSuggestionsUseCase(
         dismissedIds: Set<String>,
         smartFilterEnabled: Boolean,
         feedback: List<SmartFilterWeight>,
+        dismissedPairKeys: Set<String>,
     ): List<SuggestionCard> {
         val cards = mutableListOf<SuggestionCard>()
 
-        detectDuplicates(contacts)
+        // «ليست مكررات» من شاشة المراجعة تُخفي بطاقة الدخول أيضاً (agy P2#5) — إلا ظلت
+        // البطاقة تفتح شاشة مراجعة فارغة
+        detectDuplicates(contacts, dismissedPairKeys)
             .take(maxDuplicateCards)
             .forEach { group ->
                 val identityKeys = group.contacts.map { it.systemContactId }

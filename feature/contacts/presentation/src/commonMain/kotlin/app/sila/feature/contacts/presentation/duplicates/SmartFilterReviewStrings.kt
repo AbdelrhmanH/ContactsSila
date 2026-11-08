@@ -32,4 +32,10 @@ interface SmartFilterReviewStrings {
 
     val errorApply: String
     val errorContactNotFound: String
+    val errorArhamLink: String
+
+    /** حوار عرض أرحام بعد تطبيق العائلة (AC) — [count] عدد الجهات المُربوطة مرشّحاً. */
+    val arhamOfferTitle: (count: Int) -> String
+    val arhamOfferAccept: String
+    val cancel: String
 }

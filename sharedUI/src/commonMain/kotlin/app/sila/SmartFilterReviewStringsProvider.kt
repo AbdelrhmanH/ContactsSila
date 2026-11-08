@@ -18,7 +18,11 @@ import contactssila.sharedui.generated.resources.sf_confidence_medium
 import contactssila.sharedui.generated.resources.sf_empty_message
 import contactssila.sharedui.generated.resources.sf_empty_title
 import contactssila.sharedui.generated.resources.sf_error_apply
+import contactssila.sharedui.generated.resources.sf_error_arham_link
 import contactssila.sharedui.generated.resources.sf_error_not_found
+import contactssila.sharedui.generated.resources.action_cancel
+import contactssila.sharedui.generated.resources.sf_arham_offer_accept
+import contactssila.sharedui.generated.resources.sf_arham_offer_title
 import contactssila.sharedui.generated.resources.sf_evidence_label
 import contactssila.sharedui.generated.resources.sf_group_count
 import contactssila.sharedui.generated.resources.sf_loading
@@ -45,6 +49,10 @@ fun rememberSmartFilterReviewStrings(): SmartFilterReviewStrings {
     val evidenceLabel = stringResource(Res.string.sf_evidence_label)
     val groupCount = stringResource(Res.string.sf_group_count)
     val applySelected = stringResource(Res.string.sf_apply_selected)
+    val arhamOfferTitleTemplate = stringResource(Res.string.sf_arham_offer_title)
+    val arhamOfferTitleLambda = { count: Int ->
+        arhamOfferTitleTemplate.replaceFirst("%d", count.toString())
+    }
 
     return ResourceSmartFilterReviewStrings(
         screenTitle = stringResource(Res.string.sf_screen_title),
@@ -73,6 +81,10 @@ fun rememberSmartFilterReviewStrings(): SmartFilterReviewStrings {
         neverAsk = stringResource(Res.string.sf_never_ask),
         errorApply = stringResource(Res.string.sf_error_apply),
         errorContactNotFound = stringResource(Res.string.sf_error_not_found),
+        errorArhamLink = stringResource(Res.string.sf_error_arham_link),
+        arhamOfferTitle = arhamOfferTitleLambda,
+        arhamOfferAccept = stringResource(Res.string.sf_arham_offer_accept),
+        cancel = stringResource(Res.string.action_cancel),
     )
 }
 
@@ -98,4 +110,8 @@ private data class ResourceSmartFilterReviewStrings(
     override val neverAsk: String,
     override val errorApply: String,
     override val errorContactNotFound: String,
+    override val errorArhamLink: String,
+    override val arhamOfferTitle: (count: Int) -> String,
+    override val arhamOfferAccept: String,
+    override val cancel: String,
 ) : SmartFilterReviewStrings

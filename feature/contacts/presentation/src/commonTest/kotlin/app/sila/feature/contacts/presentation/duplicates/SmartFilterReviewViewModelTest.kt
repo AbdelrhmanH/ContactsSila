@@ -1,5 +1,6 @@
 package app.sila.feature.contacts.presentation.duplicates
 
+import app.sila.core.common.AppResult
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
@@ -7,7 +8,9 @@ import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.Email
 import app.sila.core.model.Phone
 import app.sila.core.model.RecentInteraction
+import app.sila.core.model.Relation
 import app.sila.feature.contacts.domain.ApplySmartFilterSuggestionsUseCase
+import app.sila.feature.contacts.domain.ArhamKinshipLinker
 import app.sila.feature.contacts.domain.ContactsListPreferencesRepository
 import app.sila.feature.contacts.domain.ContactsMergeStore
 import app.sila.feature.contacts.domain.ContactsRepository
@@ -146,6 +149,20 @@ class SmartFilterReviewViewModelTest {
         }
     }
 
+    private class FakeArhamKinshipLinker : ArhamKinshipLinker {
+        val linked = mutableListOf<Pair<Long, Relation>>()
+        var shouldFail = false
+
+        override suspend fun link(contactId: Long, relation: Relation): AppResult<Unit> {
+            return if (shouldFail) {
+                AppResult.Error(app.sila.core.common.DataError.Unknown("link failed"))
+            } else {
+                linked += contactId to relation
+                AppResult.Success(Unit)
+            }
+        }
+    }
+
     // ===== مصانع =====
 
     private fun contact(id: Long, name: String, e164: String? = null, excluded: Boolean = false) = Contact(
@@ -161,11 +178,13 @@ class SmartFilterReviewViewModelTest {
     private fun createViewModel(
         repository: FakeContactsRepository,
         store: FakeMergeStore,
+        kinshipLinker: ArhamKinshipLinker = FakeArhamKinshipLinker(),
     ): SmartFilterReviewViewModel = SmartFilterReviewViewModel(
         observeSuggestions = ObserveSmartFilterSuggestionsUseCase(repository, FakePreferences(), store, unconfinedDispatchers),
         applySuggestions = ApplySmartFilterSuggestionsUseCase(repository, store),
         recordFeedback = RecordSmartFilterFeedbackUseCase(store),
         setExclude = SetExcludeFromSmartFilterUseCase(repository),
+        kinshipLinker = kinshipLinker,
     )
 
     private fun TestScope.setupScreen(
@@ -265,8 +284,8 @@ class SmartFilterReviewViewModelTest {
     fun apply_success_writesCheckedOnly_andNavigatesBack() = runTest(dispatcher) {
         val repo = FakeContactsRepository(
             listOf(
-                contact(1, "خوي خالد", e164 = "+201011111111"), // HIGH محدد مسبقاً
-                contact(2, "مهندس طارق", e164 = "+201022222222"), // MEDIUM غير محدد
+                contact(1, "دكتور أحمد", e164 = "+201011111111"), // SERVICES HIGH محدد مسبقاً (بلا مرشح قرابة)
+                contact(2, "مهندس طارق", e164 = "+201022222222"), // WORK MEDIUM غير محدد
             ),
         )
         val store = FakeMergeStore()
@@ -279,11 +298,11 @@ class SmartFilterReviewViewModelTest {
         vm.onIntent(SmartFilterReviewIntent.Apply)
         settle()
 
-        assertTrue(effects.contains(SmartFilterReviewEffect.NavigateBack), "النجاح يعود للقائمة")
+        assertTrue(effects.contains(SmartFilterReviewEffect.NavigateBack), "النجاح يعود للقائمة مباشرة عند عدم وجود عروض أرحام")
         assertEquals(
             listOf(
-                listOf(1L) to Category.FAMILY,
                 listOf(2L) to Category.WORK,
+                listOf(1L) to Category.SERVICES,
             ),
             repo.categoryWrites,
             "المحدد حصراً — مجمّع بالتصنيف",
@@ -294,7 +313,7 @@ class SmartFilterReviewViewModelTest {
 
     @Test
     fun apply_failure_emitsShowError_andResetsApplying() = runTest(dispatcher) {
-        val repo = FakeContactsRepository(listOf(contact(1, "خوي خالد", e164 = "+201011111111")))
+        val repo = FakeContactsRepository(listOf(contact(1, "دكتور أحمد", e164 = "+201011111111")))
         val store = FakeMergeStore()
         // كتابة تصنيفات مكسورة — الفشل أثر صادق
         val brokenVm = SmartFilterReviewViewModel(
@@ -309,6 +328,7 @@ class SmartFilterReviewViewModelTest {
             ),
             recordFeedback = RecordSmartFilterFeedbackUseCase(store),
             setExclude = SetExcludeFromSmartFilterUseCase(repo),
+            kinshipLinker = FakeArhamKinshipLinker(),
         )
         val effects = mutableListOf<SmartFilterReviewEffect>()
         setupScreen(brokenVm, effects)
@@ -322,6 +342,78 @@ class SmartFilterReviewViewModelTest {
         )
         assertFalse(brokenVm.state.value.isApplying)
         assertTrue(brokenVm.state.value.hasError)
+    }
+
+    @Test
+    fun apply_familyWithRelation_triggersPendingArhamOffer_andWaitsForDecision() = runTest(dispatcher) {
+        val repo = FakeContactsRepository(listOf(contact(1, "خوي خالد", e164 = "+201011111111")))
+        val linker = FakeArhamKinshipLinker()
+        val vm = createViewModel(repo, FakeMergeStore(), linker)
+        val effects = mutableListOf<SmartFilterReviewEffect>()
+        setupScreen(vm, effects)
+
+        vm.onIntent(SmartFilterReviewIntent.Apply)
+        settle()
+
+        assertEquals(1, vm.state.value.pendingArhamOffer.size)
+        assertEquals(1L, vm.state.value.pendingArhamOffer.first().contactId)
+        assertEquals(Relation.BROTHER, vm.state.value.pendingArhamOffer.first().relationCandidate)
+        assertFalse(effects.contains(SmartFilterReviewEffect.NavigateBack), "لا رجوع قبل قرار عرض أرحام")
+        assertTrue(linker.linked.isEmpty(), "لم يتم الربط بعد")
+    }
+
+    @Test
+    fun confirmArhamOffer_linksAllOffersWithDefaultFrequency_andNavigatesBack() = runTest(dispatcher) {
+        val repo = FakeContactsRepository(listOf(contact(1, "خوي خالد", e164 = "+201011111111")))
+        val linker = FakeArhamKinshipLinker()
+        val vm = createViewModel(repo, FakeMergeStore(), linker)
+        val effects = mutableListOf<SmartFilterReviewEffect>()
+        setupScreen(vm, effects)
+
+        vm.onIntent(SmartFilterReviewIntent.Apply)
+        settle()
+        vm.onIntent(SmartFilterReviewIntent.ConfirmArhamOffer)
+        settle()
+
+        assertEquals(listOf(1L to Relation.BROTHER), linker.linked)
+        assertTrue(vm.state.value.pendingArhamOffer.isEmpty())
+        assertTrue(effects.contains(SmartFilterReviewEffect.NavigateBack))
+    }
+
+    @Test
+    fun confirmArhamOffer_failure_emitsShowError_andNavigatesBack() = runTest(dispatcher) {
+        val repo = FakeContactsRepository(listOf(contact(1, "خوي خالد", e164 = "+201011111111")))
+        val linker = FakeArhamKinshipLinker().apply { shouldFail = true }
+        val vm = createViewModel(repo, FakeMergeStore(), linker)
+        val effects = mutableListOf<SmartFilterReviewEffect>()
+        setupScreen(vm, effects)
+
+        vm.onIntent(SmartFilterReviewIntent.Apply)
+        settle()
+        vm.onIntent(SmartFilterReviewIntent.ConfirmArhamOffer)
+        settle()
+
+        assertTrue(effects.contains(SmartFilterReviewEffect.ShowError(SmartFilterReviewErrorKey.ARHAM_LINK_FAILED)))
+        assertTrue(effects.contains(SmartFilterReviewEffect.NavigateBack))
+        assertTrue(vm.state.value.pendingArhamOffer.isEmpty())
+    }
+
+    @Test
+    fun declineArhamOffer_navigatesBackWithoutLinking() = runTest(dispatcher) {
+        val repo = FakeContactsRepository(listOf(contact(1, "خوي خالد", e164 = "+201011111111")))
+        val linker = FakeArhamKinshipLinker()
+        val vm = createViewModel(repo, FakeMergeStore(), linker)
+        val effects = mutableListOf<SmartFilterReviewEffect>()
+        setupScreen(vm, effects)
+
+        vm.onIntent(SmartFilterReviewIntent.Apply)
+        settle()
+        vm.onIntent(SmartFilterReviewIntent.DeclineArhamOffer)
+        settle()
+
+        assertTrue(linker.linked.isEmpty(), "رفض العرض لا يربط أرحام")
+        assertTrue(vm.state.value.pendingArhamOffer.isEmpty())
+        assertTrue(effects.contains(SmartFilterReviewEffect.NavigateBack))
     }
 
     @Test

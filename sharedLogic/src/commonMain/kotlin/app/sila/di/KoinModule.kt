@@ -54,6 +54,7 @@ import app.sila.feature.contacts.data.ContactsRepositoryImpl
 import app.sila.feature.contacts.data.ContactsSyncEngine
 import app.sila.feature.contacts.data.OnboardingRepositoryImpl
 import app.sila.feature.contacts.data.SyncStateSourceAdapter
+import app.sila.feature.contacts.domain.ArhamKinshipLinker
 import app.sila.feature.contacts.domain.ArhamOccasionRecorder
 import app.sila.feature.contacts.domain.BulkCategorizeUseCase
 import app.sila.feature.contacts.domain.BulkSetFavoriteUseCase
@@ -262,8 +263,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             dismissGroup = get(),
         )
     }
+    // T7 S10 (agy P1#6): جسر القرابة مسجَّل ومُربوط بـ VM المراجعة — الآلية بلا مستدعٍ كانت ميتة.
+    single<ArhamKinshipLinker> { ArhamBridgeKinshipLinker(arhamRepository = get()) }
     // T7 S9: محرك الفلترة الذكية — القواعد الافتراضية، البوابة والتغذية الراجعة عبر
-    // المنافذ، وVM شاشة المراجعة (تطبيق مؤكد + «لا تسألني مجدداً»).
+    // المنافذ، وVM شاشة المراجعة (تطبيق مؤكد + «لا تسألني مجدداً» + عرض أرحام).
     factory { ObserveSmartFilterSuggestionsUseCase(repository = get(), listPreferences = get(), mergeStore = get(), dispatchers = get()) }
     factory { ApplySmartFilterSuggestionsUseCase(repository = get(), mergeStore = get()) }
     factory { RecordSmartFilterFeedbackUseCase(mergeStore = get()) }
@@ -274,6 +277,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             applySuggestions = get(),
             recordFeedback = get(),
             setExclude = get(),
+            kinshipLinker = get(),
         )
     }
     // T6 — ViewModels التفاصيل/التحرير (معرفات تُمرَّر من التنقل عبر parametersOf).

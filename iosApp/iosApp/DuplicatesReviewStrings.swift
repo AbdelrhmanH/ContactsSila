@@ -62,6 +62,8 @@ struct DuplicatesReviewLocalizedStrings {
     var undoMessage: String { string("dup_undo_message") }
     var undo: String { string("action_undo") }
     var callMemberLabel: String { string("dup_call_member") }
+    /// زر إغلاق شريط التراجع — مفتاح الإغلاق المشترك («إغلاق»/«Dismiss»).
+    var dismissLabel: String { string("contacts_suggestion_dismiss") }
     var openMemberDescription: String { string("dup_open_member_description") }
     var errorMerge: String { string("dup_error_merge") }
     var errorUndo: String { string("dup_error_undo") }

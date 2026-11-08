@@ -176,6 +176,57 @@ class MergePlannerTest {
         assertNull(plan.merged.notes)
     }
 
+    @Test
+    fun arham_pickedFromOldestMember_withNewestLastContactedAt_andTieResolvedById() {
+        val newerMember = contact(
+            id = 2,
+            createdAt = 200L,
+            name = "أحمد الحديث",
+            arham = ArhamInfo(
+                relation = Relation.COUSIN_PATERNAL,
+                frequency = ArhamFrequency.MONTHLY,
+                lastContactedAt = 5000L,
+            ),
+        )
+        val olderMember = contact(
+            id = 1,
+            createdAt = 100L,
+            name = "أحمد الأقدم",
+            arham = ArhamInfo(
+                relation = Relation.BROTHER,
+                frequency = ArhamFrequency.WEEKLY,
+                lastContactedAt = 1000L,
+            ),
+        )
+
+        // إدخال بترتيب عكسي
+        val plan = MergePlanner.plan(listOf(newerMember, olderMember))
+
+        // علاقة الأقدم إنشاءً (100L < 200L)
+        assertEquals(Relation.BROTHER, plan.merged.arham?.relation)
+        // أحدث lastContactedAt عبر كل الأعضاء
+        assertEquals(5000L, plan.merged.arham?.lastContactedAt)
+    }
+
+    @Test
+    fun arham_createdAtTie_resolvedByLowestId() {
+        val memberB = contact(
+            id = 5,
+            createdAt = 100L,
+            name = "ب",
+            arham = ArhamInfo(relation = Relation.UNCLE_MATERNAL, frequency = ArhamFrequency.MONTHLY),
+        )
+        val memberA = contact(
+            id = 3,
+            createdAt = 100L,
+            name = "أ",
+            arham = ArhamInfo(relation = Relation.AUNT_MATERNAL, frequency = ArhamFrequency.WEEKLY),
+        )
+
+        val plan = MergePlanner.plan(listOf(memberB, memberA))
+        assertEquals(Relation.AUNT_MATERNAL, plan.merged.arham?.relation, "التعادل في createdAt يُحل بالأصغر id")
+    }
+
     // ——— خاصية عدم فقدان البيانات (Issue #28 AC) ———
 
     @Test

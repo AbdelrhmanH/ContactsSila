@@ -152,9 +152,10 @@ object MergePlanner {
             ?: contacts.firstOrNull { it.category != Category.UNCATEGORIZED }?.category
             ?: Category.UNCATEGORIZED
 
-    /** أرحام الدمج: من الأقدم إنشاءً لديه صف أرحام، و`lastContactedAt` = الأحدث الصالح. */
+    /** أرحام الدمج: **الأقدم إنشاءً ممن لديه صف أرحام** (ترتيب القائمة الواردة هو ترتيب
+     *  الكشف لا الإنشاء — فخّ رُصد بالمراجعة)، و`lastContactedAt` = الأحدث الصالح. */
     private fun mergedArham(contacts: List<Contact>) =
-        contacts.firstNotNullOfOrNull { it.arham }?.let { oldestArham ->
+        contacts.sortedWith(compareBy({ it.createdAt }, { it.id })).firstOrNull { it.arham != null }?.arham?.let { oldestArham ->
             val newest = contacts.mapNotNull { it.arham?.lastContactedAt }.maxOrNull()
             oldestArham.copy(lastContactedAt = newest ?: oldestArham.lastContactedAt)
         }

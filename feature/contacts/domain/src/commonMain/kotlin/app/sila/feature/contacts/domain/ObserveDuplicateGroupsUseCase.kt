@@ -58,6 +58,3 @@ class DismissDuplicateGroupUseCase(
     }
 }
 
-/** محتوى زوج مرشّح للاستبعاد — يُستهلك من واجهة المراجعة عند صف عضوٍ واحد. */
-fun duplicatePairKey(first: Contact, second: Contact): String =
-    stableSuggestionId(SuggestionCard.Kind.DUPLICATES, listOf(first.systemContactId, second.systemContactId))

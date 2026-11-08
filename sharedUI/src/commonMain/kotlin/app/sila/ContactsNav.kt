@@ -36,6 +36,7 @@ import contactssila.sharedui.generated.resources.dup_error_merge
 import contactssila.sharedui.generated.resources.dup_error_undo
 import contactssila.sharedui.generated.resources.edit_save_error
 import contactssila.sharedui.generated.resources.sf_error_apply
+import contactssila.sharedui.generated.resources.sf_error_arham_link
 import contactssila.sharedui.generated.resources.sf_error_not_found
 import kotlinx.serialization.Serializable
 import org.jetbrains.compose.resources.stringResource
@@ -139,6 +140,7 @@ fun ContactsNavFlow(
     val undoMergeErrorText = stringResource(Res.string.dup_error_undo)
     val applyErrorText = stringResource(Res.string.sf_error_apply)
     val contactNotFoundText = stringResource(Res.string.sf_error_not_found)
+    val arhamLinkErrorText = stringResource(Res.string.sf_error_arham_link)
 
     NavHost(
         navController = navController,
@@ -221,6 +223,7 @@ fun ContactsNavFlow(
                     applySuggestions = koin.get(),
                     recordFeedback = koin.get(),
                     setExclude = koin.get(),
+                    kinshipLinker = koin.get(),
                 )
             }
 
@@ -240,6 +243,7 @@ fun ContactsNavFlow(
                                 when (effect.messageKey) {
                                     SmartFilterReviewErrorKey.APPLY_FAILED -> applyErrorText
                                     SmartFilterReviewErrorKey.CONTACT_NOT_FOUND -> contactNotFoundText
+                                    SmartFilterReviewErrorKey.ARHAM_LINK_FAILED -> arhamLinkErrorText
                                 }
                             )
                         )

@@ -29,6 +29,5 @@ data class DuplicateDismissalEntity(
     val createdAt: Long,
 ) {
     companion object {
-        const val REASON_NOT_DUPLICATES = "NOT_DUPLICATES"
     }
 }

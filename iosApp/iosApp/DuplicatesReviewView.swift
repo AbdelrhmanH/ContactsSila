@@ -123,7 +123,7 @@ struct DuplicatesReviewView: View {
         HStack(spacing: 8) {
             Text(strings.undoMessage)
                 .font(.subheadline)
-                .foregroundColor(.primary.inverse)
+                .foregroundColor(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(strings.undo) {
                 store.undoMerge()
@@ -134,7 +134,7 @@ struct DuplicatesReviewView: View {
             } label: {
                 Image(systemName: "xmark").font(.footnote)
             }
-            .accessibilityLabel(strings.backDescription)
+            .accessibilityLabel(strings.dismissLabel)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -163,7 +163,8 @@ private struct DuplicateGroupCardSwift: View {
     let store: DuplicatesReviewViewModelStore
 
     /// فاصل دمج الملاحظات الموثق (MergePlanner.NOTES_SEPARATOR) — ثابت بيانات لا نص واجهة.
-    private static let notesSeparator = "\n—\n"
+    /// فاصل دمج الملاحظات — مكشوف من النطاق المشترك (MergePlanner.NOTES_SEPARATOR) لا تكرار حرفي.
+    private static let notesSeparator = MergePlanner.NOTES_SEPARATOR
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

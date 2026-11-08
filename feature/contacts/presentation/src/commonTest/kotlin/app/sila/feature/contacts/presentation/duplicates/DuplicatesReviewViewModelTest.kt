@@ -139,6 +139,7 @@ class DuplicatesReviewViewModelTest {
         var snapshotIdCounter = 0L
         val activeSnapshots = mutableSetOf<Long>()
         val snapshots = mutableMapOf<Long, MergeSnapshotContent>()
+        var undoFailureSnapshotId: Long? = null
 
         override suspend fun mergeInRoom(
             survivorId: Long,
@@ -160,6 +161,7 @@ class DuplicatesReviewViewModelTest {
             nowMillis: Long,
             remap: (MergeSnapshotContent) -> MergeSnapshotContent,
         ): UndoRoomOutcome {
+            if (snapshotId == undoFailureSnapshotId) return UndoRoomOutcome.SnapshotNotActive
             if (snapshotId !in activeSnapshots) return UndoRoomOutcome.SnapshotNotActive
             activeSnapshots -= snapshotId
             return UndoRoomOutcome.Restored(MergeSnapshotContent(emptyList(), emptyList(), emptyList(), emptyList(), emptyMap()))
@@ -333,7 +335,7 @@ class DuplicatesReviewViewModelTest {
         val merged = effects.filterIsInstance<DuplicatesReviewEffect.MergeCompleted>().single()
         assertEquals(1, merged.summary.mergedCount)
         assertTrue(vm.state.value.isUndoBarVisible, "شريط التراجع يظهر بعد الدمج")
-        assertEquals(1L, vm.state.value.undoSnapshotId)
+        assertEquals(listOf(1L), vm.state.value.undoSnapshotIds)
         assertEquals(setOf(1L), store.activeSnapshots, "لقطة نشطة واحدة تُسجَّل")
     }
 
@@ -362,7 +364,7 @@ class DuplicatesReviewViewModelTest {
             "الفشل أثر صادق — لا نجاح زائف",
         )
         assertFalse(vm.state.value.isMerging)
-        assertNull(vm.state.value.undoSnapshotId, "فشل الدمج لا يترك لقطة")
+        assertTrue(vm.state.value.undoSnapshotIds.isEmpty(), "فشل الدمج لا يترك لقطة")
         assertTrue(store.activeSnapshots.isEmpty())
         assertFalse(vm.state.value.isUndoBarVisible)
     }
@@ -446,7 +448,7 @@ class DuplicatesReviewViewModelTest {
         settle()
 
         assertTrue(effects.contains(DuplicatesReviewEffect.UndoCompleted))
-        assertNull(vm.state.value.undoSnapshotId)
+        assertTrue(vm.state.value.undoSnapshotIds.isEmpty())
         assertFalse(vm.state.value.isUndoBarVisible, "التراجع يغلق الجلسة")
         assertTrue(store.activeSnapshots.isEmpty(), "القفل انصرف — اللقطة RESTORED")
     }
@@ -486,8 +488,57 @@ class DuplicatesReviewViewModelTest {
 
         assertEquals(DuplicatesReviewEffect.UndoFailed, effects.last())
         assertTrue(vm.state.value.isUndoBarVisible, "فشل التراجع لا يُغلق الجلسة — اللقطة باقية")
-        assertEquals(1L, vm.state.value.undoSnapshotId)
+        assertEquals(listOf(1L), vm.state.value.undoSnapshotIds)
         assertTrue(store.activeSnapshots.contains(1L), "القفل لم يُصرف")
+    }
+
+    @Test
+    fun sessionUndo_restoresAllSnapshotsInReverseOrder_andPartialFailureKeepsRemaining() = runTest(dispatcher) {
+        val repo = FakeContactsRepository(
+            listOf(
+                // Group 1
+                contact(1, "أحمد الأول", phone = "+201000000001"),
+                contact(2, "أحمد الثاني", phone = "+201000000001"),
+                // Group 2
+                contact(3, "محمود الأول", phone = "+201000000002"),
+                contact(4, "محمود الثاني", phone = "+201000000002"),
+            ),
+        )
+        val writer = RecordingMergeWriter()
+        val store = FakeMergeStore()
+        val vm = createViewModel(repo, writer, store)
+        val effects = mutableListOf<DuplicatesReviewEffect>()
+        setupScreen(vm, effects)
+
+        assertEquals(2, vm.state.value.groups.size)
+
+        // دمج كل المؤكدة (المجموعتان HIGH)
+        vm.onIntent(DuplicatesReviewIntent.MergeAllConfirmed)
+        settle()
+
+        assertEquals(listOf(1L, 2L), vm.state.value.undoSnapshotIds)
+        assertTrue(vm.state.value.isUndoBarVisible)
+
+        // الآن محاكاة فشل في التراجع عن اللقطة 1 (التي هي الثانية في التراجع العكسي 2L ثم 1L)
+        // اللقطة 2L ستنجح ثم 1L تفشل
+        store.undoFailureSnapshotId = 1L
+
+        vm.onIntent(DuplicatesReviewIntent.UndoMerge)
+        settle()
+
+        // يجب أن تفشل عند 1L، وتبقي 1L في undoSnapshotIds والشريط ظاهراً، وتبعث UndoFailed
+        assertEquals(DuplicatesReviewEffect.UndoFailed, effects.last())
+        assertEquals(listOf(1L), vm.state.value.undoSnapshotIds, "اللقطة التي فشلت تبقى في الجلسة")
+        assertTrue(vm.state.value.isUndoBarVisible)
+
+        // الآن بعد إزالة الفشل، إعادة محاولة التراجع تستكمل بنجاح
+        store.undoFailureSnapshotId = null
+        vm.onIntent(DuplicatesReviewIntent.UndoMerge)
+        settle()
+
+        assertTrue(effects.contains(DuplicatesReviewEffect.UndoCompleted))
+        assertTrue(vm.state.value.undoSnapshotIds.isEmpty(), "كل اللقطات تم استرجاعها")
+        assertFalse(vm.state.value.isUndoBarVisible)
     }
 
     // ===== التنقل والإغلاق =====
@@ -521,6 +572,6 @@ class DuplicatesReviewViewModelTest {
         processNow()
 
         assertFalse(vm.state.value.isUndoBarVisible)
-        assertEquals(1L, vm.state.value.undoSnapshotId, "الإخفاء اليدوي لا يُسقط اللقطة — التراجع يظل ممكناً")
+        assertEquals(listOf(1L), vm.state.value.undoSnapshotIds, "الإخفاء اليدوي لا يُسقط اللقطة — التراجع يظل ممكناً")
     }
 }

@@ -33,6 +33,8 @@ data class SmartFilterReviewUiState(
     val rejectedIds: Set<Long> = emptySet(),
     val isApplying: Boolean = false,
     val hasError: Boolean = false,
+    /** عرض حوار «إضافة لأرحام» بعد تطبيق عائلة ذات مرشّح قرابة (AC — agy P1#6). */
+    val pendingArhamOffer: List<SmartFilterItem> = emptyList(),
 ) {
     /** كل بنود العرض بعد استبعاد المرفوضة — أساس الاحتساب الموحد. */
     val visibleItems: List<SmartFilterItem>
@@ -52,6 +54,10 @@ sealed interface SmartFilterReviewIntent {
     data object Apply : SmartFilterReviewIntent
     data class NotThisCategory(val contactId: Long) : SmartFilterReviewIntent
     data class NeverAsk(val contactId: Long) : SmartFilterReviewIntent
+    /** تأكيد عرض أرحام — يربط كل العروض المعروضة بوتيرتها الافتراضية (agy F5). */
+    data object ConfirmArhamOffer : SmartFilterReviewIntent
+    /** رفض عرض أرحام — رجوع بلا ربط. */
+    data object DeclineArhamOffer : SmartFilterReviewIntent
 }
 
 sealed interface SmartFilterReviewEffect {
@@ -60,13 +66,14 @@ sealed interface SmartFilterReviewEffect {
 }
 
 /** مفاتيح أخطاء المراجعة — النصوص في موارد الترجمة (لا نثر في النطاق ولا في الـ VM). */
-enum class SmartFilterReviewErrorKey { APPLY_FAILED, CONTACT_NOT_FOUND }
+enum class SmartFilterReviewErrorKey { APPLY_FAILED, CONTACT_NOT_FOUND, ARHAM_LINK_FAILED }
 
 class SmartFilterReviewViewModel(
     observeSuggestions: ObserveSmartFilterSuggestionsUseCase,
     private val applySuggestions: ApplySmartFilterSuggestionsUseCase,
     private val recordFeedback: RecordSmartFilterFeedbackUseCase,
     private val setExclude: SetExcludeFromSmartFilterUseCase,
+    private val kinshipLinker: app.sila.feature.contacts.domain.ArhamKinshipLinker,
 ) : BaseMviViewModel<SmartFilterReviewUiState, SmartFilterReviewIntent, SmartFilterReviewEffect>(
     SmartFilterReviewUiState(),
 ) {
@@ -104,6 +111,8 @@ class SmartFilterReviewViewModel(
             SmartFilterReviewIntent.Apply -> apply()
             is SmartFilterReviewIntent.NotThisCategory -> notThisCategory(intent.contactId)
             is SmartFilterReviewIntent.NeverAsk -> neverAsk(intent.contactId)
+            SmartFilterReviewIntent.ConfirmArhamOffer -> confirmArhamOffer()
+            SmartFilterReviewIntent.DeclineArhamOffer -> declineArhamOffer()
         }
     }
 
@@ -134,10 +143,21 @@ class SmartFilterReviewViewModel(
         viewModelScope.launch {
             when (val result = applySuggestions(items)) {
                 is AppResult.Success -> {
-                    // التطبيق نجاح — التصنيفات المكتوبة تُسقط البنود من التيار ذاتياً؛
-                    // الرجوع قرار الغلاف (المكوّن المشترك يملك المكدس).
-                    updateState { copy(isApplying = false) }
-                    sendEffect(SmartFilterReviewEffect.NavigateBack)
+                    // التطبيق نجاح — التصنيفات المكتوبة تُسقط البنود من التيار ذاتياً.
+                    // AC: قبول FAMILY ذات مرشّح قرابة ← عرض «إضافة لأرحام» قبل الرجوع
+                    // (agy P1#6 — الآلية كانت موجودة بلا مستدعٍ إنتاجي).
+                    val arhamOffers = items.filter { item ->
+                        item.category == Category.FAMILY && item.relationCandidate != null
+                    }
+                    updateState {
+                        copy(
+                            isApplying = false,
+                            pendingArhamOffer = arhamOffers,
+                        )
+                    }
+                    if (arhamOffers.isEmpty()) {
+                        sendEffect(SmartFilterReviewEffect.NavigateBack)
+                    }
                 }
                 is AppResult.Error -> {
                     updateState { copy(isApplying = false, hasError = true) }
@@ -165,5 +185,32 @@ class SmartFilterReviewViewModel(
                 false -> sendEffect(SmartFilterReviewEffect.ShowError(SmartFilterReviewErrorKey.CONTACT_NOT_FOUND))
             }
         }
+    }
+
+    /** تأكيد العرض: ربط كل جهة عائلة معروضة بقرابتها المقترحة ووتيرتها الافتراضية (agy F5). */
+    private fun confirmArhamOffer() {
+        val offers = currentState.pendingArhamOffer
+        if (offers.isEmpty()) return
+        viewModelScope.launch {
+            var failure = false
+            for (offer in offers) {
+                val relation = offer.relationCandidate ?: continue
+                when (kinshipLinker.link(offer.contactId, relation)) {
+                    is AppResult.Success -> Unit
+                    is AppResult.Error -> failure = true
+                }
+            }
+            updateState { copy(pendingArhamOffer = emptyList()) }
+            if (failure) {
+                sendEffect(SmartFilterReviewEffect.ShowError(SmartFilterReviewErrorKey.ARHAM_LINK_FAILED))
+            }
+            sendEffect(SmartFilterReviewEffect.NavigateBack)
+        }
+    }
+
+    /** رفض العرض: لا ربط — رجوع. */
+    private fun declineArhamOffer() {
+        updateState { copy(pendingArhamOffer = emptyList()) }
+        sendEffect(SmartFilterReviewEffect.NavigateBack)
     }
 }

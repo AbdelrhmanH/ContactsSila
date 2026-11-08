@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
@@ -78,12 +79,34 @@ fun SmartFilterReviewContent(
 
         when {
             state.isLoading -> CenteredText(strings.loading)
-            state.visibleItems.isEmpty() -> EmptyState(strings)
+            state.visibleItems.isEmpty() && state.pendingArhamOffer.isEmpty() -> EmptyState(strings)
             else -> {
                 GroupsList(state, strings, onIntent, Modifier.weight(1f))
                 ApplyBar(state, strings, onIntent)
             }
         }
+    }
+
+    // عرض أرحام بعد تطبيق عائلة ذات مرشّح قرابة (AC — agy P1#6): تأكيد صريح،
+    // والربط بوتيرة افتراضية عبر الجسر حصراً — لا اقتران ميزة.
+    if (state.pendingArhamOffer.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { onIntent(SmartFilterReviewIntent.DeclineArhamOffer) },
+            title = { Text(strings.arhamOfferTitle(state.pendingArhamOffer.size)) },
+            text = {
+                Text(state.pendingArhamOffer.joinToString("\n") { item -> item.displayName })
+            },
+            confirmButton = {
+                TextButton(onClick = { onIntent(SmartFilterReviewIntent.ConfirmArhamOffer) }) {
+                    Text(text = strings.arhamOfferAccept, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onIntent(SmartFilterReviewIntent.DeclineArhamOffer) }) {
+                    Text(text = strings.cancel)
+                }
+            },
+        )
     }
 }
 

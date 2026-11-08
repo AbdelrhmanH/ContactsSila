@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
  * - [groups] المجموعات الكاملة غير المقتطعة (مرتبة: HIGH أولاً ثم الحجم — عقد الكشف).
  * - [previews] معاينة الدمج لكل مجموعة (نقي عبر [MergePlanner]) — تُحسب عند التوسيع
  *   حصراً (أداء: لا معاينات لكل المجموعات عند كل انبعاث — agy/Q8).
- * - [undoSnapshotId]/[isUndoBarVisible] جلسة التراجع: لقطة دمج واحدة نشطة في المرة
+ * - [undoSnapshotIds]/[isUndoBarVisible] جلسة التراجع: لقطات الجلسة كلها — التراجع يعيدها بالعكس
  *   (آخر دمج) — «التراجع خلال جلسة الشاشة»؛ مغادرة الشاشة تنهي الجلسة (اللقطة تنقضي
  *   زمنياً ويُتبعها المسح المؤجل — عقد ADR-0013).
  */
@@ -33,7 +33,8 @@ data class DuplicatesReviewUiState(
     val previews: Map<String, MergePlanner.MergePlan> = emptyMap(),
     val isMerging: Boolean = false,
     val lastMergedSummary: MergedSummary? = null,
-    val undoSnapshotId: Long? = null,
+    /** كل لقطات الجلسة بترتيب الدمج — «التراجع» يعيدها كلها بالعكس (عقد «يعيد الوضع كما كان»). */
+    val undoSnapshotIds: List<Long> = emptyList(),
     val isUndoBarVisible: Boolean = false,
     val hasError: Boolean = false,
 ) {
@@ -141,7 +142,7 @@ class DuplicatesReviewViewModel(
                     is AppResult.Success -> {
                         mergedCount++
                         lastSurvivorName = result.data.plan.merged.name.displayName
-                        updateState { copy(undoSnapshotId = result.data.snapshotId) }
+                        updateState { copy(undoSnapshotIds = undoSnapshotIds + result.data.snapshotId) }
                     }
                     is AppResult.Error -> {
                         failure = DuplicateReviewErrorKey.MERGE_FAILED
@@ -179,15 +180,30 @@ class DuplicatesReviewViewModel(
     }
 
     private fun undoLastMerge() {
-        val snapshotId = currentState.undoSnapshotId ?: return
+        val snapshots = currentState.undoSnapshotIds
+        if (snapshots.isEmpty()) return
         viewModelScope.launch {
-            when (val result = undoMerge(snapshotId)) {
-                is AppResult.Success -> {
-                    updateState { copy(undoSnapshotId = null, isUndoBarVisible = false, lastMergedSummary = null) }
-                    sendEffect(DuplicatesReviewEffect.UndoCompleted)
+            // «يعيد الوضع كما كان»: كل لقطات الجلسة تُسترجع **بترتيب عكسي** — كل نجاح يُسقط
+            // لقطته من الجلسة، وفشلُ واحدة يُبقي البقية قابلة لإعادة المحاولة (القفل
+            // لمرة-واحدة يحمي المُسترجَعة سلفاً — spec P1: تراجع «دمج كل المؤكدة» يعيد الكل).
+            var failure = false
+            for (snapshotId in snapshots.reversed()) {
+                when (undoMerge(snapshotId)) {
+                    is AppResult.Success -> updateState { copy(undoSnapshotIds = undoSnapshotIds - snapshotId) }
+                    is AppResult.Error -> {
+                        failure = true
+                        break
+                    }
                 }
-                is AppResult.Error -> sendEffect(DuplicatesReviewEffect.UndoFailed)
+            }
+            if (failure) {
+                updateState { copy(isUndoBarVisible = undoSnapshotIds.isNotEmpty()) }
+                sendEffect(DuplicatesReviewEffect.UndoFailed)
+            } else {
+                updateState { copy(undoSnapshotIds = emptyList(), isUndoBarVisible = false, lastMergedSummary = null) }
+                sendEffect(DuplicatesReviewEffect.UndoCompleted)
             }
         }
     }
+
 }

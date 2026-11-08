@@ -174,7 +174,7 @@ private fun GroupsList(
             }
         }
 
-        items(items = state.groups, key = { it.id }) { group ->
+        items(items = state.groups, key = { it.id }, contentType = { GROUP_CONTENT_TYPE }) { group ->
             DuplicateGroupCard(
                 group = group,
                 expanded = state.expandedGroupId == group.id,
@@ -391,3 +391,5 @@ private fun CenteredText(text: String) {
         )
     }
 }
+
+private const val GROUP_CONTENT_TYPE = "duplicate-group"

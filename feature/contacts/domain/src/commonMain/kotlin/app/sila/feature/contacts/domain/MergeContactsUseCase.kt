@@ -68,7 +68,9 @@ class MergeContactsUseCase(
                 MergeSnapshotContent(
                     members = group,
                     absorbedSystemIds = plan.absorbed.map { it.systemContactId },
-                    callEventRepoints = references.callLogIds.map { MergeSnapshotContent.CallEventRepoint(it, plan.merged.id) },
+                    callEventRepoints = references.callEventLinks.map { (callLogId, absorbedId) ->
+                        MergeSnapshotContent.CallEventRepoint(callLogId, absorbedId)
+                    },
                     parentLinkRepoints = references.parentLinks.map { (child, oldParent) ->
                         MergeSnapshotContent.ParentLinkRepoint(child, oldParent)
                     },
@@ -85,8 +87,23 @@ class MergeContactsUseCase(
             )
         } catch (t: Throwable) {
             if (t is CancellationException) throw t
-            // تعويض الجلسة (J-1 §4): فشل Room بعد نجاح المنصة — محرك المزامنة يُغلق
-            // الانحراف (القبور من المنصة / إعادة الاستيراد)؛ خطأ صادق بلا نجاح زائف.
+            // تعويض J-1 §4 (agy P1: نافذة iOS بين حذف الممتصين والتزام Room): فك الدمج
+            // المنصوي تعويضاً — أندرويد KEEP_SEPARATE بثنائيات raw المسجَّلة، وiOS إعادة
+            // إنشاء الممتصين من vCards الذاكرة. فشل التعويض نفسه يُبتلَع عمداً (نمط
+            // ADR-0012 §1.4 — شبكة الأمان محرك المزامنة) والخطأ الأصلي صادق.
+            try {
+                mergeWriter.unmergeContacts(
+                    PlatformUnmergeRequest(
+                        survivor = plan.merged,
+                        absorbed = plan.absorbed,
+                        absorbedVCards = absorbedVCards,
+                        absorbedRawIds = absorbedRawIds,
+                    ),
+                )
+            } catch (compEx: Throwable) {
+                if (compEx is CancellationException) throw compEx
+                // فشل التعويض لا يحجب الخطأ الأصلي الصادق (ADR-0012 §1.4)
+            }
             AppResult.Error(DataError.Unknown(causeMessage = t.message))
         }
     }

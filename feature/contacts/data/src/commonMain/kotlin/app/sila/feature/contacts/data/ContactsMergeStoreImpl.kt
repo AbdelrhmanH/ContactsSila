@@ -11,6 +11,7 @@ import app.sila.feature.contacts.domain.SweepableSnapshot
 import app.sila.feature.contacts.domain.UndoRoomOutcome
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 /**
  * تنفيذ منفذ تخزين الدمج فوق واجهة `:core:database` الخارجية (T7 · Issue #28) — لا SQL
@@ -61,7 +62,7 @@ class ContactsMergeStoreImpl(
             MergeSnapshotContentCodec.encode(
                 buildContent(
                     DiscoveredReferences(
-                        callLogIds = references.callLogIds,
+                        callEventLinks = references.callEventLinks,
                         parentLinks = references.parentLinks,
                     ),
                 ),
@@ -70,8 +71,8 @@ class ContactsMergeStoreImpl(
         return MergeRoomCommit(
             snapshotId = result.snapshotId,
             groupId = groupId,
-            callEventRepoints = result.references.callLogIds.map { callLogId ->
-                MergeSnapshotContent.CallEventRepoint(callLogId, survivorId)
+            callEventRepoints = result.references.callEventLinks.map { (callLogId, absorbedId) ->
+                MergeSnapshotContent.CallEventRepoint(callLogId, absorbedId)
             },
             parentLinkRepoints = result.references.parentLinks.map { (child, oldParent) ->
                 MergeSnapshotContent.ParentLinkRepoint(child, oldParent)
@@ -86,19 +87,21 @@ class ContactsMergeStoreImpl(
     ): UndoRoomOutcome {
         // remap يُطبَّق داخل معاملة الاسترجاع (فكّ الحمولة → تعيين الهويات → كتابة الأعضاء)
         var remapped: MergeSnapshotContent? = null
+        // معرفات صفوف Room للممتصين تُلتقط من الحمولة **الأساسية قبل remap** — بعد التعيين تغيّر
+        // systemContactId للأعضاء (iOS) بينما absorbedSystemIds بالقديمة فتُفرغ الفلترة (agy P1#2c)
+        var preRemapAbsorbedRowIds: List<Long> = emptyList()
         val restored = db.undoMergeFromSnapshot(
             snapshotId = snapshotId,
             nowMillis = nowMillis,
             decodePayload = { json ->
                 val base = MergeSnapshotContentCodec.decode(json)
                     ?: error("merge snapshot payload corrupted or unknown format")
+                preRemapAbsorbedRowIds = base.members
+                    .filter { it.systemContactId in base.absorbedSystemIds.toSet() }
+                    .map { it.id }
                 remap(base).also { remapped = it }
             },
-            absorbedIdsOf = { content ->
-                content.members
-                    .filter { it.systemContactId in content.absorbedSystemIds.toSet() }
-                    .map { it.id }
-            },
+            absorbedIdsOf = { _ -> preRemapAbsorbedRowIds },
             membersOf = { content -> content.members },
             callEventRepointsOf = { content ->
                 content.callEventRepoints.map { it.callLogId to it.oldContactId }
@@ -108,7 +111,8 @@ class ContactsMergeStoreImpl(
             },
         )
         return if (restored && remapped != null) {
-            UndoRoomOutcome.Restored(remapped!!)
+            // فكّ الحمولة مضمون التنفيذ قبل هذا السطر (decodePayload يُستدعى أولاً حصراً)
+            UndoRoomOutcome.Restored(requireNotNull(remapped) { "undo decode never ran" })
         } else {
             UndoRoomOutcome.SnapshotNotActive
         }
@@ -140,28 +144,32 @@ class ContactsMergeStoreImpl(
         db.purgeMergeSnapshotsOlderThan(olderThan)
     }
 
-    override fun observeDismissedPairKeys(): Flow<Set<String>> {
-        return db.observeDuplicateDismissalKeys()
-    }
+    override fun observeDismissedPairKeys(): Flow<Set<String>> =
+        // التحميل الكسول عند أول **قراءة** — الإقلاع البارد يجب أن يرى الاستبعادات المحفوظة
+        // دون أي كتابة سابقة في الجلسة (agy P1#3)
+        db.observeDuplicateDismissalKeys()
+            .onStart { ensureDismissalsLoaded() }
 
     override suspend fun dismissPair(groupKey: String, reason: String, nowMillis: Long) {
         ensureDismissalsLoaded()
         db.dismissDuplicatePair(groupKey, reason, nowMillis)
     }
 
-    override fun observeFeedback(): Flow<List<SmartFilterWeight>> {
-        return db.observeSmartFilterFeedback().map { rows ->
-            rows.mapNotNull { row ->
-                val category = Category.entries.firstOrNull { it.name == row.suggestedCategory } ?: return@mapNotNull null
-                SmartFilterWeight(
-                    token = row.token,
-                    category = category,
-                    acceptedCount = row.acceptedCount.toLong(),
-                    rejectedCount = row.rejectedCount.toLong(),
-                )
+    override fun observeFeedback(): Flow<List<SmartFilterWeight>> =
+        // التحميل الكسول عند أول قراءة (agy P1#3) — الأوزان المحفوظة تُرى بلا كتابة سابقة
+        db.observeSmartFilterFeedback()
+            .onStart { ensureFeedbackLoaded() }
+            .map { rows ->
+                rows.mapNotNull { row ->
+                    val category = Category.entries.firstOrNull { it.name == row.suggestedCategory } ?: return@mapNotNull null
+                    SmartFilterWeight(
+                        token = row.token,
+                        category = category,
+                        acceptedCount = row.acceptedCount.toLong(),
+                        rejectedCount = row.rejectedCount.toLong(),
+                    )
+                }
             }
-        }
-    }
 
     override suspend fun recordFeedback(token: String, category: Category, accepted: Boolean) {
         ensureFeedbackLoaded()

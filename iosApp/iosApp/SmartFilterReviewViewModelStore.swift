@@ -83,6 +83,15 @@ final class SmartFilterReviewViewModelStore {
         send(SmartFilterReviewIntentNeverAsk(contactId: contactId))
     }
 
+    /// تأكيد عرض أرحام — يربط العروض المعروضة بوتيرتها الافتراضية (agy F5).
+    func confirmArhamOffer() {
+        send(SmartFilterReviewIntentConfirmArhamOffer.shared)
+    }
+
+    func declineArhamOffer() {
+        send(SmartFilterReviewIntentDeclineArhamOffer.shared)
+    }
+
     func clearError() {
         pendingErrorKey = nil
     }

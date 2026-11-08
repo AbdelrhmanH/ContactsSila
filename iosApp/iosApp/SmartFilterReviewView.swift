@@ -53,6 +53,22 @@ struct SmartFilterReviewView: View {
                 .accessibilityLabel(strings.backDescription)
             }
         }
+        // عرض أرحام بعد تطبيق عائلة ذات مرشّح قرابة (AC — agy P1#6) — تأكيد صريح.
+        .confirmationDialog(
+            strings.arhamOfferTitle(Int32(store.state.pendingArhamOffer.count)),
+            isPresented: Binding(
+                get: { !store.state.pendingArhamOffer.isEmpty },
+                set: { if !$0 && !store.state.pendingArhamOffer.isEmpty { store.declineArhamOffer() } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(strings.arhamOfferAccept) {
+                store.confirmArhamOffer()
+            }
+            Button(strings.cancel, role: .cancel) {
+                store.declineArhamOffer()
+            }
+        }
         // فشل التطبيق/الجهة الغائبة (Effect عابر) — نص مترجم من الموارد حسب المفتاح.
         .alert(
             errorText(strings: strings),

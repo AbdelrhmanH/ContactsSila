@@ -37,6 +37,8 @@ class UndoMergeUseCase(
                 survivor = survivor,
                 absorbed = absorbed,
                 absorbedVCards = content.absorbedVCards,
+                // حارس ADR-0013 §3: هويات raw المسجَّلة في اللقطة قبل الدمج (agy P1#2)
+                absorbedRawIds = content.absorbedRawIds,
             ),
         )) {
             is AppResult.Error -> return result
@@ -51,7 +53,14 @@ class UndoMergeUseCase(
                     original.copy(
                         members = original.members.map { member ->
                             platformResult.absorbedSystemIds[member.systemContactId]
-                                ?.let { newId -> member.copy(systemContactId = newId) }
+                                // الهوية المُعاد إنشاؤها (iOS) تستبدل المفتاح والـ lookupKey معاً —
+                                // الكاتب يقرأ lookupKey ?: systemContactId فلا تجوز بقية قديمة (agy P1#2b)
+                                ?.let { newId ->
+                                    member.copy(
+                                        systemContactId = newId,
+                                        lookupKey = member.lookupKey?.let { newId },
+                                    )
+                                }
                                 ?: member
                         },
                     )

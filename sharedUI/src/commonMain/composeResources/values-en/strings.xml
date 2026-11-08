@@ -448,4 +448,7 @@
     <string name="sf_never_ask">Don\'t ask again</string>
     <string name="sf_error_apply">Couldn\'t apply the categories. Try again.</string>
     <string name="sf_error_not_found">We can\'t find that contact anymore — refresh the list.</string>
+    <string name="sf_error_arham_link">Some contacts couldn\'t be linked to Arham. Finish from the Arham screen.</string>
+    <string name="sf_arham_offer_title">Add %d contacts categorized as family to Arham with their default frequency?</string>
+    <string name="sf_arham_offer_accept">Add to Arham</string>
 </resources>

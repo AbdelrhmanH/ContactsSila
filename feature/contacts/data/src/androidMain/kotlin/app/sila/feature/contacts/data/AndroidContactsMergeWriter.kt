@@ -113,7 +113,11 @@ class AndroidContactsMergeWriter(
 
         val identityMap = mutableMapOf<String, String>()
         for (absorbed in request.absorbed) {
-            val absorbedRawIds = rawIdsOf(absorbed)
+            // حارس ADR-0013 §3: هويات raw من اللقطة المسجَّلة قبل الدمج حصراً — الاستعلام الحي
+            // بعد KEEP_TOGETHER يعيد كل raws المجمّعة (بما فيها الناجي) فيفكك الناجي نفسه (agy P1#2).
+            val absorbedRawIds = request.absorbedRawIds[absorbed.systemContactId].orEmpty()
+                .mapNotNull { it.toLongOrNull() }
+                .filter { it != survivorRawId }
             if (absorbedRawIds.isNotEmpty()) {
                 val ops = absorbedRawIds.map { absorbedRawId ->
                     ContentProviderOperation.newInsert(ContactsContract.AggregationExceptions.CONTENT_URI)

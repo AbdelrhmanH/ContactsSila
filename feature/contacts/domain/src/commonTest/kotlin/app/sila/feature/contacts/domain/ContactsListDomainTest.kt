@@ -137,7 +137,8 @@ class ContactsListDomainTest {
         override suspend fun activeSnapshotsForSweep(olderThan: Long): List<SweepableSnapshot> = emptyList()
         override suspend fun markSnapshotExpired(snapshotId: Long) = Unit
         override suspend fun purgeSnapshotsOlderThan(olderThan: Long) = Unit
-        override fun observeDismissedPairKeys(): Flow<Set<String>> = MutableStateFlow(emptySet())
+        val dismissedPairKeysFlow = MutableStateFlow(emptySet<String>())
+        override fun observeDismissedPairKeys(): Flow<Set<String>> = dismissedPairKeysFlow
         override suspend fun dismissPair(groupKey: String, reason: String, nowMillis: Long) = Unit
         override fun observeFeedback(): Flow<List<SmartFilterWeight>> = feedback
         override suspend fun recordFeedback(token: String, category: Category, accepted: Boolean) = Unit
@@ -290,6 +291,24 @@ class ContactsListDomainTest {
         assertEquals(1, after.size, "تغيّر العناصر يعيد البطاقة")
         assertTrue(after.single().id != duplicateCard.id, "المعرّف مشتق من هوية العناصر")
         assertEquals(3, after.single().count)
+    }
+
+    @Test
+    fun observeSuggestions_dismissedPairs_hidesDuplicateCard() = runTest {
+        val a = contact(1, displayName = "أحمد إبراهيم")
+        val b = contact(2, displayName = "احمد ابراهيم")
+        val repo = FakeContactsRepository(listOf(a, b))
+        val store = FakeSuggestionStore()
+        val useCase = ObserveSuggestionsUseCase(repo, FakeListPreferences(), store, unconfinedDispatchers)
+
+        val before = useCase().first()
+        assertTrue(before.any { it.kind == SuggestionCard.Kind.DUPLICATES })
+
+        val pairKey = stableSuggestionId(SuggestionCard.Kind.DUPLICATES, listOf("sys1", "sys2"))
+        store.dismissedPairKeysFlow.value = setOf(pairKey)
+
+        val after = useCase().first()
+        assertTrue(after.none { it.kind == SuggestionCard.Kind.DUPLICATES }, "استبعاد الزوج المرفوض يخفي بطاقة الدخول أيضاً (agy P2#5)")
     }
 
     @Test
