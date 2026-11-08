@@ -17,6 +17,8 @@ data class MergeSnapshotContent(
     val callEventRepoints: List<CallEventRepoint>,
     val parentLinkRepoints: List<ParentLinkRepoint>,
     val absorbedVCards: Map<String, String>,
+    /** هويات raw المنصة المعتمة لكل ممتص (أندرويد — agy F3b)؛ فارغة على iOS. */
+    val absorbedRawIds: Map<String, List<String>> = emptyMap(),
 ) {
     data class CallEventRepoint(val callLogId: String, val oldContactId: Long)
     data class ParentLinkRepoint(val childContactId: Long, val oldParentId: Long)
@@ -117,9 +119,15 @@ data class PlatformMergeRequest(val survivor: Contact, val absorbed: List<Contac
 /**
  * ناتج الدمج المنصوي: **هوية الناجي بعد التجميع** — المزود قد يجعل المفتاح الموحّد مفتاح
  * الممتص (agy P3a) فيجب أن يعيد الكاتب المفتاح المُعاد حلّه ليُهاجر صف Room الناجي إليه
- * داخل معاملة الدمج نفسها.
+ * داخل معاملة الدمج نفسها. [absorbedRawIds] هويات raw المنصة المعتمة لكل ممتص
+ * (أندرويد) — تُسجَّل في اللقطة ليتحقق منها المسح المؤجل بعد انقضاء الجلسة (agy F3b:
+ * «snapshot-recorded raw ids»)؛ على iOS فارغة (الحذف تم في الدمج).
  */
-data class PlatformMergeResult(val unifiedSystemContactId: String, val unifiedLookupKey: String?)
+data class PlatformMergeResult(
+    val unifiedSystemContactId: String,
+    val unifiedLookupKey: String?,
+    val absorbedRawIds: Map<String, List<String>> = emptyMap(),
+)
 
 /** طلب فك الدمج المنصوي — بطاقات vCard للإعادة الإنشاء على iOS (agy F3a). */
 data class PlatformUnmergeRequest(
@@ -135,6 +143,9 @@ data class PlatformUnmergeRequest(
  */
 data class PlatformUnmergeResult(val absorbedSystemIds: Map<String, String>)
 
+/** طلب المسح المؤجل: raws الممتصين المسجَّلة في اللقطة (agy F3b) — حذف raw-مستوى حصراً. */
+data class PlatformSweepRequest(val absorbedRawIds: Map<String, List<String>>)
+
 /**
  * منفذ الدمج المنصوي — عقد ضيق مستقل عن كاتب حقول T6 المجمد (خيار A من Lane D):
  * الدمج عملية على مستوى رسم RawContacts/هوية، لا كتابة حقول. التنفيذات منصوية في `data`
@@ -143,4 +154,11 @@ data class PlatformUnmergeResult(val absorbedSystemIds: Map<String, String>)
 interface ContactsMergeWriter {
     suspend fun mergeContacts(request: PlatformMergeRequest): AppResult<PlatformMergeResult>
     suspend fun unmergeContacts(request: PlatformUnmergeRequest): AppResult<PlatformUnmergeResult>
+
+    /**
+     * المسح المؤجل بعد انقضاء جلسة التراجع بلا تراجع (agy F3b): حذف raws الممتصين
+     * المسجَّلة في اللقطة — **raw-مستوى حصراً** (حذف LOOKUP_URI الكلي يقتل raws حسابات
+     * أخرى في المجمّعة). على iOS لا شيء يُحذف (تم في الدمج) — نجاح فوري.
+     */
+    suspend fun sweepAbsorbedRawContacts(request: PlatformSweepRequest): AppResult<Unit>
 }

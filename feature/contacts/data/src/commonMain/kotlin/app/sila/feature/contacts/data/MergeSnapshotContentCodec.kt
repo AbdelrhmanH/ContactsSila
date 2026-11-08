@@ -34,6 +34,7 @@ object MergeSnapshotContentCodec {
         val parentLinkChildIds: List<Long> = emptyList(),
         val parentLinkOldParentIds: Map<Long, Long> = emptyMap(),
         val absorbedVCards: Map<String, String> = emptyMap(),
+        val absorbedRawIds: Map<String, List<String>> = emptyMap(),
     )
 
     fun encode(content: MergeSnapshotContent): String = json.encodeToString(
@@ -46,6 +47,7 @@ object MergeSnapshotContentCodec {
             parentLinkChildIds = content.parentLinkRepoints.map { it.childContactId },
             parentLinkOldParentIds = content.parentLinkRepoints.associate { it.childContactId to it.oldParentId },
             absorbedVCards = content.absorbedVCards,
+            absorbedRawIds = content.absorbedRawIds,
         ),
     )
 
@@ -68,6 +70,7 @@ object MergeSnapshotContentCodec {
                 )
             },
             absorbedVCards = envelope.absorbedVCards,
+            absorbedRawIds = envelope.absorbedRawIds,
         )
     }.getOrNull()
 }

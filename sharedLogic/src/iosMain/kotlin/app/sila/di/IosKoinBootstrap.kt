@@ -20,6 +20,7 @@ import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.arham.presentation.ArhamViewModel
 import app.sila.feature.main.MainViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
+import app.sila.maintenance.MergeSweepCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
@@ -299,6 +300,7 @@ object IosKoinBootstrap {
         if (cleanupLaunched) return
         cleanupLaunched = true
         koin.get<RetentionCleanupCoordinator>().launchIn(engineScope)
+        koin.get<MergeSweepCoordinator>().launchIn(engineScope)
     }
 
     /**

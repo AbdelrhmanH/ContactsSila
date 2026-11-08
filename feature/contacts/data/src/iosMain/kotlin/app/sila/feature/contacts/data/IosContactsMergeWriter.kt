@@ -6,6 +6,7 @@ import app.sila.feature.contacts.domain.ContactsMergeWriter
 import app.sila.feature.contacts.domain.PlatformMergeRequest
 import app.sila.feature.contacts.domain.PlatformMergeResult
 import app.sila.feature.contacts.domain.PlatformUnmergeRequest
+import app.sila.feature.contacts.domain.PlatformSweepRequest
 import app.sila.feature.contacts.domain.PlatformUnmergeResult
 import app.sila.feature.contacts.domain.toWritable
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -91,6 +92,13 @@ class IosContactsMergeWriter(
         }
         return AppResult.Success(PlatformUnmergeResult(absorbedSystemIds = identityMap))
     }
+
+    /**
+     * المسح المؤجل على iOS: **لا شيء يُحذف** — حذف الممتصين تم في الدمج نفسه (agy F3a)
+     * والخريطة فارغة بالعقد؛ نجاح فوري.
+     */
+    override suspend fun sweepAbsorbedRawContacts(request: PlatformSweepRequest): AppResult<Unit> =
+        AppResult.Success(Unit)
 
     /** vCard نصاً → CNMutableContact → حفظ جديد → المعرف الدائم للصف المُنشأ (agy F3a). */
     private fun recreateFromVCard(vCardText: String): String? {

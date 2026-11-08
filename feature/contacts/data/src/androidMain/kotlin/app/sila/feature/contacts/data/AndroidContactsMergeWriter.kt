@@ -2,6 +2,7 @@ package app.sila.feature.contacts.data
 
 import android.Manifest
 import android.content.ContentProviderOperation
+import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,6 +12,7 @@ import app.sila.core.common.DataError
 import app.sila.feature.contacts.domain.PlatformMergeRequest
 import app.sila.feature.contacts.domain.PlatformMergeResult
 import app.sila.feature.contacts.domain.PlatformUnmergeRequest
+import app.sila.feature.contacts.domain.PlatformSweepRequest
 import app.sila.feature.contacts.domain.PlatformUnmergeResult
 import app.sila.feature.contacts.domain.ContactsMergeWriter
 import app.sila.feature.contacts.domain.toWritable
@@ -55,7 +57,8 @@ class AndroidContactsMergeWriter(
         if (updateResult is AppResult.Error) return updateResult
 
         // (2) KEEP_TOGETHER مع كل raw ممتص (الممتص لم يُحذف — قبور الدمج Room-فقط خلال الجلسة)
-        val absorbedRawIds = request.absorbed.flatMap { absorbed -> rawIdsOf(absorbed) }
+        val absorbedRawIdsBySystemId = request.absorbed.associate { absorbed -> absorbed.systemContactId to rawIdsOf(absorbed) }
+        val absorbedRawIds = absorbedRawIdsBySystemId.values.flatten()
         if (absorbedRawIds.isNotEmpty()) {
             val ops = absorbedRawIds.map { absorbedRawId ->
                 ContentProviderOperation.newInsert(ContactsContract.AggregationExceptions.CONTENT_URI)
@@ -75,7 +78,30 @@ class AndroidContactsMergeWriter(
             PlatformMergeResult(
                 unifiedSystemContactId = unifiedLookupKey,
                 unifiedLookupKey = unifiedLookupKey,
+                absorbedRawIds = absorbedRawIdsBySystemId.mapValues { (_, ids) -> ids.map { it.toString() } },
             ),
+        )
+    }
+
+    /**
+     * المسح المؤجل (agy F3b): حذف raws الممتصين المسجَّلة في اللقطة — **raw-مستوى حصراً**
+     * (ContentProviderOperation.delete على RawContacts)، بلا مساس aggregate LOOKUP_URI
+     * كلياً (خطر raws الحسابات الأخرى — Lane D). الحذف يتحقق عبر هوية raw المسجَّلة ذاتها.
+     */
+    override suspend fun sweepAbsorbedRawContacts(request: PlatformSweepRequest): AppResult<Unit> {
+        if (!isWriteGranted()) return permissionError()
+        if (request.absorbedRawIds.isEmpty()) return AppResult.Success(Unit)
+        val ops = request.absorbedRawIds.values.flatten().mapNotNull { rawId ->
+            rawId.toLongOrNull()?.let { id ->
+                ContentProviderOperation.newDelete(
+                    ContentUris.withAppendedId(ContactsContract.RawContacts.CONTENT_URI, id),
+                ).build()
+            }
+        }
+        if (ops.isEmpty()) return AppResult.Success(Unit)
+        return runCatching { contentResolver.applyBatch(ContactsContract.AUTHORITY, ArrayList(ops)) }.fold(
+            onSuccess = { AppResult.Success(Unit) },
+            onFailure = { t -> AppResult.Error(DataError.Unknown(causeMessage = t.message)) },
         )
     }
 

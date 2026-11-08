@@ -42,6 +42,11 @@ class MergeUndoUseCaseTest {
             calls += "platform-unmerge"
             return unmergeResult
         }
+
+        override suspend fun sweepAbsorbedRawContacts(request: PlatformSweepRequest): AppResult<Unit> {
+            calls += "platform-sweep"
+            return AppResult.Success(Unit)
+        }
     }
 
     /** مخزن دمج زائف بأمانة العقد: تسجيل الترتيب + القفل لمرة-واحدة + تطبيق remap. */

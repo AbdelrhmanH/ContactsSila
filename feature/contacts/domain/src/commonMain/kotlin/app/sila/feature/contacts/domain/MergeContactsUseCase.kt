@@ -41,6 +41,8 @@ class MergeContactsUseCase(
             is AppResult.Error -> return result
             is AppResult.Success -> result.data
         }
+        // هويات raw الممتصين المسجَّلة في اللقطة للمسح المؤجل (agy F3b — «snapshot-recorded raw ids»)
+        val absorbedRawIds = platform.absorbedRawIds
         val migratedSurvivor = plan.merged.copy(
             systemContactId = platform.unifiedSystemContactId,
             lookupKey = platform.unifiedLookupKey ?: plan.merged.lookupKey,
@@ -71,6 +73,7 @@ class MergeContactsUseCase(
                         MergeSnapshotContent.ParentLinkRepoint(child, oldParent)
                     },
                     absorbedVCards = absorbedVCards,
+                    absorbedRawIds = absorbedRawIds,
                 )
             }
             AppResult.Success(

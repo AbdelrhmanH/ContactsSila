@@ -106,6 +106,7 @@ import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
 import app.sila.feature.settings.presentation.SettingsViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
+import app.sila.maintenance.MergeSweepCoordinator
 import app.sila.maintenance.RetentionCleanupCoordinator
 import org.koin.core.Koin
 import org.koin.core.KoinApplication
@@ -190,6 +191,8 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // F-02: مشغِّل صيانة الاستبقاء (تنظيف 30/90/365 يوماً) — يُطلق من مهيئات المنصات
     // على نطاق عمر التطبيق، مرة واحدة لكل عملية (single-flight — انظر الكلاس).
     single { RetentionCleanupCoordinator(cleanup = get(), clock = get()) }
+    // T7 (Issue #28 · agy F3b): المسح المنصوي المؤجل بعد انقضاء جلسة التراجع — raw-مستوى حصراً.
+    single { MergeSweepCoordinator(mergeStore = get(), mergeWriter = get(), clock = get()) }
 
     // Core DataStore (Preferences Persistence Singleton)
     // Issue #34: مُمرِّر الـ default يُحقن من AppDispatchers (لا قيم ثابتة في الإنتاج —
