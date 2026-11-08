@@ -24,6 +24,12 @@ struct ContactsView: View {
     /// T3 (store) يبقى كما هو بلا أي تغيير (تجميده).
     var onOpenContact: (Int64) -> Void = { _ in }
 
+    /// فتح شاشة مراجعة المكررات (T7 — Issue #28) — قرار غلاف ContentView.
+    var onOpenDuplicatesReview: () -> Void = {}
+
+    /// فتح شاشة مراجعة الفلترة الذكية (T7 — Issue #28).
+    var onOpenSmartFilterReview: () -> Void = {}
+
     @Environment(\.scenePhase) private var scenePhase
 
     /// تأكيد الحذف عرض عابر محلي (نفس `remember` في Compose) — الفعل عبر Intent.
@@ -161,7 +167,8 @@ struct ContactsView: View {
                 suggestions: store.state.suggestions,
                 strings: strings,
                 onDismiss: { store.dismissSuggestion($0) },
-                onOpenSmartFilter: { store.selectSmartFilterSuggestion() }
+                onOpenDuplicatesReview: onOpenDuplicatesReview,
+                onOpenSmartFilter: { onOpenSmartFilterReview() }
             )
             contactsListArea(strings)
         }
@@ -484,6 +491,7 @@ private struct ContactsSuggestionCards: View {
     let suggestions: [SuggestionCard]
     let strings: ContactsLocalizedStrings
     let onDismiss: (SuggestionCard) -> Void
+    let onOpenDuplicatesReview: () -> Void
     let onOpenSmartFilter: () -> Void
 
     var body: some View {
@@ -505,10 +513,12 @@ private struct ContactsSuggestionCards: View {
                     .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        // «راجعها»: بطاقة الفلترة الذكية تنقلك لتصنيف غير المصنّف؛
-                        // بطاقة المكررات تنتظر شاشات الدمج (T7) — بلا فعل الآن
-                        // (نفس سلوك Compose T3 الموثق في PR).
-                        if card.kind == .smartFilter {
+                        // «راجعها»: بطاقتا T7 تفتحان شاشتي المراجعة الخاصتين
+                        // بهما (المكررات → الدمج، الفلترة الذكية → التصنيف المؤكد)
+                        // — نفس سلوك Compose في S9/S8.
+                        if card.kind == .duplicates {
+                            onOpenDuplicatesReview()
+                        } else {
                             onOpenSmartFilter()
                         }
                     }
