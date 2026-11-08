@@ -157,14 +157,14 @@ private struct DuplicateGroupCardSwift: View {
 
     let group: DuplicateGroup
     let expanded: Bool
-    let preview: MergePlannerMergePlan?
+    let preview: MergePlanner.MergePlan?
     let isMerging: Bool
     let strings: DuplicatesReviewLocalizedStrings
     let store: DuplicatesReviewViewModelStore
 
     /// فاصل دمج الملاحظات الموثق (MergePlanner.NOTES_SEPARATOR) — ثابت بيانات لا نص واجهة.
     /// فاصل دمج الملاحظات — مكشوف من النطاق المشترك (MergePlanner.NOTES_SEPARATOR) لا تكرار حرفي.
-    private static let notesSeparator = MergePlanner.NOTES_SEPARATOR
+    private static let notesSeparator = MergePlanner.shared.NOTES_SEPARATOR
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -270,7 +270,7 @@ private struct DuplicateGroupCardSwift: View {
     }
 
     @ViewBuilder
-    private func previewSection(_ plan: MergePlannerMergePlan) -> some View {
+    private func previewSection(_ plan: MergePlanner.MergePlan) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(strings.previewTitle).font(.caption.weight(.semibold)).foregroundColor(.secondary)
             Text(plan.merged.name.displayName).font(.subheadline.weight(.semibold))
