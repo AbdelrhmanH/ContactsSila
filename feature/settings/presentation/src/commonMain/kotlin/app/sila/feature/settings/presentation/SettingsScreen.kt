@@ -122,7 +122,9 @@ fun SettingsScreen(
         snackbarHostState = snackbarHostState,
         lastExportedBytes = lastExportedBytes,
         restoreBytesBuffer = restoreBytesBuffer,
-        onUpdateRestoreBytes = { restoreBytesBuffer = it }
+        onUpdateRestoreBytes = { restoreBytesBuffer = it },
+        onPersistBackup = onPersistBackup,
+        onPickBackupFile = onPickBackupFile
     )
 }
 
@@ -136,7 +138,11 @@ fun SettingsDialog(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     lastExportedBytes: ByteArray? = null,
     restoreBytesBuffer: ByteArray? = null,
-    onUpdateRestoreBytes: (ByteArray?) -> Unit = {}
+    onUpdateRestoreBytes: (ByteArray?) -> Unit = {},
+    /** حفظ بايتات التصدير في ملف يختاره المستخدم (مضيف Android/SAF) — يُمرَّر من SettingsScreen. */
+    onPersistBackup: ((ByteArray) -> Unit)? = null,
+    /** طلب اختيار ملف نسخة للاستيراد من الجهاز — يُمرَّر من SettingsScreen. */
+    onPickBackupFile: (() -> Unit)? = null
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -179,6 +185,8 @@ fun SettingsDialog(
                     lastExportedBytes = lastExportedBytes,
                     restoreBytesBuffer = restoreBytesBuffer,
                     onUpdateRestoreBytes = onUpdateRestoreBytes,
+                    onPersistBackup = onPersistBackup,
+                    onPickBackupFile = onPickBackupFile,
                     modifier = Modifier.padding(paddingValues)
                 )
             }
@@ -197,6 +205,8 @@ fun SettingsContent(
     lastExportedBytes: ByteArray? = null,
     restoreBytesBuffer: ByteArray? = null,
     onUpdateRestoreBytes: (ByteArray?) -> Unit = {},
+    onPersistBackup: ((ByteArray) -> Unit)? = null,
+    onPickBackupFile: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
