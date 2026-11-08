@@ -8,10 +8,14 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
 import app.sila.core.model.AppThemeMode
+import app.sila.core.model.Category
 import app.sila.core.model.ContactSwipeAction
+import app.sila.core.model.DashboardPeriod
 import app.sila.core.model.DefaultTab
+import app.sila.core.model.NameOrder
 import app.sila.core.model.TopFiveSelection
 import app.sila.core.model.UserPreferences
 import kotlinx.coroutines.CoroutineDispatcher
@@ -41,17 +45,32 @@ interface UserPreferencesDataSource {
     val preferences: Flow<UserPreferences>
     suspend fun setThemeMode(mode: AppThemeMode)
     suspend fun setLanguage(language: AppLanguage)
+    suspend fun setDigits(digits: AppDigits)
+    suspend fun setNameOrder(order: NameOrder)
     suspend fun setDefaultTab(tab: DefaultTab)
+    suspend fun setVisibleAccounts(accounts: Set<String>)
+    suspend fun setDefaultSimSlot(slot: Int?)
     suspend fun setArhamNotificationsEnabled(enabled: Boolean)
     suspend fun setQuietHours(startHour: Int, endHour: Int)
     /** الوقت المفضل للتذكير اليومي بالتوقيت المحلي (§M — T8-08). */
     suspend fun setArhamNotificationTime(hour: Int, minute: Int)
+    suspend fun setArhamMaxPerDay(max: Int)
     /** تنبيه اليوم السابق للمناسبة (§M «اختيارياً» — T8-08). */
     suspend fun setArhamOccasionDayBeforeEnabled(enabled: Boolean)
+    suspend fun setDashboardPeriod(period: DashboardPeriod)
     suspend fun setConfettiEnabled(enabled: Boolean)
+    suspend fun setAutoTrackingEnabled(enabled: Boolean)
+    suspend fun setDefaultCity(city: String?)
     suspend fun setSearchRadiusKm(radiusKm: Int)
+    suspend fun setQuickRatingEnabled(enabled: Boolean)
     suspend fun setAutoUpdatePhonebookServices(enabled: Boolean)
     suspend fun setSmartFilterEnabled(enabled: Boolean)
+    suspend fun setDuplicateScanEnabled(enabled: Boolean)
+    suspend fun setPostCallCategorizeEnabled(enabled: Boolean)
+    suspend fun setCrashReportsEnabled(enabled: Boolean)
+    suspend fun setInterestTags(tags: Set<String>)
+    suspend fun setCategoryRingtone(category: Category, uri: String?)
+    suspend fun setCategoryRingtones(ringtones: Map<Category, String>)
     suspend fun setOnboardingCompleted(completed: Boolean)
     suspend fun setIsGuest(isGuest: Boolean)
     suspend fun setOnboardingResumeStep(step: String?)
@@ -76,7 +95,7 @@ interface UserPreferencesDataSource {
     suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long)
     /** استبعاد بطاقة اقتراح نهائياً (Issue #24 — لا تعود لنفس العناصر). */
     suspend fun dismissSuggestion(id: String)
-    /** ضبط أفعال السحب (بداية/نهاية منطقيتان — Issue #24). */
+    /** ضبط أفعال السحب (بداية/نهاية منطقيتان — Issue #24 / Issue #30). */
     suspend fun setSwipeActions(start: ContactSwipeAction, end: ContactSwipeAction)
 }
 
@@ -133,18 +152,39 @@ class SilaPreferencesDataSource(
             ?: initialPreferences.themeMode,
         language = prefs[KEY_LANGUAGE]?.let { runCatching { AppLanguage.valueOf(it) }.getOrNull() }
             ?: initialPreferences.language,
+        digits = prefs[KEY_DIGITS]?.let { runCatching { AppDigits.valueOf(it) }.getOrNull() }
+            ?: initialPreferences.digits,
+        nameOrder = prefs[KEY_NAME_ORDER]?.let { runCatching { NameOrder.valueOf(it) }.getOrNull() }
+            ?: initialPreferences.nameOrder,
         defaultTab = prefs[KEY_DEFAULT_TAB]?.let { runCatching { DefaultTab.valueOf(it) }.getOrNull() }
             ?: initialPreferences.defaultTab,
+        visibleAccounts = prefs[KEY_VISIBLE_ACCOUNTS] ?: initialPreferences.visibleAccounts,
+        defaultSimSlot = prefs[KEY_DEFAULT_SIM] ?: initialPreferences.defaultSimSlot,
         arhamNotificationsEnabled = prefs[KEY_ARHAM_NOTIFICATIONS] ?: initialPreferences.arhamNotificationsEnabled,
         quietHoursStartHour = prefs[KEY_QUIET_START] ?: initialPreferences.quietHoursStartHour,
         quietHoursEndHour = prefs[KEY_QUIET_END] ?: initialPreferences.quietHoursEndHour,
         arhamNotificationHour = prefs[KEY_ARHAM_NOTIFICATION_HOUR] ?: initialPreferences.arhamNotificationHour,
         arhamNotificationMinute = prefs[KEY_ARHAM_NOTIFICATION_MINUTE] ?: initialPreferences.arhamNotificationMinute,
+        arhamMaxPerDay = prefs[KEY_ARHAM_MAX_PER_DAY] ?: initialPreferences.arhamMaxPerDay,
         arhamOccasionDayBeforeEnabled = prefs[KEY_ARHAM_OCCASION_DAY_BEFORE] ?: initialPreferences.arhamOccasionDayBeforeEnabled,
+        dashboardPeriod = prefs[KEY_DASHBOARD_PERIOD]?.let { runCatching { DashboardPeriod.valueOf(it) }.getOrNull() }
+            ?: initialPreferences.dashboardPeriod,
         confettiEnabled = prefs[KEY_CONFETTI] ?: initialPreferences.confettiEnabled,
+        autoTrackingEnabled = prefs[KEY_AUTO_TRACKING] ?: initialPreferences.autoTrackingEnabled,
+        defaultCity = prefs[KEY_DEFAULT_CITY] ?: initialPreferences.defaultCity,
         searchRadiusKm = prefs[KEY_SEARCH_RADIUS] ?: initialPreferences.searchRadiusKm,
+        quickRatingEnabled = prefs[KEY_QUICK_RATING] ?: initialPreferences.quickRatingEnabled,
         autoUpdatePhonebookServices = prefs[KEY_AUTO_UPDATE_SERVICES] ?: initialPreferences.autoUpdatePhonebookServices,
         smartFilterEnabled = prefs[KEY_SMART_FILTER] ?: initialPreferences.smartFilterEnabled,
+        duplicateScanEnabled = prefs[KEY_DUPLICATE_SCAN] ?: initialPreferences.duplicateScanEnabled,
+        postCallCategorizeEnabled = prefs[KEY_POST_CALL_CATEGORIZE] ?: initialPreferences.postCallCategorizeEnabled,
+        crashReportsEnabled = prefs[KEY_CRASH_REPORTS] ?: initialPreferences.crashReportsEnabled,
+        interestTags = prefs[KEY_INTEREST_TAGS] ?: initialPreferences.interestTags,
+        categoryRingtones = prefs[KEY_CATEGORY_RINGTONES]?.let { raw ->
+            runCatching {
+                json.decodeFromString(MapSerializer(Category.serializer(), String.serializer()), raw)
+            }.getOrNull()
+        } ?: initialPreferences.categoryRingtones,
         onboardingCompleted = prefs[KEY_ONBOARDING_COMPLETED] ?: initialPreferences.onboardingCompleted,
         isGuest = prefs[KEY_IS_GUEST] ?: initialPreferences.isGuest,
         onboardingResumeStep = prefs[KEY_ONBOARDING_RESUME_STEP] ?: initialPreferences.onboardingResumeStep,
@@ -180,9 +220,35 @@ class SilaPreferencesDataSource(
         _memoryState.update { it.copy(language = language) }
     }
 
+    override suspend fun setDigits(digits: AppDigits) {
+        dataStore?.edit { it[KEY_DIGITS] = digits.name }
+        _memoryState.update { it.copy(digits = digits) }
+    }
+
+    override suspend fun setNameOrder(order: NameOrder) {
+        dataStore?.edit { it[KEY_NAME_ORDER] = order.name }
+        _memoryState.update { it.copy(nameOrder = order) }
+    }
+
     override suspend fun setDefaultTab(tab: DefaultTab) {
         dataStore?.edit { it[KEY_DEFAULT_TAB] = tab.name }
         _memoryState.update { it.copy(defaultTab = tab) }
+    }
+
+    override suspend fun setVisibleAccounts(accounts: Set<String>) {
+        dataStore?.edit { it[KEY_VISIBLE_ACCOUNTS] = accounts }
+        _memoryState.update { it.copy(visibleAccounts = accounts) }
+    }
+
+    override suspend fun setDefaultSimSlot(slot: Int?) {
+        dataStore?.edit { prefs ->
+            if (slot == null) {
+                prefs.remove(KEY_DEFAULT_SIM)
+            } else {
+                prefs[KEY_DEFAULT_SIM] = slot
+            }
+        }
+        _memoryState.update { it.copy(defaultSimSlot = slot) }
     }
 
     override suspend fun setArhamNotificationsEnabled(enabled: Boolean) {
@@ -221,10 +287,20 @@ class SilaPreferencesDataSource(
         }
     }
 
-    /** تنبيه اليوم السابق للمناسبة (§M «اختيارياً» — T8-08). */
+    override suspend fun setArhamMaxPerDay(max: Int) {
+        val coerced = max.coerceAtLeast(1)
+        dataStore?.edit { it[KEY_ARHAM_MAX_PER_DAY] = coerced }
+        _memoryState.update { it.copy(arhamMaxPerDay = coerced) }
+    }
+
     override suspend fun setArhamOccasionDayBeforeEnabled(enabled: Boolean) {
         dataStore?.edit { it[KEY_ARHAM_OCCASION_DAY_BEFORE] = enabled }
         _memoryState.update { it.copy(arhamOccasionDayBeforeEnabled = enabled) }
+    }
+
+    override suspend fun setDashboardPeriod(period: DashboardPeriod) {
+        dataStore?.edit { it[KEY_DASHBOARD_PERIOD] = period.name }
+        _memoryState.update { it.copy(dashboardPeriod = period) }
     }
 
     override suspend fun setConfettiEnabled(enabled: Boolean) {
@@ -232,10 +308,31 @@ class SilaPreferencesDataSource(
         _memoryState.update { it.copy(confettiEnabled = enabled) }
     }
 
+    override suspend fun setAutoTrackingEnabled(enabled: Boolean) {
+        dataStore?.edit { it[KEY_AUTO_TRACKING] = enabled }
+        _memoryState.update { it.copy(autoTrackingEnabled = enabled) }
+    }
+
+    override suspend fun setDefaultCity(city: String?) {
+        dataStore?.edit { prefs ->
+            if (city.isNullOrBlank()) {
+                prefs.remove(KEY_DEFAULT_CITY)
+            } else {
+                prefs[KEY_DEFAULT_CITY] = city.trim()
+            }
+        }
+        _memoryState.update { it.copy(defaultCity = city?.trim()) }
+    }
+
     override suspend fun setSearchRadiusKm(radiusKm: Int) {
         val coerced = radiusKm.coerceIn(1, 100)
         dataStore?.edit { it[KEY_SEARCH_RADIUS] = coerced }
         _memoryState.update { it.copy(searchRadiusKm = coerced) }
+    }
+
+    override suspend fun setQuickRatingEnabled(enabled: Boolean) {
+        dataStore?.edit { it[KEY_QUICK_RATING] = enabled }
+        _memoryState.update { it.copy(quickRatingEnabled = enabled) }
     }
 
     override suspend fun setAutoUpdatePhonebookServices(enabled: Boolean) {
@@ -246,6 +343,46 @@ class SilaPreferencesDataSource(
     override suspend fun setSmartFilterEnabled(enabled: Boolean) {
         dataStore?.edit { it[KEY_SMART_FILTER] = enabled }
         _memoryState.update { it.copy(smartFilterEnabled = enabled) }
+    }
+
+    override suspend fun setDuplicateScanEnabled(enabled: Boolean) {
+        dataStore?.edit { it[KEY_DUPLICATE_SCAN] = enabled }
+        _memoryState.update { it.copy(duplicateScanEnabled = enabled) }
+    }
+
+    override suspend fun setPostCallCategorizeEnabled(enabled: Boolean) {
+        dataStore?.edit { it[KEY_POST_CALL_CATEGORIZE] = enabled }
+        _memoryState.update { it.copy(postCallCategorizeEnabled = enabled) }
+    }
+
+    override suspend fun setCrashReportsEnabled(enabled: Boolean) {
+        dataStore?.edit { it[KEY_CRASH_REPORTS] = enabled }
+        _memoryState.update { it.copy(crashReportsEnabled = enabled) }
+    }
+
+    override suspend fun setInterestTags(tags: Set<String>) {
+        dataStore?.edit { it[KEY_INTEREST_TAGS] = tags }
+        _memoryState.update { it.copy(interestTags = tags) }
+    }
+
+    override suspend fun setCategoryRingtone(category: Category, uri: String?) {
+        val updated = if (uri.isNullOrBlank()) {
+            _memoryState.value.categoryRingtones - category
+        } else {
+            _memoryState.value.categoryRingtones + (category to uri)
+        }
+        setCategoryRingtones(updated)
+    }
+
+    override suspend fun setCategoryRingtones(ringtones: Map<Category, String>) {
+        dataStore?.edit { prefs ->
+            val encoded = runCatching {
+                json.encodeToString(MapSerializer(Category.serializer(), String.serializer()), ringtones)
+            }
+            encoded.onSuccess { prefs[KEY_CATEGORY_RINGTONES] = it }
+                .onFailure { prefs.remove(KEY_CATEGORY_RINGTONES) }
+        }
+        _memoryState.update { it.copy(categoryRingtones = ringtones) }
     }
 
     override suspend fun setOnboardingCompleted(completed: Boolean) {
@@ -260,22 +397,29 @@ class SilaPreferencesDataSource(
 
     override suspend fun setOnboardingResumeStep(step: String?) {
         dataStore?.edit { prefs ->
-            step?.let { prefs[KEY_ONBOARDING_RESUME_STEP] = it } ?: prefs.remove(KEY_ONBOARDING_RESUME_STEP)
+            if (step == null) {
+                prefs.remove(KEY_ONBOARDING_RESUME_STEP)
+            } else {
+                prefs[KEY_ONBOARDING_RESUME_STEP] = step
+            }
         }
         _memoryState.update { it.copy(onboardingResumeStep = step) }
     }
 
     override suspend fun setOnboardingContactsPermission(permission: String?) {
         dataStore?.edit { prefs ->
-            permission?.let { prefs[KEY_ONBOARDING_CONTACTS_PERMISSION] = it }
-                ?: prefs.remove(KEY_ONBOARDING_CONTACTS_PERMISSION)
+            if (permission == null) {
+                prefs.remove(KEY_ONBOARDING_CONTACTS_PERMISSION)
+            } else {
+                prefs[KEY_ONBOARDING_CONTACTS_PERMISSION] = permission
+            }
         }
         _memoryState.update { it.copy(onboardingContactsPermission = permission) }
     }
 
     override suspend fun setOnboardingTopFiveSelections(selections: List<TopFiveSelection>) {
-        val encoded = runCatching { json.encodeToString(ListSerializer(TopFiveSelection.serializer()), selections) }
         dataStore?.edit { prefs ->
+            val encoded = runCatching { json.encodeToString(ListSerializer(TopFiveSelection.serializer()), selections) }
             encoded.onSuccess { prefs[KEY_ONBOARDING_TOP_FIVE] = it }
                 .onFailure { prefs.remove(KEY_ONBOARDING_TOP_FIVE) }
         }
@@ -283,24 +427,17 @@ class SilaPreferencesDataSource(
     }
 
     override suspend fun markTopFiveMaterialized() {
-        // مسار رفع حصراً بحكم العقد (one-shot — §F.10): التوقيع بلا معامل فلا تصفير ممكن.
-        dataStore?.edit { prefs -> prefs[KEY_TOP_FIVE_MATERIALIZED] = true }
+        dataStore?.edit { it[KEY_TOP_FIVE_MATERIALIZED] = true }
         _memoryState.update { it.copy(topFiveMaterialized = true) }
     }
 
     override suspend fun markArhamTransitionCelebrated(contactId: Long, periodKey: Long) {
-        val dataStore = this.dataStore
         if (dataStore == null) {
-            // مسار الذاكرة: المرآة هي الحقيقة الوحيدة فلا خريطة قرصية تُقرأ.
-            val updated = _memoryState.value.celebratedArhamTransitions + (contactId to periodKey)
-            _memoryState.update { it.copy(celebratedArhamTransitions = updated) }
+            _memoryState.update {
+                it.copy(celebratedArhamTransitions = it.celebratedArhamTransitions + (contactId to periodKey))
+            }
             return
         }
-        // القراءة داخل معاملة edit نفسها (نمط dismissSuggestion): في وضع القرص تبدأ مرآة
-        // _memoryState من الافتراضي ولا تُروى من القرص إطلاقاً (التهيئة الحارة تغذي تدفق
-        // `preferences` فقط)، فاحتساب الخريطة منها كان يمحو علامات كل العمليات السابقة
-        // نهائياً بعد أول إعادة تشغيل (Issue #29 — عيب T8 المتابَع). فك الترميز الفاشل
-        // يبدأ من المرآة احتياطاً ثم يُسقط المفتاح كما في النمط الأصلي — بلا كتم للفشل.
         var merged = _memoryState.value.celebratedArhamTransitions
         dataStore.edit { prefs ->
             val persisted = prefs[KEY_CELEBRATED_TRANSITIONS]?.let { raw ->
@@ -309,7 +446,6 @@ class SilaPreferencesDataSource(
                 }.getOrNull()
             } ?: _memoryState.value.celebratedArhamTransitions
             val updated = persisted + (contactId to periodKey)
-            // نمط KEY_ONBOARDING_TOP_FIVE نفسه: JSON نصّي، وفشل الترميز يُسقط المفتاح بلا انهيار.
             val encoded =
                 runCatching { json.encodeToString(MapSerializer(Long.serializer(), Long.serializer()), updated) }
             encoded.onSuccess { prefs[KEY_CELEBRATED_TRANSITIONS] = it }
@@ -350,17 +486,31 @@ class SilaPreferencesDataSource(
 
         private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         private val KEY_LANGUAGE = stringPreferencesKey("app_language")
+        private val KEY_DIGITS = stringPreferencesKey("app_digits")
+        private val KEY_NAME_ORDER = stringPreferencesKey("name_order")
         private val KEY_DEFAULT_TAB = stringPreferencesKey("default_tab")
+        private val KEY_VISIBLE_ACCOUNTS = stringSetPreferencesKey("visible_accounts")
+        private val KEY_DEFAULT_SIM = intPreferencesKey("default_sim_slot")
         private val KEY_ARHAM_NOTIFICATIONS = booleanPreferencesKey("arham_notifications_enabled")
         private val KEY_QUIET_START = intPreferencesKey("quiet_hours_start")
         private val KEY_QUIET_END = intPreferencesKey("quiet_hours_end")
         private val KEY_ARHAM_NOTIFICATION_HOUR = intPreferencesKey("arham_notification_hour")
         private val KEY_ARHAM_NOTIFICATION_MINUTE = intPreferencesKey("arham_notification_minute")
+        private val KEY_ARHAM_MAX_PER_DAY = intPreferencesKey("arham_max_per_day")
         private val KEY_ARHAM_OCCASION_DAY_BEFORE = booleanPreferencesKey("arham_occasion_day_before")
+        private val KEY_DASHBOARD_PERIOD = stringPreferencesKey("dashboard_period")
         private val KEY_CONFETTI = booleanPreferencesKey("confetti_enabled")
+        private val KEY_AUTO_TRACKING = booleanPreferencesKey("auto_tracking")
+        private val KEY_DEFAULT_CITY = stringPreferencesKey("default_city")
         private val KEY_SEARCH_RADIUS = intPreferencesKey("search_radius_km")
+        private val KEY_QUICK_RATING = booleanPreferencesKey("quick_rating")
         private val KEY_AUTO_UPDATE_SERVICES = booleanPreferencesKey("auto_update_phonebook_services")
         private val KEY_SMART_FILTER = booleanPreferencesKey("smart_filter_enabled")
+        private val KEY_DUPLICATE_SCAN = booleanPreferencesKey("duplicate_scan")
+        private val KEY_POST_CALL_CATEGORIZE = booleanPreferencesKey("post_call_categorize")
+        private val KEY_CRASH_REPORTS = booleanPreferencesKey("crash_reports")
+        private val KEY_INTEREST_TAGS = stringSetPreferencesKey("interest_tags")
+        private val KEY_CATEGORY_RINGTONES = stringPreferencesKey("category_ringtones")
         private val KEY_ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         private val KEY_IS_GUEST = booleanPreferencesKey("is_guest")
         private val KEY_ONBOARDING_RESUME_STEP = stringPreferencesKey("onboarding_resume_step")

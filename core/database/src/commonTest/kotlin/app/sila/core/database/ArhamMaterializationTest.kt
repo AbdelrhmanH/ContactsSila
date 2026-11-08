@@ -1,4 +1,4 @@
-﻿package app.sila.core.database
+package app.sila.core.database
 
 import androidx.room3.useReaderConnection
 import app.sila.core.common.AppDispatchers

@@ -656,6 +656,7 @@ private fun SwipeToDismissContactRow(
 private fun actionLabel(action: ContactSwipeAction, strings: ContactsStrings): String = when (action) {
     ContactSwipeAction.CALL -> strings.swipeCall
     ContactSwipeAction.MESSAGE -> strings.swipeMessage
+    ContactSwipeAction.NONE -> ""
 }
 
 // ===== حالات الفراغ/الخطأ/الصلاحية/التحميل =====

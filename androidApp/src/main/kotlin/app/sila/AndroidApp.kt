@@ -287,6 +287,7 @@ fun SilaAndroidApp() {
                                             ContactSwipeAction.CALL ->
                                                 ContactsIntent.CallNumber(picker.contactId, phone.e164)
 
+                                            ContactSwipeAction.NONE,
                                             ContactSwipeAction.MESSAGE ->
                                                 ContactsIntent.Message(picker.contactId, phone.e164)
                                         }
