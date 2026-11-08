@@ -491,6 +491,17 @@
 "settings_restore_mode_merge" = "دمج مع البيانات الحالية";
 "settings_restore_mode_replace" = "استبدال البيانات الحالية";
 "settings_restore_preferences" = "استعادة تفضيلات التطبيق";
+"settings_restore_desc" = "اختر ملف النسخة الاحتياطية ثم أدخل كلمة المرور لمعاينة وفك التشفير:";
+"settings_preview_title" = "معاينة النسخة الاحتياطية";
+"settings_preview_button" = "معاينة النسخة";
+"settings_preview_counts" = "عدد التصنيفات: %ld\nبيانات أرحام: %ld\nالوسوم: %ld\nنغمات التصنيفات: %ld";
+"settings_restore_mode_title" = "وضع الاستعادة";
+"settings_restore_mode_merge_desc" = "تحديث التصنيفات وصلة الرحم والوسوم دون حذف الموجود";
+"settings_restore_mode_replace_desc" = "إعادة تعيين التصنيفات والوسوم القديمة وتطبيق محتوى النسخة";
+"settings_start_restore" = "بدء الاستعادة";
+"settings_backup_file_read_failed" = "لم نتمكن من قراءة الملف المحدد";
+"settings_backup_file_empty" = "الملف المحدد فارغ أو غير صالح";
+"settings_restore_done" = "اكتملت الاستعادة ✓\nتصنيفات مطابقة: %ld (غير مطابق: %ld)\nأرحام مطابق: %ld (غير مطابق: %ld)";
 "settings_section_about" = "حول التطبيق";
 "settings_app_version" = "صِلَة · الإصدار 1.0.0";
 "settings_offline_first_notice" = "تطبيق محلي بالكامل يحافظ على خصوصيتك 100%.";

@@ -1,5 +1,6 @@
 import SwiftUI
 import SharedLogic
+import UniformTypeIdentifiers
 
 /**
  * شاشة الإعدادات والتفضيلات لـ SwiftUI (T9 — Issue #30).
@@ -22,8 +23,15 @@ struct SettingsView: View {
 
     @State private var restorePassword = ""
     @State private var showRestoreAlert = false
-    @State private var restoreMode: RestoreMode = .merge
+    @State private var restoreModeIndex = 0
     @State private var restorePreferences = false
+    @State private var importFileData: Data?
+    @State private var showFileImporter = false
+
+    /// وضع الاستعادة مشتق من الفهرس لتفادي الاعتماد على Hashable الناجمة عن SKIE
+    private var restoreMode: RestoreMode {
+        restoreModeIndex == 0 ? .merge : .replace
+    }
 
     var body: some View {
         NavigationStack {
@@ -63,18 +71,25 @@ struct SettingsView: View {
             }
             .alert(strings.importBackup, isPresented: $showRestoreAlert) {
                 SecureField(strings.restorePasswordHint, text: $restorePassword)
-                Button(strings.importBackup) {
-                    if !restorePassword.isEmpty {
-                        // معاينة وتأكيد الاستعادة
-                        store.send(SettingsIntentPreviewBackupFile(cipherBytes: KotlinByteArray(size: 0), password: restorePassword))
-                        restorePassword = ""
-                    }
+                Button(strings.previewButton) {
+                    // إصلاح Issue #30: بايتات الملف الحقيقي التي اختارها المستخدم،
+                    // وليس مصفوفة فارغة كما كان يحدث سابقاً.
+                    guard
+                        let usableData = SettingsViewModelStore.usableImportedBackupData(importFileData),
+                        !restorePassword.isEmpty
+                    else { return }
+                    store.send(SettingsIntentPreviewBackupFile(
+                        cipherBytes: SettingsViewModelStore.kotlinByteArray(from: usableData),
+                        password: restorePassword
+                    ))
                 }
+                .disabled(store.state.isImportingBackup)
                 Button(strings.cancel, role: .cancel) {
+                    importFileData = nil
                     restorePassword = ""
                 }
             } message: {
-                Text(strings.backupDescription)
+                Text(backupImportMessage)
             }
         }
         .task {
@@ -83,6 +98,143 @@ struct SettingsView: View {
         .task {
             await store.observeEffects()
         }
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            handleBackupImportResult(result)
+        }
+        .sheet(isPresented: Binding(
+            get: { store.state.showRestorePreviewDialog && store.state.backupPreview != nil },
+            set: { visible in
+                if !visible {
+                    importFileData = nil
+                    restorePassword = ""
+                    store.send(SettingsIntentDismissRestorePreviewDialog.shared)
+                }
+            }
+        )) {
+            restorePreviewSheet
+        }
+        .alert("", isPresented: Binding(
+            get: { store.toastMessage != nil },
+            set: { presenting in
+                if !presenting { store.dismissToast() }
+            }
+        )) {
+            Button(strings.confirm, role: .cancel) {}
+        } message: {
+            Text(store.toastMessage ?? "")
+        }
+    }
+
+    // MARK: - تدفق استيراد النسخة الاحتياطية
+
+    private func handleBackupImportResult(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let isScoped = url.startAccessingSecurityScopedResource()
+            defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let data = try Data(contentsOf: url)
+                guard let usableData = SettingsViewModelStore.usableImportedBackupData(data) else {
+                    store.presentToastMessage(strings.backupFileEmpty)
+                    return
+                }
+                importFileData = usableData
+                restorePassword = ""
+                showRestoreAlert = true
+            } catch {
+                store.presentToastMessage(strings.backupFileReadFailed)
+            }
+        case .failure:
+            break
+        }
+    }
+
+    private var backupImportMessage: String {
+        if let error = store.state.backupErrorMessage {
+            // رسالة الخطأ الفعلية من فك التشفير (كلمة مرور غير صحيحة) تظهر مرئياً
+            return error
+        }
+        return strings.restoreDialogDesc
+    }
+
+    private var restorePreviewSheet: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text(strings.previewDialogTitle)) {
+                    if let preview = store.state.backupPreview {
+                        Text(previewSummaryText(preview))
+                        Text(strings.backupDescription)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                    if let error = store.state.backupErrorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.footnote)
+                    }
+                }
+                Section(header: Text(strings.restoreModeTitle)) {
+                    Picker(strings.restoreModeTitle, selection: $restoreModeIndex) {
+                        Text(strings.restoreModeMerge).tag(0)
+                        Text(strings.restoreModeReplace).tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    Text(restoreModeIndex == 0 ? strings.restoreModeMergeDesc : strings.restoreModeReplaceDesc)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                }
+                Section {
+                    Toggle(strings.restorePreferences, isOn: $restorePreferences)
+                }
+                Section {
+                    Button(strings.startRestore) {
+                        startConfirmedRestore()
+                    }
+                    .disabled(store.state.isImportingBackup || importFileData == nil)
+                    Button(strings.cancel, role: .cancel) {
+                        store.send(SettingsIntentDismissRestorePreviewDialog.shared)
+                    }
+                }
+            }
+            .navigationTitle(strings.previewDialogTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(strings.cancel) {
+                        store.send(SettingsIntentDismissRestorePreviewDialog.shared)
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func startConfirmedRestore() {
+        guard
+            let usableData = importFileData,
+            !restorePassword.isEmpty
+        else { return }
+        store.send(SettingsIntentConfirmRestore(
+            cipherBytes: SettingsViewModelStore.kotlinByteArray(from: usableData),
+            password: restorePassword,
+            mode: restoreMode,
+            restorePreferences: restorePreferences
+        ))
+    }
+
+    private func previewSummaryText(_ preview: BackupPreview) -> String {
+        String(
+            format: strings.previewCountsFormat,
+            Int(preview.categoriesCount),
+            Int(preview.arhamCount),
+            Int(preview.tagsCount),
+            Int(preview.categoryRingtonesCount)
+        )
     }
 
     // MARK: - Sections

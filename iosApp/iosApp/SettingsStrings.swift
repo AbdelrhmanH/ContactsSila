@@ -73,7 +73,18 @@ struct SettingsLocalizedStrings {
     var restorePasswordHint: String { string("settings_restore_password_hint") }
     var restoreModeMerge: String { string("settings_restore_mode_merge") }
     var restoreModeReplace: String { string("settings_restore_mode_replace") }
+    var restoreModeTitle: String { string("settings_restore_mode_title") }
+    var restoreModeMergeDesc: String { string("settings_restore_mode_merge_desc") }
+    var restoreModeReplaceDesc: String { string("settings_restore_mode_replace_desc") }
     var restorePreferences: String { string("settings_restore_preferences") }
+    var restoreDialogDesc: String { string("settings_restore_desc") }
+    var previewDialogTitle: String { string("settings_preview_title") }
+    var previewButton: String { string("settings_preview_button") }
+    var previewCountsFormat: String { string("settings_preview_counts") }
+    var startRestore: String { string("settings_start_restore") }
+    var backupFileEmpty: String { string("settings_backup_file_empty") }
+    var backupFileReadFailed: String { string("settings_backup_file_read_failed") }
+    var restoreDoneFormat: String { string("settings_restore_done") }
 
     var sectionAbout: String { string("settings_section_about") }
     var appVersion: String { string("settings_app_version") }
