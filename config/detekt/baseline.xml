@@ -1,0 +1,1146 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:AndroidApp.kt:@Composable fun SilaAndroidApp</ID>
+    <ID>CyclomaticComplexMethod:AndroidContactsPlatformWriter.kt:AndroidContactsPlatformWriter$override suspend fun updateContact: AppResult&lt;Unit&gt;</ID>
+    <ID>CyclomaticComplexMethod:AndroidContactsSourceLogic.kt:internal fun mapAndroidPhoneType: String</ID>
+    <ID>CyclomaticComplexMethod:App.kt:@Composable fun SilaMainShell</ID>
+    <ID>CyclomaticComplexMethod:ArhamStringsProvider.kt:ResourceArhamStrings$override fun relationLabel: String</ID>
+    <ID>CyclomaticComplexMethod:ArhamViewModel.kt:ArhamViewModel$override fun onIntent</ID>
+    <ID>CyclomaticComplexMethod:ContactDetailsScreen.kt:@Composable private fun DetailsBody</ID>
+    <ID>CyclomaticComplexMethod:ContactDetailsStringsProvider.kt:@Composable fun rememberContactDetailsStrings: ContactDetailsStrings</ID>
+    <ID>CyclomaticComplexMethod:ContactDetailsStringsProvider.kt:private fun relationNamesMap: (Relation) -&gt; String</ID>
+    <ID>CyclomaticComplexMethod:ContactDetailsViewModel.kt:ContactDetailsViewModel$override fun onIntent</ID>
+    <ID>CyclomaticComplexMethod:ContactEditScreen.kt:@Composable fun ContactEditContent</ID>
+    <ID>CyclomaticComplexMethod:ContactEditViewModel.kt:ContactEditViewModel$override fun onIntent</ID>
+    <ID>CyclomaticComplexMethod:ContactEditViewModel.kt:ContactEditViewModel$private fun buildDraft: Contact</ID>
+    <ID>CyclomaticComplexMethod:ContactsNav.kt:@Composable fun ContactsNavFlow</ID>
+    <ID>CyclomaticComplexMethod:ContactsViewModel.kt:ContactsViewModel$override fun onIntent</ID>
+    <ID>CyclomaticComplexMethod:GetArhamDashboardStatsUseCase.kt:GetArhamDashboardStatsUseCase$operator fun invoke: Flow&lt;ArhamDashboardStats&gt;</ID>
+    <ID>CyclomaticComplexMethod:KinshipEditorSheet.kt:@Composable fun KinshipEditorSheet</ID>
+    <ID>CyclomaticComplexMethod:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 4b - presentation and sharedUI files never import data database or datastore or reference RepositoryImpl or Dao`</ID>
+    <ID>CyclomaticComplexMethod:KonsistArchitectureTest.kt:KonsistArchitectureTest$internal fun stripCommentsAndStrings: String</ID>
+    <ID>CyclomaticComplexMethod:KonsistArchitectureTest.kt:KonsistArchitectureTest$internal fun stripCommentsKeepStrings: String</ID>
+    <ID>CyclomaticComplexMethod:KonsistArchitectureTest.kt:KonsistArchitectureTest$private fun resolveQualifiedTypeName: String?</ID>
+    <ID>CyclomaticComplexMethod:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$fun classify: LegacySchemaLevel</ID>
+    <ID>CyclomaticComplexMethod:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$private fun hasExpectedInvariantColumns: Boolean</ID>
+    <ID>CyclomaticComplexMethod:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$private fun validateContactsIndices: Boolean</ID>
+    <ID>CyclomaticComplexMethod:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$private fun validateTableIndices: Boolean</ID>
+    <ID>CyclomaticComplexMethod:LocalSilaDatabase.kt:LocalSilaDatabase$override suspend fun applySyncBatch: ContactsSyncBatchResult</ID>
+    <ID>CyclomaticComplexMethod:LocalSilaDatabase.kt:LocalSilaDatabase$private fun SQLiteStatement.readContactEntityRow: ContactEntity</ID>
+    <ID>CyclomaticComplexMethod:LocalSilaDatabase.kt:LocalSilaDatabase$private fun bindContactColumns</ID>
+    <ID>CyclomaticComplexMethod:LocalSilaDatabase.kt:LocalSilaDatabase$private suspend fun readPersistedContactBySystemId: PersistedContact?</ID>
+    <ID>CyclomaticComplexMethod:LocalSilaDatabase.kt:LocalSilaDatabase$private suspend fun writeCallEventToSqlite</ID>
+    <ID>CyclomaticComplexMethod:LocalSilaDatabase.kt:LocalSilaDatabase$private suspend fun writeContactRelationsToSqlite</ID>
+    <ID>CyclomaticComplexMethod:LocalSilaDatabase.kt:LocalSilaDatabase$suspend fun seedCallEventsForTest</ID>
+    <ID>CyclomaticComplexMethod:MainViewModel.kt:MainViewModel$override fun onIntent</ID>
+    <ID>CyclomaticComplexMethod:PhoneNormalizer.kt:PhoneNormalizer$fun normalizeToE164: String</ID>
+    <ID>CyclomaticComplexMethod:SettingsRepositoryImpl.kt:SettingsRepositoryImpl$override suspend fun restoreBackupData: RestoreResult</ID>
+    <ID>CyclomaticComplexMethod:SettingsViewModel.kt:SettingsViewModel$override fun onIntent</ID>
+    <ID>CyclomaticComplexMethod:UserPreferencesDataSource.kt:SilaPreferencesDataSource$private fun toUserPreferences: UserPreferences</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun aes256_block_fips197_C3</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun gcm_len60_decrypt_restoresPlaintextAndVerifiesTag</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun gcm_len60_partialBlock</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun gcm_tamperedTag_isRejected</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun gcm_testCase13_emptyPlaintext</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun gcm_testCase14_singleBlock</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun pbkdf2_password_salt_c2_32byte</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun pbkdf2_password_salt_c4096_32byte</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun pbkdf2_rfc7914_case1_passwd_salt_c1</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun pbkdf2_rfc7914_case3_pleaseletmein_SodiumChloride_c16384</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun sha256_knownAnswer_abc</ID>
+    <ID>FunctionNaming:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$@Test fun sha256_knownAnswer_empty</ID>
+    <ID>FunctionNaming:AesGcmCryptoTest.kt:AesGcmCryptoTest$@Test fun decrypt_missingMagicHeader_throwsException</ID>
+    <ID>FunctionNaming:AesGcmCryptoTest.kt:AesGcmCryptoTest$@Test fun decrypt_tamperedCiphertext_detectsTampering</ID>
+    <ID>FunctionNaming:AesGcmCryptoTest.kt:AesGcmCryptoTest$@Test fun decrypt_truncatedPayload_throwsException</ID>
+    <ID>FunctionNaming:AesGcmCryptoTest.kt:AesGcmCryptoTest$@Test fun decrypt_withWrongPassword_failsAuthenticationTag</ID>
+    <ID>FunctionNaming:AesGcmCryptoTest.kt:AesGcmCryptoTest$@Test fun encryptDecrypt_roundTrip_succeeds</ID>
+    <ID>FunctionNaming:AndroidBackupCryptoEngineTest.kt:AndroidBackupCryptoEngineTest$@Test fun crossEngineInteroperability_androidEncryptAesGcmDecrypt_andViceVersa</ID>
+    <ID>FunctionNaming:AndroidBackupCryptoEngineTest.kt:AndroidBackupCryptoEngineTest$@Test fun decrypt_withCorruptedCiphertext_throwsBackupDecryptionException</ID>
+    <ID>FunctionNaming:AndroidBackupCryptoEngineTest.kt:AndroidBackupCryptoEngineTest$@Test fun decrypt_withIncorrectPassword_throwsBackupDecryptionException</ID>
+    <ID>FunctionNaming:AndroidBackupCryptoEngineTest.kt:AndroidBackupCryptoEngineTest$@Test fun decrypt_withInvalidMagicHeader_throwsBackupDecryptionException</ID>
+    <ID>FunctionNaming:AndroidBackupCryptoEngineTest.kt:AndroidBackupCryptoEngineTest$@Test fun decrypt_withTruncatedPayload_throwsBackupDecryptionException</ID>
+    <ID>FunctionNaming:AndroidBackupCryptoEngineTest.kt:AndroidBackupCryptoEngineTest$@Test fun emptyPassword_throwsIllegalArgumentException</ID>
+    <ID>FunctionNaming:AndroidBackupCryptoEngineTest.kt:AndroidBackupCryptoEngineTest$@Test fun roundTrip_encryptAndDecrypt_restoresOriginalContent</ID>
+    <ID>FunctionNaming:AndroidBackupCryptoEngineTest.kt:AndroidBackupCryptoEngineTest$@Test fun roundTrip_largePayload_restoresOriginalBytes</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `android email type mapping covers known and unknown types`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `android phone type mapping covers known and unknown types`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `contact row maps name parts phones emails organization websites and notes`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `data records of other contacts do not leak across`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `deleted raw contact without a saved lookup key produces no system-contact deletion`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `deleted rows and snapshot platform marker are handled`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `deleting one sibling raw contact keeps the aggregate alive`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `deleting the last active raw of a lookup key reports the aggregate deleted`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `joining aggregates emits both dissolved keys`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `new raw contact is reported as a change`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `provider deletions never invent deletions for unknown contacts`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `provider deletions resolve only through snapshot saved aggregate ids`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `regenerated lookup key reports the old key as superseded`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `reparent with sibling edit in same window keeps the shared live key`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `reparenting raw to another aggregate keeps the shared old key live`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `resolved lookup keys take precedence for changed raw contacts`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `row displays fall back to structured name DATA1 for the display name`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `row marked DELETED=1 resolves deletion through the saved lookup key`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `row without lookup key or any name is skipped`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `two raws of one aggregate whose key changed report the old key once`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `unchanged lookup keys and brand new raws report nothing superseded`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `unchanged raw contacts keep their previously saved lookup keys`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `unchanged versions produce no changes`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `unlinking one sibling raw contact keeps the aggregate alive`</ID>
+    <ID>FunctionNaming:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `version bump of an existing raw contact is reported as a change`</ID>
+    <ID>FunctionNaming:ApplyCategoryRingtoneWorkerHostTest.kt:ApplyCategoryRingtoneWorkerHostTest$@Test fun `member without individual ringtone gets the category ringtone written`</ID>
+    <ID>FunctionNaming:ApplyCategoryRingtoneWorkerHostTest.kt:ApplyCategoryRingtoneWorkerHostTest$@Test fun `members with individual ringtones only count as pending zero`</ID>
+    <ID>FunctionNaming:ApplyCategoryRingtoneWorkerHostTest.kt:ApplyCategoryRingtoneWorkerHostTest$@Test fun `mid-batch exception yields retry`</ID>
+    <ID>FunctionNaming:ApplyCategoryRingtoneWorkerHostTest.kt:ApplyCategoryRingtoneWorkerHostTest$@Test fun `per-member write failure is counted as not written`</ID>
+    <ID>FunctionNaming:ApplyCategoryRingtoneWorkerHostTest.kt:ApplyCategoryRingtoneWorkerHostTest$@Test fun `permission denied is a documented skip with zero touch`</ID>
+    <ID>FunctionNaming:ApplyCategoryRingtoneWorkerHostTest.kt:ApplyCategoryRingtoneWorkerHostTest$@Test fun `re-setting a category ringtone replaces the unique work`</ID>
+    <ID>FunctionNaming:ApplyCategoryRingtoneWorkerHostTest.kt:ApplyCategoryRingtoneWorkerHostTest$@Test fun `unresolved setup retries instead of silent success`</ID>
+    <ID>FunctionNaming:ApplyCategoryRingtoneWorkerHostTest.kt:ApplyCategoryRingtoneWorkerHostTest$@Test fun `zero category members yields documented success with zero writes`</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun findCallEventsBetween_returnsInclusiveWindow_inTimestampOrder</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun getCallEventById_missingEvent_returnsNull</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun getRecentCallEvents_mapsV3ColumnsToRecentInteractionContract</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun updateLastContacted_maxSemantics_nullRaised_olderRaised_newerNeverDecreased</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun upsertCallEvent_confirmedCompletion_updatesLastContacted_withoutPlatformEvidence</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun upsertCallEvent_eligibleEvidencedCompletion_eventAndLastContactedBothPersisted</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun upsertCallEvent_faultBetweenOperations_rollsBackEntireTransaction</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun upsertCallEvent_missedDirection_failsClosed_beforeAnyWrite</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun upsertCallEvent_sameIdReIngested_replacesSingleRow</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun upsertCallEvent_unnumberedEvent_failsClosed_beforeAnyWrite</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun upsertCallEvent_withoutArhamRow_updatesNothingAndFabricatesNone</ID>
+    <ID>FunctionNaming:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun upsertCallEvent_withoutUpdatePayload_lastContactedUntouched</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun reads_delegateToDao</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun repositoryExceptions_propagate_withoutSwallowing</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun updateLastContacted_delegatesToDao_verbatim</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun upsertEvent_eligibleEvidencedCompletion_passesAtomicUpdatePayload</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun upsertEvent_eligible_endToEnd_eventAndLastContactedPersist</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun upsertEvent_ineligibleOutcomes_updatePayloadIsNull</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun upsertEvent_rejectedEvent_updatePayloadIsNull_neverTouchesLastContacted</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun upsertEvent_rejected_endToEnd_eventPersists_lastContactedUntouched</ID>
+    <ID>FunctionNaming:ArhamCallEventRepositoryImplTest.kt:ArhamCallEventRepositoryImplTest$@Test fun upsertEvent_withoutContactId_updatePayloadIsNull</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun ingest_ambiguousMatch_writesNothing</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun ingest_attemptedDial_neverUpdatesLastContacted</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun ingest_candidateWithoutDedupeBasis_isPersistedAsIndependentEvent</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun ingest_completedConfirmedEvent_updatesLastContactedWithMaxSemanticsInput</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun ingest_uniqueMatch_mergesIntoExistingEvent</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun recordManual_ambiguousMatch_writesNothing</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun recordManual_blankEventId_returnsValidationError</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun recordManual_doesNotMergeIntoRejectedEvent</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun recordManual_matchingObservedEvent_mergesConfirmationIntoIt</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun recordManual_withoutNumber_isPersistedConfirmed_andUpdatesLastContacted</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun resolve_contacted_persistsConfirmedCompleted_andUpdatesLastContacted</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun resolve_later_keepsPending_withoutAnyWrite</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun resolve_missingEvent_returnsNotFound</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun resolve_noAnswer_confirmsUnanswered_withoutTouchingLastContacted</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun resolve_nonPendingEvent_returnsConflict_withoutWrites</ID>
+    <ID>FunctionNaming:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest$@Test fun resolve_notRelated_persistsRejected_withoutTouchingLastContacted</ID>
+    <ID>FunctionNaming:ArhamCallStateObserverHostTest.kt:ArhamCallStateObserverHostTest$@Test fun `double start is idempotent - single registration lifecycle`</ID>
+    <ID>FunctionNaming:ArhamCallStateObserverHostTest.kt:ArhamCallStateObserverHostTest$@Test fun `granted READ_PHONE_STATE registers the callback and stop unregisters`</ID>
+    <ID>FunctionNaming:ArhamCallStateObserverHostTest.kt:ArhamCallStateObserverHostTest$@Test fun `offhook then idle enriches the single open in-app attempt`</ID>
+    <ID>FunctionNaming:ArhamCallStateObserverHostTest.kt:ArhamCallStateObserverHostTest$@Test fun `revoked READ_PHONE_STATE leaves observer unregistered without crashing`</ID>
+    <ID>FunctionNaming:ArhamCallStateObserverHostTest.kt:ArhamCallStateObserverHostTest$@Test fun `ringing then idle without offhook writes nothing`</ID>
+    <ID>FunctionNaming:ArhamCallStateObserverLegacyHostTest.kt:ArhamCallStateObserverLegacyHostTest$@Test fun `granted permission registers listener and transitions correlate like the modern branch`</ID>
+    <ID>FunctionNaming:ArhamDashboardAggregationTest.kt:ArhamDashboardAggregationTest$@Test fun aggregation_overLiveRoom_matchesSeededFixtures_exactly</ID>
+    <ID>FunctionNaming:ArhamDashboardAggregationTest.kt:ArhamDashboardAggregationTest$@Test fun observeEventsBetween_filtersByWindow_reactively</ID>
+    <ID>FunctionNaming:ArhamFeatureTest.kt:ArhamFeatureTest$@Test fun arhamRepositoryAndUseCases_rankRelatives_dialAttemptNeverUpdatesLastContacted</ID>
+    <ID>FunctionNaming:ArhamKinshipBridgeTest.kt:ArhamKinshipBridgeTest$@Test fun link_writesArhamRowDirectly_withDefaultFrequency</ID>
+    <ID>FunctionNaming:ArhamMaterializationCoordinatorTest.kt:ArhamMaterializationCoordinatorTest$@Test fun launchIn_executesExactlyOnce_despiteDuplicateLaunches</ID>
+    <ID>FunctionNaming:ArhamMaterializationCoordinatorTest.kt:ArhamMaterializationCoordinatorTest$@Test fun runOnce_containsRepositoryFailure_returnsNull_andStaysSingleFlightForTheProcess</ID>
+    <ID>FunctionNaming:ArhamMaterializationCoordinatorTest.kt:ArhamMaterializationCoordinatorTest$@Test fun runOnce_executesMaterializationViaTheRealUseCase_andPublishesOutcome</ID>
+    <ID>FunctionNaming:ArhamMaterializationCoordinatorTest.kt:ArhamMaterializationCoordinatorTest$@Test fun runOnce_isSingleFlight_underConcurrentCalls</ID>
+    <ID>FunctionNaming:ArhamMaterializationCoordinatorTest.kt:ArhamMaterializationCoordinatorTest$@Test fun runOnce_rethrowsCancellation_andRemainsSingleFlight</ID>
+    <ID>FunctionNaming:ArhamMaterializationCoordinatorTest.kt:ArhamMaterializationCoordinatorTest$@Test fun runOnce_secondCallAfterSuccess_neverTouchesTheRepositoryAgain</ID>
+    <ID>FunctionNaming:ArhamMaterializationTest.kt:ArhamMaterializationTest$@Test fun applyTopFiveMaterialization_duplicateContactIds_singleArhamRow</ID>
+    <ID>FunctionNaming:ArhamMaterializationTest.kt:ArhamMaterializationTest$@Test fun applyTopFiveMaterialization_existingArhamWins_lastContactedUntouched</ID>
+    <ID>FunctionNaming:ArhamMaterializationTest.kt:ArhamMaterializationTest$@Test fun applyTopFiveMaterialization_faultInBatch_fullRollback_noPartialRowsOrCacheDrift</ID>
+    <ID>FunctionNaming:ArhamMaterializationTest.kt:ArhamMaterializationTest$@Test fun applyTopFiveMaterialization_freshMatch_categoryUnifiedAndArhamFilled</ID>
+    <ID>FunctionNaming:ArhamMaterializationTest.kt:ArhamMaterializationTest$@Test fun applyTopFiveMaterialization_missingAndTombstonedTargets_skippedNotFabricated</ID>
+    <ID>FunctionNaming:ArhamMaterializationTest.kt:ArhamMaterializationTest$@Test fun applyTopFiveMaterialization_phonesTimestampsFts_untouched</ID>
+    <ID>FunctionNaming:ArhamMaterializationTest.kt:ArhamMaterializationTest$@Test fun findContactsBySystemContactIds_liveMatchesOnly_sortedById</ID>
+    <ID>FunctionNaming:ArhamMaterializationTest.kt:ArhamMaterializationTest$@Test fun hasLiveContacts_reflectsLiveMirror</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `boot receiver ignores foreign actions without crashing`</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `channel ensure is idempotent`</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `denied notifications suppress posting but keep the schedule alive`</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `dispatch reschedule is idempotent and intent carries no PII`</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `enabled dispatch posts digest notification on its channel`</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `reminder receiver ignores foreign actions without crashing`</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `reminder scheduling port resolves to the settings-driven android wrapper`</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `rescheduling replaces the single alarm instead of accumulating`</ID>
+    <ID>FunctionNaming:ArhamNotificationHostTest.kt:ArhamNotificationHostTest$@Test fun `scheduler is real android implementation when context registered`</ID>
+    <ID>FunctionNaming:ArhamUrgencyTest.kt:ArhamUrgencyTest$@Test fun calculateUrgency_returnsOkWhenRecentlyContacted</ID>
+    <ID>FunctionNaming:ArhamUrgencyTest.kt:ArhamUrgencyTest$@Test fun calculateUrgency_returnsOverdueWhenDaysExceedFrequency</ID>
+    <ID>FunctionNaming:ArhamUrgencyTest.kt:ArhamUrgencyTest$@Test fun calculateUrgency_returnsSoonWhenBetween70And100Percent</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun confettiDisabled_noEffectOnRedToGreen</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun emergencySession_flowsFromRoom_andStopFinishesViaUseCase</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun occasions_joinRelationFromContacts_forTranslatedContext</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun overdueToOkTransition_firesConfetti_exactlyOncePerPeriod</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun recordCall_sendsDialEffectAndPersistsAttempt_neverCelebratesDirectly</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun resolveConfirmation_contacted_updatesEventAndLastContacted</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun resolveConfirmation_nonContactedAnswers_neverWriteLastContacted</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun saveKinship_withFrequency_persistsLayerAndPreservesLastContacted_thenCloses</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun saveKinship_withoutFrequency_ignoredAndSheetStaysOpen</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun screeningConsent_neededWhenRoleAbsent_effectOnRequest_grantedAfterRefresh_hiddenOnDismiss</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun screeningConsent_nullPlatform_hidesCardEntirely</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun treeNodeSheet_resolvesStatusFromTreeCache_andPhoneFromContacts</ID>
+    <ID>FunctionNaming:ArhamViewModelTest.kt:ArhamViewModelTest$@Test fun yellowToGreenTransition_doesNotCelebrate</ID>
+    <ID>FunctionNaming:ArhamWidgetSnapshotTest.kt:ArhamWidgetSnapshotTest$@Test fun entries_takeTopThree_preservingUrgencyOrder</ID>
+    <ID>FunctionNaming:ArhamWidgetSnapshotTest.kt:ArhamWidgetSnapshotTest$@Test fun goalCompletion_isClampedToUnitRange_T807R1</ID>
+    <ID>FunctionNaming:ArhamWidgetSnapshotTest.kt:ArhamWidgetSnapshotTest$@Test fun overdueCount_countsFullList_notOnlyTopThree</ID>
+    <ID>FunctionNaming:ArhamWidgetWorkerHostTest.kt:ArhamWidgetWorkerHostTest$@Test fun `event-driven one-shot enqueues under unique REPLACE name`</ID>
+    <ID>FunctionNaming:ArhamWidgetWorkerHostTest.kt:ArhamWidgetWorkerHostTest$@Test fun `periodic 30min schedule is idempotent via unique UPDATE name`</ID>
+    <ID>FunctionNaming:ArhamWidgetWorkerHostTest.kt:ArhamWidgetWorkerHostTest$@Test fun `worker with koin succeeds and re-glances all widgets`</ID>
+    <ID>FunctionNaming:ArhamWidgetWorkerHostTest.kt:ArhamWidgetWorkerHostTest$@Test fun `worker without koin retries instead of failing permanently`</ID>
+    <ID>FunctionNaming:BackupConfigVerificationTest.kt:BackupConfigVerificationTest$@Test fun backupRules_excludeProtectedFiles_fromLegacyAutoBackup</ID>
+    <ID>FunctionNaming:BackupConfigVerificationTest.kt:BackupConfigVerificationTest$@Test fun dataExtractionRules_excludeProtectedFiles_fromCloudBackup</ID>
+    <ID>FunctionNaming:BackupConfigVerificationTest.kt:BackupConfigVerificationTest$@Test fun dataExtractionRules_excludeProtectedFiles_fromDeviceTransfer</ID>
+    <ID>FunctionNaming:BackupConfigVerificationTest.kt:BackupConfigVerificationTest$@Test fun manifest_declaresBackupRules_forBothMechanisms</ID>
+    <ID>FunctionNaming:BuildArhamFamilyTreeUseCaseTest.kt:BuildArhamFamilyTreeUseCaseTest$@Test fun cycle_betweenTwoNodes_doesNotHang_andNodesStillPlacedByLayer</ID>
+    <ID>FunctionNaming:BuildArhamFamilyTreeUseCaseTest.kt:BuildArhamFamilyTreeUseCaseTest$@Test fun edges_builtForPresentParents_danglingAndSelfDropped</ID>
+    <ID>FunctionNaming:BuildArhamFamilyTreeUseCaseTest.kt:BuildArhamFamilyTreeUseCaseTest$@Test fun generations_groupByLayer_inCanonicalOrder_nonEmptyOnly</ID>
+    <ID>FunctionNaming:BuildArhamFamilyTreeUseCaseTest.kt:BuildArhamFamilyTreeUseCaseTest$@Test fun nodes_sortedDeterministically_withinGeneration</ID>
+    <ID>FunctionNaming:BuildArhamFamilyTreeUseCaseTest.kt:BuildArhamFamilyTreeUseCaseTest$@Test fun statusRing_derivedFromUrgencyAtBuildTime</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun classifyInAppDialIntent_recordsAttemptWithHighConfidence</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun classifyInAppDialIntent_withoutContactContext_isUnassociated</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun findDedupeMatch_reportsNoneUniqueAndAmbiguous</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_conflictingKnownDirections_neverMatches</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_differentDedupeKeys_stillMatchViaNumberPath</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_differentNumber_neverMatches</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_equalDedupeKey_overridesNumberDifference</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_missingNumberOnEitherSide_neverMatches</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_sameId_isSelfNotDuplicate</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_sameNumberSameDirectionWithinWindow_matches</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_unknownDirectionOnEitherSide_matches</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun matchesDedupe_windowBoundaryIsInclusive</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun merge_doesNotSilentlyEscalateConfirmationOrOutcome</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun merge_fillsNullsFromIncoming_andKeepsExistingValuesOnConflict</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun merge_keepsEarliestTimestamp</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun merge_preservesFirstPrimarySource_andUnionsEvidence</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun onInAppCallEnded_classifiesConnectedWithApproximateDuration_neverCompleted</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun onInAppCallEnded_ignoresNonInAppOrNonAttemptedEvents_andMalformedWindows</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun onInAppCallEnded_isIdempotent_afterFirstClassification</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun resolveConfirmation_contacted_confirmsCompletedWithManualEvidence</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun resolveConfirmation_later_keepsEventPendingUntouched</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun resolveConfirmation_noAnswer_confirmsUnanswered_neverUpdatesLastContacted</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun resolveConfirmation_notRelated_rejectsAndNeverUpdatesEvenWithEvidence</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun updatesLastContacted_completedPending_requiresEveryEvidencePiece</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun updatesLastContacted_confirmedCompletion_withoutEvidence_updates</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun updatesLastContacted_excludedStates_neverUpdate_evenWhenConfirmed</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun updatesLastContacted_fullOutcomeConfirmationMatrix_withCompleteEvidence</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun updatesLastContacted_rejectedCompletionWithFullEvidence_neverUpdates</ID>
+    <ID>FunctionNaming:CallEventStateMachineTest.kt:CallEventStateMachineTest$@Test fun updatesLastContacted_unlinkedEvent_neverUpdates</ID>
+    <ID>FunctionNaming:CallSourceContractTest.kt:CallSourceContractTest$@Test fun callSource_hasTheFiveSourcesAndThreeObserversOfAdr0006</ID>
+    <ID>FunctionNaming:CallSourceContractTest.kt:CallSourceContractTest$@Test fun callSource_legacyTextValuesRoundTripThroughValueOf</ID>
+    <ID>FunctionNaming:CelebrateTransitionUseCaseTest.kt:CelebrateTransitionUseCaseTest$@Test fun confettiDisabled_blocksEvenRedToGreen_withoutMarking</ID>
+    <ID>FunctionNaming:CelebrateTransitionUseCaseTest.kt:CelebrateTransitionUseCaseTest$@Test fun disabledConfetti_today_allowsCelebrationLaterInSamePeriod_whenReEnabled</ID>
+    <ID>FunctionNaming:CelebrateTransitionUseCaseTest.kt:CelebrateTransitionUseCaseTest$@Test fun newPeriod_firesAgain_forSameContact</ID>
+    <ID>FunctionNaming:CelebrateTransitionUseCaseTest.kt:CelebrateTransitionUseCaseTest$@Test fun nonRedToGreenTransitions_neverFire</ID>
+    <ID>FunctionNaming:CelebrateTransitionUseCaseTest.kt:CelebrateTransitionUseCaseTest$@Test fun overdueToOk_firesOncePerPeriod_andMarksAfterDecision</ID>
+    <ID>FunctionNaming:CelebrateTransitionUseCaseTest.kt:CelebrateTransitionUseCaseTest$@Test fun periodsAreIsolated_perContact</ID>
+    <ID>FunctionNaming:ClassificationRestoreAtomicityTest.kt:ClassificationRestoreAtomicityTest$@Test fun mergeRestore_preservesUntouchedClassificationsAndForcesFamilyForArham</ID>
+    <ID>FunctionNaming:ClassificationRestoreAtomicityTest.kt:ClassificationRestoreAtomicityTest$@Test fun replaceRestore_emptyDatabase_clearedZeroAndNoArhamBlast</ID>
+    <ID>FunctionNaming:ClassificationRestoreAtomicityTest.kt:ClassificationRestoreAtomicityTest$@Test fun replaceRestore_faultBetweenClearAndRewrites_leavesDatabaseExactlyAsBefore</ID>
+    <ID>FunctionNaming:ClassificationRestoreAtomicityTest.kt:ClassificationRestoreAtomicityTest$@Test fun replaceRestore_happyPath_clearsClassificationsAndAppliesUnifiedRewritesAtomically</ID>
+    <ID>FunctionNaming:ClassificationRestoreAtomicityTest.kt:ClassificationRestoreAtomicityTest$@Test fun restore_missingOrTombstonedContactsInsideTransaction_areReportedAndNeverWritten</ID>
+    <ID>FunctionNaming:ComputeOccasionAlertsUseCaseTest.kt:ComputeOccasionAlertsUseCaseTest$@Test fun dayBefore_gatedByFlag</ID>
+    <ID>FunctionNaming:ComputeOccasionAlertsUseCaseTest.kt:ComputeOccasionAlertsUseCaseTest$@Test fun emptyInput_yieldsNoAlerts</ID>
+    <ID>FunctionNaming:ComputeOccasionAlertsUseCaseTest.kt:ComputeOccasionAlertsUseCaseTest$@Test fun mixedOccasions_produceStableOrder_perOccasion</ID>
+    <ID>FunctionNaming:ComputeOccasionAlertsUseCaseTest.kt:ComputeOccasionAlertsUseCaseTest$@Test fun negativeDaysUntil_firesNothing_tolerantly</ID>
+    <ID>FunctionNaming:ComputeOccasionAlertsUseCaseTest.kt:ComputeOccasionAlertsUseCaseTest$@Test fun onTheDay_firesEvenWithDayBeforeEnabled_exactlyOnce</ID>
+    <ID>FunctionNaming:ComputeOccasionAlertsUseCaseTest.kt:ComputeOccasionAlertsUseCaseTest$@Test fun onTheDay_firesOnDayAlert</ID>
+    <ID>FunctionNaming:ComputeOccasionAlertsUseCaseTest.kt:ComputeOccasionAlertsUseCaseTest$@Test fun withinWindowButNeitherDay_firesNothing</ID>
+    <ID>FunctionNaming:ContactDetailsViewModelTest.kt:ContactDetailsViewModelTest$@Test fun arhamRow_frequencyAndDaysSinceLastContact_computedFromClock</ID>
+    <ID>FunctionNaming:ContactDetailsViewModelTest.kt:ContactDetailsViewModelTest$@Test fun callNumber_recordsAttempt_andOpensDialer</ID>
+    <ID>FunctionNaming:ContactDetailsViewModelTest.kt:ContactDetailsViewModelTest$@Test fun requestDelete_showsUndoWindow_withoutWritingAnything</ID>
+    <ID>FunctionNaming:ContactDetailsViewModelTest.kt:ContactDetailsViewModelTest$@Test fun requestDelete_thenUndo_writesNothingAnywhere</ID>
+    <ID>FunctionNaming:ContactDetailsViewModelTest.kt:ContactDetailsViewModelTest$@Test fun requestDelete_windowExpiry_executesFinalDelete_andNavigatesBack</ID>
+    <ID>FunctionNaming:ContactDetailsViewModelTest.kt:ContactDetailsViewModelTest$@Test fun shareVCard_emitsEffectWithGeneratedText</ID>
+    <ID>FunctionNaming:ContactsDomainTest.kt:ContactsDomainTest$@Test fun detectDuplicates_findsContactsWithSameE164OrNormalizedArabicName</ID>
+    <ID>FunctionNaming:ContactsDomainTest.kt:ContactsDomainTest$@Test fun openClosedPrinciple_customCategorizationRuleExtendsBehaviorWithoutModifyingUseCase</ID>
+    <ID>FunctionNaming:ContactsDomainTest.kt:ContactsDomainTest$@Test fun smartCategorize_correctlyClassifiesFamilyServicesEmergencyAndWork</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun accountFilter_matchesDeviceGoogleOther_byAccountType</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun bulkUseCases_delegateToRepository</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun observeContactsPaged_blankQuery_usesListPath_andAppliesAccountFilter</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun observeContactsPaged_nonBlankQuery_searchesFts_thenFiltersByCategoryAndAccount</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun observeSuggestions_dismissalPersists_andCardReturnsOnlyWhenMembershipChanges</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun observeSuggestions_dismissedPairs_hidesDuplicateCard</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun observeSuggestions_duplicatesCapped_atThree_andOneSmartFilterCard</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun observeSuggestions_noCards_whenNoDuplicatesAndAllCategorized</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun observeSuggestions_smartFilterCard_countsRuleMatchesOnly_andGatesOnPreference</ID>
+    <ID>FunctionNaming:ContactsListDomainTest.kt:ContactsListDomainTest$@Test fun recordInAppCall_generatesStableLogId_andRecordsE164</ID>
+    <ID>FunctionNaming:ContactsListPerformanceTest.kt:ContactsListPerformanceTest$@Test fun fiveThousandContacts_batchWrite_thenFirstFrame_thenSearchLatency</ID>
+    <ID>FunctionNaming:ContactsMergeStoreImplTest.kt:ContactsMergeStoreImplTest$@Test fun coldStart_observeDismissedPairKeys_loadsFromDatabaseOnStart</ID>
+    <ID>FunctionNaming:ContactsMergeStoreImplTest.kt:ContactsMergeStoreImplTest$@Test fun coldStart_observeFeedback_loadsFromDatabaseOnStart</ID>
+    <ID>FunctionNaming:ContactsMergeStoreImplTest.kt:ContactsMergeStoreImplTest$@Test fun undoInRoom_capturesAbsorbedIdsBeforeRemap_restoringAllAbsorbedContacts</ID>
+    <ID>FunctionNaming:ContactsPlatformSourceContractTest.kt:ContactsPlatformSourceContractTest$@Test fun changeSignals_areDirtyOnlyAndCarryNoRecordIdentity</ID>
+    <ID>FunctionNaming:ContactsPlatformSourceContractTest.kt:ContactsPlatformSourceContractTest$@Test fun limitedPermission_neverProducesDeletionsOrFullResyncDeletion</ID>
+    <ID>FunctionNaming:ContactsPlatformSourceContractTest.kt:ContactsPlatformSourceContractTest$@Test fun observeChangeSignals_collectionIsSafeAcrossPermissionStates</ID>
+    <ID>FunctionNaming:ContactsPlatformSourceContractTest.kt:ContactsPlatformSourceContractTest$@Test fun permissionTransitions_areEmittedThroughObservePermissionState</ID>
+    <ID>FunctionNaming:ContactsPlatformSourceContractTest.kt:ContactsPlatformSourceContractTest$@Test fun readDelta_isIdempotentAcrossRepeatedCallsWithTheSameSnapshot</ID>
+    <ID>FunctionNaming:ContactsPlatformSourceContractTest.kt:ContactsPlatformSourceContractTest$@Test fun readDelta_nullSnapshot_surfacesFullResyncBuildOnAllPagesWithNoDeletions</ID>
+    <ID>FunctionNaming:ContactsPlatformSourceContractTest.kt:ContactsPlatformSourceContractTest$@Test fun readDelta_snapshotWithoutPlatformMarker_isTreatedLikeAnInvalidSnapshot</ID>
+    <ID>FunctionNaming:ContactsPlatformSourceContractTest.kt:ContactsPlatformSourceContractTest$@Test fun readPage_returnsConfiguredBatchesWithContinueFlag</ID>
+    <ID>FunctionNaming:ContactsRepositoryImplTest.kt:ContactsRepositoryImplTest$@Test fun contactsRepository_upsertUpdateCategoryAndDelete_persistsThroughDao</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun adoption_L1Fixture_recreatesFtsWithDepartment_andBackfillsFromContacts</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun bulkOperations_categorizeFavoriteDelete_handleEmptyAndUnknownIds</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun categoryCounts_stayConsistentWithList_afterBulkCategorize</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun recordInAppCallAttempt_persistsLocally_andIsSubjectToRetention</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun searchContacts_blankOrWhitespace_returnsAllLive_excludesTombstoned</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun searchContacts_hamzaVariantsMatch_viaNormalizedNameColumn</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun searchContacts_matchesArabicAndEnglishNames_viaFts</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun searchContacts_matchesCompanyNicknameDepartmentNotes</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun searchContacts_matchesPhoneFragments_inRawAndE164</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun searchContacts_noResults_forUnknownToken_andRepeatedQueriesStable</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun searchContacts_seesLiveUpdates_afterUpsertAndTombstone</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun searchContacts_specialCharsOnly_returnsEmpty_andKnownTokenStillWorks</ID>
+    <ID>FunctionNaming:ContactsSearchDaoTest.kt:ContactsSearchDaoTest$@Test fun setFavorite_persistsOnDisk_andSurvivesReopen</ID>
+    <ID>FunctionNaming:ContactsSnapshotCodecTest.kt:ContactsSnapshotCodecTest$@Test fun decode_acceptsUnknownFields_forwardCompatible</ID>
+    <ID>FunctionNaming:ContactsSnapshotCodecTest.kt:ContactsSnapshotCodecTest$@Test fun decode_returnsNull_onCorruptOrUnknownVersion</ID>
+    <ID>FunctionNaming:ContactsSnapshotCodecTest.kt:ContactsSnapshotCodecTest$@Test fun emptySnapshot_roundTrips</ID>
+    <ID>FunctionNaming:ContactsSnapshotCodecTest.kt:ContactsSnapshotCodecTest$@Test fun roundTrip_preservesMarkerTokenBytesAndRawMap</ID>
+    <ID>FunctionNaming:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$@Test fun adoption_L0Fixture_addsParityColumnsAndCheckpoints_preservesData_andBackfillsFts</ID>
+    <ID>FunctionNaming:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$@Test fun applySyncBatch_isAtomic_onFailureRollsBackWritesSnapshotAndTombstones</ID>
+    <ID>FunctionNaming:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$@Test fun applySyncBatch_isIdempotent_onReplay</ID>
+    <ID>FunctionNaming:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$@Test fun applySyncBatch_mergesPreservingSilaColumns_andRestoresTombstoned</ID>
+    <ID>FunctionNaming:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$@Test fun applySyncBatch_tombstoneHidesFromListAndFts_butKeepsRowRecoverable</ID>
+    <ID>FunctionNaming:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$@Test fun applySyncBatch_upsertsNewContacts_resolvesIds_andPersistsSnapshotAtomically</ID>
+    <ID>FunctionNaming:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$@Test fun cleanupExpiredData_hardDeletesTombstonesOlderThan30Days_only</ID>
+    <ID>FunctionNaming:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$@Test fun contactsFts_matchesArabicNormalization_onSyncedRows</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_parentCancellation_stopsChildLifecycle</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_repeatedStartStop_doesNotDuplicateCollectors</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_restart_createsFreshLifecycle_ifSupportedByContract</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_start_creates_one_ownedSharingLifecycle</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_stop_cancelsAllCollectors</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_stop_cancelsAndJoinsSharingLifecycle</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_stop_doesNotLeaveActiveChildren</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_stop_releasesPermissionPolling</ID>
+    <ID>FunctionNaming:ContactsSyncEngineLifecycleOwnershipTest.kt:ContactsSyncEngineLifecycleOwnershipTest$@Test fun engine_stop_waitsForObserverUnregistration</ID>
+    <ID>FunctionNaming:ContactsSyncEnginePerformanceTest.kt:ContactsSyncEnginePerformanceTest$@Test fun fullImport_5000Contacts_completesWithinJvmHostCeiling</ID>
+    <ID>FunctionNaming:ContactsSyncEnginePermissionLifecycleTest.kt:ContactsSyncEnginePermissionLifecycleTest$@Test fun engine_deniedPermission_doesNotCollectSignals</ID>
+    <ID>FunctionNaming:ContactsSyncEnginePermissionLifecycleTest.kt:ContactsSyncEnginePermissionLifecycleTest$@Test fun engine_grantTransition_resyncsAndStartsSignals</ID>
+    <ID>FunctionNaming:ContactsSyncEnginePermissionLifecycleTest.kt:ContactsSyncEnginePermissionLifecycleTest$@Test fun engine_permissionRevoked_cancelsSignals</ID>
+    <ID>FunctionNaming:ContactsSyncEnginePermissionLifecycleTest.kt:ContactsSyncEnginePermissionLifecycleTest$@Test fun engine_repeatedPermissionTransitions_doNotDuplicateCollectors</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun concurrentCycles_areSerializedBySingleMutex</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun corruptCheckpoint_signalsFullResyncRequired_thenRecoversViaFullImport</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun deltaSync_appliesUpserstsAndConfirmedDeletions_withPersistedToken</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun deltaWithoutSnapshot_failsAndCommitsNothing</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun fullResync_underGranted_tombstonesPlatformAbsentRows</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun fullResync_underLimited_neverTombstonesHiddenContacts</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun initialImport_batchesOfLimit_firstBatchVisibleBeforeCompletion</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun initialImport_cancellationMidImport_leavesNoSnapshot_andRerunCompletesIdempotently</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun limitedDelta_ignoresPlatformDeletions</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun permissionLoop_duplicateEmissions_doNotRestartInFlightSync</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun permissionTransitions_deniedStops_grantRunsFullImport_regrantAfterDenialAgain</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun phoneUnionPropertyTest_unionOfUniquePhonesPreservedAcrossSyncs</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun start_isIdempotent_noDuplicateCollectors</ID>
+    <ID>FunctionNaming:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun weeklyReconcileGate_runsDeltaWhenFresh_andFullResyncWhenDue</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun bulkCategorize_updatesListAndCounts</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun callIntent_multiPhone_emitsNumberPickerEffect_insteadOfGuessing</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun callIntent_singlePhone_emitsDialerEffect_directly</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun chipSelection_survivesBackNavigation_becauseViewModelIsKoinSingle</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun listLoads_fromRoomThroughFullPipeline</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun search_isDebounced_andReturnsFtsResults_thenBlankRestoresAll</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun search_noResults_isAnEmptySearchState_notError</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun selection_clearsAfterBulkDelete_andRowsLeaveList</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun suggestionDismissal_persistsToDataStore_andCardDoesNotReturn</ID>
+    <ID>FunctionNaming:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest$@Test fun toggleFavorite_persistsAcrossViewModelState</ID>
+    <ID>FunctionNaming:CoreCommonTests.kt:CoreCommonTests$@Test fun appResult_mapsSuccessAndPreservesError</ID>
+    <ID>FunctionNaming:CoreCommonTests.kt:CoreCommonTests$@Test fun arabicTextNormalizer_collapsesExtraWhitespaceAndTatweel</ID>
+    <ID>FunctionNaming:CoreCommonTests.kt:CoreCommonTests$@Test fun arabicTextNormalizer_normalizesAlefTaaMarbutaAndDiacritics</ID>
+    <ID>FunctionNaming:CoreCommonTests.kt:CoreCommonTests$@Test fun phoneNormalizer_convertsLocalEgyptianPhoneToE164</ID>
+    <ID>FunctionNaming:CoreCommonTests.kt:CoreCommonTests$@Test fun phoneNormalizer_preservesShortCodesAndEmergencyNumbers</ID>
+    <ID>FunctionNaming:CoreCommonTests.kt:CoreCommonTests$@Test fun redactor_scrubsPhoneNumbersAndEmailsFromLogs</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun alreadyEnrichedAttempt_doesNotMatch_openFilter</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun attemptOutsideLivenessWindow_writesNothing</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun enrichment_outcomeNeverCompleted_evenWithLongDuration</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun observerSource_defaultIsAndroid_injectedIosPinsIosEvidence</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun ringingAfterAttemptStart_discardsEnd</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun ringingFromPreviousCycle_beforeAttemptStart_doesNotBlockEnrichment</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun singleOpenAttemptWithoutRinging_enrichesWithObserverEvidence_neverTouchesLastContacted</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun twoOpenAttempts_ambiguous_writesNothing</ID>
+    <ID>FunctionNaming:CorrelateObservedCallEndUseCaseTest.kt:CorrelateObservedCallEndUseCaseTest$@Test fun zeroOpenAttempts_writesNothing</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun bareShortCode_shared_isMediumNotHigh_agyF7</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun blankNames_neverGroup_evenWithBlankEverywhere</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun dismissedPair_doesNotReappear_andNewEvidenceStillMergesLegitimately</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun groupId_derivedFromMembership_andMatchesCardIdentity</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun ordering_highFirst_thenSize_thenStableId</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun partialPhoneNumber_neverMerges</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun patronymicSamePrefix_differentFather_neverGroup_agyF7</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun sameE164_isHigh_transitivelyMergesThreeContacts</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun sameEmailCaseInsensitive_isHigh</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun sameNormalizedName_isMedium_andAlefVariantsFold</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun similarNames_belowThreshold_neverGroup</ID>
+    <ID>FunctionNaming:DuplicateDetectionTest.kt:DuplicateDetectionTest$@Test fun similarSingleWordName_aboveThreshold_isLowSuggestionOnly</ID>
+    <ID>FunctionNaming:DuplicateScanBenchmarkTest.kt:DuplicateScanBenchmarkTest$@Test fun fiveThousandContacts_scanUnderThreeSeconds_deterministic</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun back_emitsNavigateBack</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun dismissUndoBar_hidesBarWithoutTouchingSnapshot</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun dismissedPair_disappearsFromLiveGroups</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun groups_streamCompleteList_andLoadingCompletes</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun mergeAllConfirmed_mergesHighGroupsOnly</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun mergeAll_skipsGroupVanishedMidBatch_andMergesTheRest</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun mergeGroup_failure_emitsMergeFailed_withoutSnapshot</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun mergeGroup_success_showsUndoBar_andRecordsSnapshot</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun previewPlan_survivorIsOldest_andPhonesUnited</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun sessionUndo_restoresAllSnapshotsInReverseOrder_andPartialFailureKeepsRemaining</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun toggleExpanded_computesPreviewOnlyForExpandedGroup</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun undoMerge_failure_keepsSessionOpen_andEmitsUndoFailed</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun undoMerge_restoresSnapshot_andHidesBar</ID>
+    <ID>FunctionNaming:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$@Test fun undoMerge_withoutSnapshot_isSilentNoOp</ID>
+    <ID>FunctionNaming:EmergencyRingingHostTest.kt:EmergencyRingingHostTest$@Test fun `duplicate start is idempotent - single FGS intent`</ID>
+    <ID>FunctionNaming:EmergencyRingingHostTest.kt:EmergencyRingingHostTest$@Test fun `emergency channel ensure is idempotent`</ID>
+    <ID>FunctionNaming:EmergencyRingingHostTest.kt:EmergencyRingingHostTest$@Test fun `granted CALL_PHONE launches FGS with ids-only extras`</ID>
+    <ID>FunctionNaming:EmergencyRingingHostTest.kt:EmergencyRingingHostTest$@Test fun `revoked CALL_PHONE refuses FGS launch without crashing`</ID>
+    <ID>FunctionNaming:EmergencyRingingHostTest.kt:EmergencyRingingHostTest$@Test fun `stop broadcast without koin is a silent no-op`</ID>
+    <ID>FunctionNaming:EmergencyRingingHostTest.kt:EmergencyRingingHostTest$@Test fun `stop is idempotent and safe before start`</ID>
+    <ID>FunctionNaming:EmergencySessionDaoTest.kt:EmergencySessionDaoTest$@Test fun countSessionsStartedSince_countsAllStatuses_withinWindow_only</ID>
+    <ID>FunctionNaming:EmergencySessionDaoTest.kt:EmergencySessionDaoTest$@Test fun finishSession_isIdempotent_firstTrueThenFalse</ID>
+    <ID>FunctionNaming:EmergencySessionDaoTest.kt:EmergencySessionDaoTest$@Test fun finishSession_returnsFalse_whenMissing</ID>
+    <ID>FunctionNaming:EmergencySessionDaoTest.kt:EmergencySessionDaoTest$@Test fun insertInProgress_assignsId_rowIsReadableAndObservable</ID>
+    <ID>FunctionNaming:EmergencySessionDaoTest.kt:EmergencySessionDaoTest$@Test fun insertInProgress_isAtomicGetOrCreate_noSecondInProgressRow</ID>
+    <ID>FunctionNaming:EmergencySessionDaoTest.kt:EmergencySessionDaoTest$@Test fun observeInProgress_emitsNull_whenNoSession</ID>
+    <ID>FunctionNaming:EmergencySessionDaoTest.kt:EmergencySessionDaoTest$@Test fun recordAttempt_incrementsAtomically_andReturnsNewCount</ID>
+    <ID>FunctionNaming:EmergencySessionDaoTest.kt:EmergencySessionDaoTest$@Test fun recordAttempt_returnsNull_whenSessionFinishedOrMissing</ID>
+    <ID>FunctionNaming:EmergencySessionPolicyTest.kt:EmergencySessionPolicyTest$@Test fun attemptCeiling_allowsNine_rejectsTen</ID>
+    <ID>FunctionNaming:EmergencySessionPolicyTest.kt:EmergencySessionPolicyTest$@Test fun canStart_allowsBelowLimit</ID>
+    <ID>FunctionNaming:EmergencySessionPolicyTest.kt:EmergencySessionPolicyTest$@Test fun canStart_rejectsAtLimitExactly_strictLessThan</ID>
+    <ID>FunctionNaming:EmergencySessionPolicyTest.kt:EmergencySessionPolicyTest$@Test fun rateLimitWindow_is24h</ID>
+    <ID>FunctionNaming:EmergencySessionPolicyTest.kt:EmergencySessionPolicyTest$@Test fun stale_failsOnlyAfterLivenessBound</ID>
+    <ID>FunctionNaming:EntityMappersRoundTripTest.kt:EntityMappersRoundTripTest$@Test fun excludeFromSmartFilter_defaultsFalse_andRoundsTripClean</ID>
+    <ID>FunctionNaming:EntityMappersRoundTripTest.kt:EntityMappersRoundTripTest$@Test fun excludeFromSmartFilter_survivesDomainRoundTrip_bothDirections</ID>
+    <ID>FunctionNaming:FeatureViewModelsTest.kt:FeatureViewModelsTest$@Test fun koinContainer_resolvesAllFeatureViewModelsAndSingletons</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun emptyContacts_zeroedStats</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun goalCompletion_allEligibleInOkState_one</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun goalCompletion_cannotExceedOne_whenGreensOutnumberFormerDueDenominator</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun goalCompletion_dailyFrequency_dueExactlyNow_isOverdue</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun goalCompletion_neverContacted_isOverdue_inDenominatorNotNumerator</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun goalCompletion_noneInOkState_zero</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun goalCompletion_pausedUntilExactlyNow_countsAsNotPaused</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun goalCompletion_specFormula_fractionOfEligibleInOkState</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun goalCompletion_zeroDenominator_whenNoEligibleRelatives</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun longestCallSec_isMaxQualifyingDuration_nullsExcluded_neverFabricated</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun monthWindow_isThirtyDays</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun nonQualifyingEvents_excluded_evenWhenLinkedToArhamContact</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun podium_emptyWhenZeroQualifyingCalls_includesPausedContactWhenActive</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun podium_topThreeBySuccessfulCallsThenDuration_deterministicTieBreak</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun qualifyingEvents_countExactly_notSizeTimesTwo</ID>
+    <ID>FunctionNaming:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest$@Test fun window_isRollingEndingAtNow_inclusiveBounds</ID>
+    <ID>FunctionNaming:GetArhamPriorityListUseCaseTest.kt:GetArhamPriorityListUseCaseTest$@Test fun allOccasionsYield_emptyList</ID>
+    <ID>FunctionNaming:GetArhamPriorityListUseCaseTest.kt:GetArhamPriorityListUseCaseTest$@Test fun allPausedContacts_yieldEmptyList</ID>
+    <ID>FunctionNaming:GetArhamPriorityListUseCaseTest.kt:GetArhamPriorityListUseCaseTest$@Test fun neverContacted_weeklyStillRanks_onTop</ID>
+    <ID>FunctionNaming:GetArhamPriorityListUseCaseTest.kt:GetArhamPriorityListUseCaseTest$@Test fun occasionsFrequency_isExcludedFromRanking</ID>
+    <ID>FunctionNaming:GetArhamPriorityListUseCaseTest.kt:GetArhamPriorityListUseCaseTest$@Test fun orderingStaysDescendingByUrgency_afterExclusion</ID>
+    <ID>FunctionNaming:GetArhamPriorityListUseCaseTest.kt:GetArhamPriorityListUseCaseTest$@Test fun pausedContact_hiddenFromList_andRenumberedWithoutGaps</ID>
+    <ID>FunctionNaming:IosArhamNotificationFormattingTest.kt:IosArhamNotificationFormattingTest$@Test fun digestBody_twoAndMore_useManyFormatWithFullCount</ID>
+    <ID>FunctionNaming:IosArhamNotificationFormattingTest.kt:IosArhamNotificationFormattingTest$@Test fun digestBody_zeroAndOneAdditional_useOneFormatWithoutCount</ID>
+    <ID>FunctionNaming:IosArhamNotificationFormattingTest.kt:IosArhamNotificationFormattingTest$@Test fun occasionBody_fourKeyMatrix_picksKindAndTiming</ID>
+    <ID>FunctionNaming:IosArhamNotificationShutdownTest.kt:IosArhamNotificationShutdownTest$@Test fun drainForShutdown_cancelsUnstartedScheduling_withoutTouchingCenter</ID>
+    <ID>FunctionNaming:IosArhamNotificationShutdownTest.kt:IosArhamNotificationShutdownTest$@Test fun drainForShutdown_joinsOwnedScope_andIsIdempotent</ID>
+    <ID>FunctionNaming:IosArhamNotificationShutdownTest.kt:IosArhamNotificationShutdownTest$@Test fun registrarDrainForShutdown_forwardsToDelegateScope_andCancelsIt</ID>
+    <ID>FunctionNaming:IosArhamReminderDispatchTest.kt:IosArhamReminderDispatchTest$@Test fun disabledFeature_cancelsPendingExactlyOnce_andNeverSchedules</ID>
+    <ID>FunctionNaming:IosArhamReminderDispatchTest.kt:IosArhamReminderDispatchTest$@Test fun enabledFeature_schedulesThePlannedMoment_exactlyOnce_andNeverCancels</ID>
+    <ID>FunctionNaming:IosArhamWidgetPublisherShutdownTest.kt:IosArhamWidgetPublisherShutdownTest$@Test fun close_awaitsInFlightPublish_writesSnapshotBeforeJoining</ID>
+    <ID>FunctionNaming:IosArhamWidgetPublisherShutdownTest.kt:IosArhamWidgetPublisherShutdownTest$@Test fun close_isIdempotent</ID>
+    <ID>FunctionNaming:IosArhamWidgetPublisherShutdownTest.kt:IosArhamWidgetPublisherShutdownTest$@Test fun noPublishAfterClose_evenOnNewEvents</ID>
+    <ID>FunctionNaming:IosArhamWidgetSnapshotPublisherTest.kt:IosArhamWidgetSnapshotPublisherTest$@Test fun onArhamDataChanged_coalescesABurstOfEvents_intoASinglePendingPublish</ID>
+    <ID>FunctionNaming:IosArhamWidgetSnapshotPublisherTest.kt:IosArhamWidgetSnapshotPublisherTest$@Test fun publishOnce_republishesOverTheSameFile_andFiresTheTriggerForEachSuccess</ID>
+    <ID>FunctionNaming:IosArhamWidgetSnapshotPublisherTest.kt:IosArhamWidgetSnapshotPublisherTest$@Test fun publishOnce_skipsQuietly_whenTheAppGroupContainerIsUnavailable</ID>
+    <ID>FunctionNaming:IosArhamWidgetSnapshotPublisherTest.kt:IosArhamWidgetSnapshotPublisherTest$@Test fun publishOnce_skipsTheReloadTrigger_whenTheWriteFails</ID>
+    <ID>FunctionNaming:IosArhamWidgetSnapshotPublisherTest.kt:IosArhamWidgetSnapshotPublisherTest$@Test fun publishOnce_withoutAnAttachedTrigger_writesTheFileQuietly</ID>
+    <ID>FunctionNaming:IosArhamWidgetSnapshotPublisherTest.kt:IosArhamWidgetSnapshotPublisherTest$@Test fun publishOnce_writesSnapshotJsonIntoContainerRoot_andInvokesTheReloadTrigger</ID>
+    <ID>FunctionNaming:IosCallStateObserverLifecycleTest.kt:IosCallStateObserverLifecycleTest$@Test fun restart_afterStop_registersAgain_withClearedCycles</ID>
+    <ID>FunctionNaming:IosCallStateObserverLifecycleTest.kt:IosCallStateObserverLifecycleTest$@Test fun start_registers_once_andRepeatedStartIsNoOp</ID>
+    <ID>FunctionNaming:IosCallStateObserverLifecycleTest.kt:IosCallStateObserverLifecycleTest$@Test fun stop_isSafeBeforeStart_andUnregisters_repeatedStopIsNoOp</ID>
+    <ID>FunctionNaming:IosCallStateTrackerTest.kt:IosCallStateTrackerTest$@Test fun clear_forgetsOpenCycles_noFabricationAfterStop</ID>
+    <ID>FunctionNaming:IosCallStateTrackerTest.kt:IosCallStateTrackerTest$@Test fun connectedAndEndedInSingleReport_zeroElapsed_emitsNothing</ID>
+    <ID>FunctionNaming:IosCallStateTrackerTest.kt:IosCallStateTrackerTest$@Test fun endedCallId_isForgotten_duplicateEndReport_emitsNothing</ID>
+    <ID>FunctionNaming:IosCallStateTrackerTest.kt:IosCallStateTrackerTest$@Test fun endedReportForUnknownId_emitsNothing</ID>
+    <ID>FunctionNaming:IosCallStateTrackerTest.kt:IosCallStateTrackerTest$@Test fun incomingCall_neverEmitsEnd_evenWhenConnected</ID>
+    <ID>FunctionNaming:IosCallStateTrackerTest.kt:IosCallStateTrackerTest$@Test fun outgoingConnectedCycle_emitsEndWithKnownMoments_only</ID>
+    <ID>FunctionNaming:IosCallStateTrackerTest.kt:IosCallStateTrackerTest$@Test fun outgoingNeverConnected_ended_emitsNothing</ID>
+    <ID>FunctionNaming:IosCallStateTrackerTest.kt:IosCallStateTrackerTest$@Test fun repeatedConnectedCallbacks_firstConnectionMomentWins</ID>
+    <ID>FunctionNaming:IosContactsPlatformSourceMappingTest.kt:IosContactsPlatformSourceMappingTest$@Test fun assembleIosDelta_keepsDeletionsAndUpsertsForNormalBatches</ID>
+    <ID>FunctionNaming:IosContactsPlatformSourceMappingTest.kt:IosContactsPlatformSourceMappingTest$@Test fun assembleIosDelta_suppressesDeletesOnDropEverythingAndLeavesFullResyncToSource</ID>
+    <ID>FunctionNaming:IosContactsPlatformSourceMappingTest.kt:IosContactsPlatformSourceMappingTest$@Test fun cnMutableContact_mapsAllSupportedFieldsWithPureMapper</ID>
+    <ID>FunctionNaming:IosContactsPlatformSourceMappingTest.kt:IosContactsPlatformSourceMappingTest$@Test fun mapCnAuthorizationStatus_limitedIsLimitedAndNeverDenial</ID>
+    <ID>FunctionNaming:IosContactsPlatformSourceMappingTest.kt:IosContactsPlatformSourceMappingTest$@Test fun mapIosContact_fallsBackAndNormalizesLabelsForHandBuiltValues</ID>
+    <ID>FunctionNaming:IosContactsPlatformSourceMappingTest.kt:IosContactsPlatformSourceMappingTest$@Test fun tokenRoundTrip_recoversExactBytes</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun buildActiveContent_criticalVariant_setsTheCriticalInterruptionLevel</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun buildActiveContent_standardVariant_isFallbackFirstWithoutCriticalClaim</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun displayNameOf_fallsBackToPlaceholder_whenBlank</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun isCriticalEligible_requiresBothSupportAndEnablement</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun isRunning_isFalseForAnyOtherSession</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun pickPrimaryPhone_prefersPrimary_thenFirstFallback</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun placeCall_reReadsRoomAndDialsTheFreshNumber</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun placeCall_skipsQuietly_whenContactWasDeleted</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun start_dialsThePrimaryPhoneReadFromRoomAtCallTime</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun start_fallsBackToTheFirstPhone_whenNoneIsPrimary</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun start_isIdempotent_onDuplicateSessionStart</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun start_skipsTheDialSilently_whenContactHasNoPhones</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun start_skipsTheDialSilently_whenContactWasDeleted</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun start_skipsTheDial_whenTelSchemeIsUnavailable</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun stop_beforeAnyStart_isAQuietNoOp</ID>
+    <ID>FunctionNaming:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest$@Test fun stop_clearsTheRunningState_andStaysIdempotent</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@OptIn(ExperimentalForeignApi::class) @Test fun arhamLifecycle_reArms_onFreshContainer_afterDrainCycle</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@OptIn(ExperimentalForeignApi::class) @Test fun ensureStarted_launchesRetentionCleanupCoordinator_andPublishesReport</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@OptIn(ExperimentalForeignApi::class) @Test fun ensureStarted_launchesTopFiveMaterialization_andPublishesOutcome</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun ensureStarted_containerReplacement_drainsEngineScopeBeforeStopKoin</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun ensureStarted_isIdempotentAndConfiguresOnDiskPersistence</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun ensureStarted_replacesInMemoryContextAndNeverSilentlyFallsBackToMemory</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun getMainViewModel_resolvesViewModelAndDispatchesIntents</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun resolveApplicationSupportPath_createsAndReturnsApplicationSupportDirectory</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun shutdownForTest_isIdempotent_andSafeWithoutLiveContainer</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun shutdownForTest_repeatedKoinCycles_neverReuseClosedDatabaseReferences</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun shutdownForTest_resetsArhamLifecycleFlags_afterFullDrain</ID>
+    <ID>FunctionNaming:IosKoinBootstrapTest.kt:IosKoinBootstrapTest$@Test fun shutdownForTest_resetsCleanupLaunchGuard_afterFullDrain</ID>
+    <ID>FunctionNaming:IosNotificationCapabilityMappingTest.kt:IosNotificationCapabilityMappingTest$@Test fun authorizationStatus_allPlatformValues_mirrorFaithfully</ID>
+    <ID>FunctionNaming:IosNotificationCapabilityMappingTest.kt:IosNotificationCapabilityMappingTest$@Test fun criticalAlertSetting_disabled_supportedButDisabled</ID>
+    <ID>FunctionNaming:IosNotificationCapabilityMappingTest.kt:IosNotificationCapabilityMappingTest$@Test fun criticalAlertSetting_enabled_supportedAndEnabled</ID>
+    <ID>FunctionNaming:IosNotificationCapabilityMappingTest.kt:IosNotificationCapabilityMappingTest$@Test fun criticalAlertSetting_notSupported_neitherSupportedNorEnabled</ID>
+    <ID>FunctionNaming:IosReminderFireComponentsTest.kt:IosReminderFireComponentsTest$@Test fun fireComponents_afterMidnightShift_dayMovesWithClock</ID>
+    <ID>FunctionNaming:IosReminderFireComponentsTest.kt:IosReminderFireComponentsTest$@Test fun fireComponents_regionalZone_derivesLocalFields_notUtc</ID>
+    <ID>FunctionNaming:IosReminderFireComponentsTest.kt:IosReminderFireComponentsTest$@Test fun fireComponents_utc_eveningPrecision</ID>
+    <ID>FunctionNaming:IosReminderRequestTest.kt:IosReminderRequestTest$@Test fun reminderRequest_digestBody_goesThroughThePureSingularPluralDecision</ID>
+    <ID>FunctionNaming:IosReminderRequestTest.kt:IosReminderRequestTest$@Test fun reminderRequest_occasionBody_usesTheOccasionKey</ID>
+    <ID>FunctionNaming:IosReminderRequestTest.kt:IosReminderRequestTest$@Test fun reminderRequest_pinsFixedIdentifierAndDailyRepeatingTrigger</ID>
+    <ID>FunctionNaming:KinshipDefaultFrequencyTest.kt:KinshipDefaultFrequencyTest$@Test fun everyRelation_hasADefaultFrequency</ID>
+    <ID>FunctionNaming:KinshipDefaultFrequencyTest.kt:KinshipDefaultFrequencyTest$@Test fun frequencyLadder_matchesTheDocumentedTable</ID>
+    <ID>FunctionNaming:KoinWiringSmokeTest.kt:KoinWiringSmokeTest$@Test fun sharedModule_resolvesArhamPlatformContracts</ID>
+    <ID>FunctionNaming:KoinWiringSmokeTest.kt:KoinWiringSmokeTest$@Test fun sharedModule_resolvesContactsPlatformSource</ID>
+    <ID>FunctionNaming:KoinWiringSmokeTest.kt:KoinWiringSmokeTest$@Test fun sharedModule_resolvesSettingsPlatformContracts</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `production scope is non-empty and includes all core shared and feature layer source sets`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `regression - inheritsFromMviContract supports indirect classes and interfaces and rejects spoofed type names`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `regression - stripCommentsAndStrings preserves code after URLs escaped quotes and triple-quoted strings`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 1 - declarations under feature layer directories align with feature and layer package hierarchy`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 2 - contacts and arham features never import or reference network or firebase packages`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 3 - features never import or reference declarations from other features`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 4a - domain layer files remain pure and free of data presentation database datastore compose room and network imports`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 4b - presentation and sharedUI files never import data database or datastore or reference RepositoryImpl or Dao`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 5a - every UseCase class resides in a domain package and declares operator fun invoke`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 5b - every ViewModel class implements MviViewModel or extends BaseMviViewModel`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 6a - arham presentation files declare no Arabic-script string literals`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 6b - arham presentation files declare no language or locale conditionals`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `rule 6c - arham presentation files declare no hardcoded Text string literals`</ID>
+    <ID>FunctionNaming:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `strings completeness - every arham resource key exists and is non-blank in ar and en`</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_L2Fixture_fullParity_adoptsCleanly_backupDeletedAfterVerifiedRead_andReopensAsRoomManaged</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_backupStepFailure_throwsLegacyBackupException_andTouchesNothing</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_firstSuccessfulRoomOpen_stampsRoomSchemaVersion_withRoomMasterIdentity</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_ftsWithForeignOptions_sameColumns_isRebuiltToCanonicalDdl_andStaysSearchable</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_injectedShimFailure_rollsBackFully_retainsBackup_andRecoversOnSecondRun</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_preservesArabicDiacriticsAndEmoji_verbatim_andSearchableAfterBackfill</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_preservesDuplicateSystemContactId_rowsVerbatim_noMergeNoLoss</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_unknownInvariantTableColumn_failsClosed_beforeRunningShim</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun adoption_unknownSchema_failsClosed_leavesDatabaseUntouched_andCreatesDiagnosticBackup</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun freshInstall_roomCreatesFinalSchemaDirectly_noPhantomTables</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr01_fixtureA_normalizesOnlyLegacyUniqueSystemContactId_preservesLookupKeyUniqueIndex_andIsIdempotent</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr01_fixturesB_C_D_E_preserveCompositePartialAutoAndPkIndices_andRejectUnsupportedBeforeMutation</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr01_legacyUniqueSystemContactId_fullAdoption_normalizesToNonUnique_andPreservesAllRecords</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr02_classificationMatrix_casesAtoL_andStrictMetadataAndIndexValidation_zeroMutationOnUnknown</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr04_crashA_shimCommitsBeforeRoomOpens_nextStartupVerifiesBackupAndCompletesAdoption_orFailsIfBackupMissing</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr04_crashB_roomStampsSchemaVersion_processStopsBeforeBackupDeletion_nextStartupCleansUpAfterVerification</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr04_crashC_andAllVerificationFailureStages_preserveBackup_andAllowCleanRecovery</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr04_crashD_backupDeletionFailure_doesNotCorruptDatabase_retainsBackup_andRetriesOnNextStartup</ID>
+    <ID>FunctionNaming:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr04_emptyContactsTable_stillVerifiesContactPhonesArhamServicesAndFts_beforeBackupDeletion</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseSeedingTest.kt:LocalSilaDatabaseSeedingTest$@Test fun existingUserData_survivesReinitialization_andNoDemoRowsAppear</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseSeedingTest.kt:LocalSilaDatabaseSeedingTest$@Test fun optInSeeding_yieldsTheDemoFixture_exclusively</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseSeedingTest.kt:LocalSilaDatabaseSeedingTest$@Test fun productionInitialization_startsEmpty_withoutAnyDemoRows</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseSeedingTest.kt:LocalSilaDatabaseSeedingTest$@Test fun repeatedInitialization_neverDuplicatesRecords_evenWithOptInSeeding</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseSeedingTest.kt:LocalSilaDatabaseSeedingTest$@Test fun userRowPlusOptInSeeding_userRowIsAuthoritative_andSeedingSkipsNonEmptyTables</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseTest.kt:LocalSilaDatabaseTest$@Test fun cleanupExpiredData_enforcesDataRetentionPolicy</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseTest.kt:LocalSilaDatabaseTest$@Test fun observeContacts_filtersByArabicNormalizedQuery</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseTest.kt:LocalSilaDatabaseTest$@Test fun observeContacts_filtersByCategory</ID>
+    <ID>FunctionNaming:LocalSilaDatabaseTest.kt:LocalSilaDatabaseTest$@Test fun sqliteDiskPersistence_writeCloseReopenAndReadPreservesRelationalData</ID>
+    <ID>FunctionNaming:MainViewModelTest.kt:MainViewModelTest$@Test fun callNumberWithoutContact_dialsWithoutPersistingEvent</ID>
+    <ID>FunctionNaming:MainViewModelTest.kt:MainViewModelTest$@Test fun callNumber_recordsInAppAttempt_only_neverUpdatesLastContacted</ID>
+    <ID>FunctionNaming:MainViewModelTest.kt:MainViewModelTest$@Test fun getArhamPriorityList_ordersOverdueFirst</ID>
+    <ID>FunctionNaming:MainViewModelTest.kt:MainViewModelTest$@Test fun selectingCategoryAndTogglingLanguage_updatesUiState</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_alreadyMaterialized_noFurtherReadsOrWrites</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_applyFailure_propagates_markerUnset_retryCompletes</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_contactsNotReady_noDropNoMarker_noPhantom</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_duplicateSelections_deduped_beforeMatching</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_duplicateSystemContactIdInSource_lowestIdWins_deterministically</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_emptySelections_nothingPending_markerNotWritten</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_happyPath_appliesThenMarks_thenAlreadyMaterialized</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_matchesBySystemContactIdOnly_displayNameNeverAKey</ID>
+    <ID>FunctionNaming:MaterializeTopFiveUseCaseTest.kt:MaterializeTopFiveUseCaseTest$@Test fun invoke_unmatchedAndSkippedMerged_intoDroppedCount</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun arham_carriedFromSurvivor_andEmptyNotesStayNull</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun arham_createdAtTie_resolvedByLowestId</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun arham_pickedFromOldestMember_withNewestLastContactedAt_andTieResolvedById</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun category_priority_beatsEnumOrder_andNeverMeaninglessWhenMeaningfulExists</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun datesAndCustomFields_unionDeduped_agyF4</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun favorite_anyTrue_wins_andExcludeFlagIsOr</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun name_mostComplete_thenLongest</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun notes_mergedWithDocumentedSeparator_distinctOnly</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun phones_emails_websites_dates_customFields_areDedupedUnions</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun property_noDataLoss_uniqueNumbersEmailsWebsitesPreserved_acrossSeededScenarios</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun ringtone_singleKept_conflictFlaggedNotSilentlyDropped</ID>
+    <ID>FunctionNaming:MergePlannerTest.kt:MergePlannerTest$@Test fun survivor_isOldestCreated_andKeepsItsPlatformIdentity</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun merge_platformFirst_failureLeavesRoomUntouched</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun merge_recordsOriginalAbsorbedIdsForCallEventRepoints_F1Provenance</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun merge_roomFailure_afterPlatformSuccess_triggersCompensationUnmerge_andReturnsHonestError</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun merge_roomFailure_whenCompensationFails_stillReturnsOriginalError</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun merge_roomFailure_whenCompensationThrows_stillReturnsOriginalError</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun merge_success_migratesSurvivorIdentity_andBuildsPayloadWithVCardsAndReferences</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun undo_missingSnapshot_isNotFound_andWriterUntouched</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun undo_platformFirst_thenRoomRestore_appliesIdentityRemap_andLatchIsOneTime</ID>
+    <ID>FunctionNaming:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$@Test fun undo_remapUpdatesSystemContactIdAndLookupKey_preservesNullLookupKey</ID>
+    <ID>FunctionNaming:NameComparisonTest.kt:NameComparisonTest$@Test fun comparisonPreservesNonTitles_andNeverEmptiesTheName</ID>
+    <ID>FunctionNaming:NameComparisonTest.kt:NameComparisonTest$@Test fun comparisonStripsDocumentedTitles_repeatedly</ID>
+    <ID>FunctionNaming:NameComparisonTest.kt:NameComparisonTest$@Test fun jaroWinklerBoundary_at092AndArabicVariants</ID>
+    <ID>FunctionNaming:NameComparisonTest.kt:NameComparisonTest$@Test fun tokenizerNeverProducesPartialMatches_documentedNegativeCase</ID>
+    <ID>FunctionNaming:NameComparisonTest.kt:NameComparisonTest$@Test fun tokenizerSplitsWords_andStripsOnlySafeClitics</ID>
+    <ID>FunctionNaming:ObserveChangeSignalsProtectionTest.kt:ObserveChangeSignalsProtectionTest$@Test fun observeChangeSignals_cancellation_unregisters</ID>
+    <ID>FunctionNaming:ObserveChangeSignalsProtectionTest.kt:ObserveChangeSignalsProtectionTest$@Test fun observeChangeSignals_denied_doesNotRegisterOrThrow</ID>
+    <ID>FunctionNaming:ObserveChangeSignalsProtectionTest.kt:ObserveChangeSignalsProtectionTest$@Test fun observeChangeSignals_granted_registersOnce_andDeliversDebouncedSignals</ID>
+    <ID>FunctionNaming:ObserveChangeSignalsProtectionTest.kt:ObserveChangeSignalsProtectionTest$@Test fun observeChangeSignals_reSubscriptions_areBalanced</ID>
+    <ID>FunctionNaming:ObserveChangeSignalsProtectionTest.kt:ObserveChangeSignalsProtectionTest$@Test fun observeChangeSignals_registrationSecurityException_isHandledNarrowly_andObservable</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun birthdayToday_isDerivedWithZeroDays</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun customTypeDates_areExcluded_perD1</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun injectedTimeZone_drivesToday_notHardcodedUtc</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun invalidDeviceDate_isSkippedWithoutCrashing</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun multipleDatesOnOneContact_areAllDerived</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun noDates_orEmptyContacts_yieldEmptyList</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun occasionsFrequency_contactsAreStillDerived</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun pastDateThisYear_rollsToNextYear_andIsOutsideWindow</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun sourceYear_isIgnored_annualRecurrenceEitherWay</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun ties_breakDeterministically_byNameThenId</ID>
+    <ID>FunctionNaming:ObserveUpcomingOccasionsUseCaseTest.kt:ObserveUpcomingOccasionsUseCaseTest$@Test fun windowBoundaries_zeroAndSevenIncluded_eightExcluded</ID>
+    <ID>FunctionNaming:ObservedCallStateTest.kt:ObservedCallStateTest$@Test fun `dial cycle without ringing produces end with null ringing`</ID>
+    <ID>FunctionNaming:ObservedCallStateTest.kt:ObservedCallStateTest$@Test fun `first ringing and first offhook win over repeats`</ID>
+    <ID>FunctionNaming:ObservedCallStateTest.kt:ObservedCallStateTest$@Test fun `holder is clean after each produced end`</ID>
+    <ID>FunctionNaming:ObservedCallStateTest.kt:ObservedCallStateTest$@Test fun `idle without offhook produces nothing and resets the ringing`</ID>
+    <ID>FunctionNaming:ObservedCallStateTest.kt:ObservedCallStateTest$@Test fun `incoming answered call carries its ringing moment`</ID>
+    <ID>FunctionNaming:ObservedCallStateTest.kt:ObservedCallStateTest$@Test fun `non-positive transition window is rejected and holder resets`</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun daysUntil_spansMonthsCorrectly</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun feb29_leapYear_keepsFeb29</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun feb29_nonLeapYear_isClampedToFeb28</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun feb29_onFeb28OfNonLeapYear_resolvesToday</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun invalidDates_areSkippedWithoutCrashing</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun laterThisYear_staysThisYear</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun leapYearRules_gregorian</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun passedThisYear_rollsToNextYear</ID>
+    <ID>FunctionNaming:OccasionDateMathTest.kt:OccasionDateMathTest$@Test fun sameDayNextYear_returnsToday_zeroDaysUntil</ID>
+    <ID>FunctionNaming:OnboardingRepositoryImplTest.kt:OnboardingRepositoryImplTest$@Test fun completeOnboarding_setsGuestAndSurvivesReopenOfSameStorage</ID>
+    <ID>FunctionNaming:OnboardingRepositoryImplTest.kt:OnboardingRepositoryImplTest$@Test fun completeStep_advancesPersistedResumeStepInOrder</ID>
+    <ID>FunctionNaming:OnboardingRepositoryImplTest.kt:OnboardingRepositoryImplTest$@Test fun guestLoginCompletion_marksSessionAsGuest</ID>
+    <ID>FunctionNaming:OnboardingRepositoryImplTest.kt:OnboardingRepositoryImplTest$@Test fun lastStepCompletion_marksOnboardingCompletedAndClearsResume</ID>
+    <ID>FunctionNaming:OnboardingRepositoryImplTest.kt:OnboardingRepositoryImplTest$@Test fun observeState_defaultsToWelcomeStepGuestNotCompleted</ID>
+    <ID>FunctionNaming:OnboardingRepositoryImplTest.kt:OnboardingRepositoryImplTest$@Test fun permissionResult_isPersisted</ID>
+    <ID>FunctionNaming:OnboardingRepositoryImplTest.kt:OnboardingRepositoryImplTest$@Test fun resumeStep_persistedBeforeCompletion_survivesReopenOfSameStorage</ID>
+    <ID>FunctionNaming:OnboardingRepositoryImplTest.kt:OnboardingRepositoryImplTest$@Test fun topFiveSelections_persistWithWeeklyFrequencyAndCappedAtFive</ID>
+    <ID>FunctionNaming:OnboardingUseCasesTest.kt:OnboardingUseCasesTest$@Test fun completeOnboardingStep_advancesThroughAllStepsAndFinishesOnLast</ID>
+    <ID>FunctionNaming:OnboardingUseCasesTest.kt:OnboardingUseCasesTest$@Test fun completeOnboarding_setsGuestAndCompletionWithoutResuming</ID>
+    <ID>FunctionNaming:OnboardingUseCasesTest.kt:OnboardingUseCasesTest$@Test fun observeOnboardingState_emitsRepositoryState</ID>
+    <ID>FunctionNaming:OnboardingUseCasesTest.kt:OnboardingUseCasesTest$@Test fun saveTopFiveSelection_persistsHandoffRecordForArhamFeature</ID>
+    <ID>FunctionNaming:OnboardingUseCasesTest.kt:OnboardingUseCasesTest$@Test fun setOnboardingPermissionsResult_isReflectedInState</ID>
+    <ID>FunctionNaming:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest$@Test fun finishOrganizing_persistsCompletionSurvivesProcessDeathAndNeverRepeats</ID>
+    <ID>FunctionNaming:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest$@Test fun permissionResultEachState_hasDefinedPathAndPersistsPermission</ID>
+    <ID>FunctionNaming:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest$@Test fun requestPermissionEffectIsBoundedAtTwo_thenRoutesToAppSettings</ID>
+    <ID>FunctionNaming:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest$@Test fun stepResume_afterProcessDeathResumesAtFirstIncompleteStep</ID>
+    <ID>FunctionNaming:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest$@Test fun topFive_cappedAtFiveSelections</ID>
+    <ID>FunctionNaming:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest$@Test fun topFive_searchNoMatchShowsEmptyResultsWithoutError</ID>
+    <ID>FunctionNaming:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest$@Test fun topFive_skipClearsSelectionsAndPersistsNoArhamRecord</ID>
+    <ID>FunctionNaming:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest$@Test fun topFive_toggleRelationSave_persistsHandoffAndCompletesStep</ID>
+    <ID>FunctionNaming:OnboardingViewModelStateDeliveryTest.kt:OnboardingViewModelStateDeliveryTest$@Test fun dataSeam_diskMode_continuousCollectorReceivesRapidSetterEmissions</ID>
+    <ID>FunctionNaming:OnboardingViewModelStateDeliveryTest.kt:OnboardingViewModelStateDeliveryTest$@Test fun diskMode_activeSubscriberReceivesPostWriteEmission</ID>
+    <ID>FunctionNaming:OnboardingViewModelStateDeliveryTest.kt:OnboardingViewModelStateDeliveryTest$@Test fun diskMode_cancelAndResubscribe_seesLatestPersistedState</ID>
+    <ID>FunctionNaming:OnboardingViewModelStateDeliveryTest.kt:OnboardingViewModelStateDeliveryTest$@Test fun diskMode_freshReadAfterWrite_seesLatestPersistedState</ID>
+    <ID>FunctionNaming:OnboardingViewModelStateDeliveryTest.kt:OnboardingViewModelStateDeliveryTest$@Test fun diskMode_rapidIntents_convergeToLatestPersistedStep</ID>
+    <ID>FunctionNaming:OnboardingViewModelStateDeliveryTest.kt:OnboardingViewModelStateDeliveryTest$@Test fun diskMode_subscriptionAfterWrite_seesLatestPersistedState</ID>
+    <ID>FunctionNaming:OnboardingViewModelStateDeliveryTest.kt:OnboardingViewModelStateDeliveryTest$@Test fun memoryMode_control_activeSubscriberReceivesPostWriteEmission</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `day-before alert surfaces only when flag enabled`</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `digest headline is most urgent overdue with additional count`</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `non-overdue contacts do not fabricate urgency`</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `on-day occasion overrides digest`</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `past preferred time rolls to tomorrow`</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `preferred time today is honored when still future`</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `quiet hours defer today's slot to wake moment`</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `quiet hours defer tomorrow's slot across midnight window`</ID>
+    <ID>FunctionNaming:PlanArhamDailyNotificationUseCaseTest.kt:PlanArhamDailyNotificationUseCaseTest$@Test fun `zero overdue and no occasions yields null content`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `daytime window defers to same-day end`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `daytime window end exclusive and before-start unchanged`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `daytime window start inclusive and minute before end defers`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `evening side of overnight window defers to next-day end`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `hours outside 0-23 disable quiet hours entirely`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `midday stays unchanged in overnight window`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `minute before start stays unchanged in overnight window`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `minute before wake defers to same-day end`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `morning side of overnight window defers to same-day end`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `start hour is inclusive in overnight window`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `wake hour is exclusive and stays unchanged`</ID>
+    <ID>FunctionNaming:QuietHoursTest.kt:QuietHoursTest$@Test fun `zero-length window start equals end means no quiet hours`</ID>
+    <ID>FunctionNaming:ReconcileInterruptedSessionUseCaseTest.kt:ReconcileInterruptedSessionUseCaseTest$@Test fun freshSession_withinLivenessBound_isKept</ID>
+    <ID>FunctionNaming:ReconcileInterruptedSessionUseCaseTest.kt:ReconcileInterruptedSessionUseCaseTest$@Test fun liveController_isNotTouched</ID>
+    <ID>FunctionNaming:ReconcileInterruptedSessionUseCaseTest.kt:ReconcileInterruptedSessionUseCaseTest$@Test fun noInProgressSession_isNoOp</ID>
+    <ID>FunctionNaming:ReconcileInterruptedSessionUseCaseTest.kt:ReconcileInterruptedSessionUseCaseTest$@Test fun staleOrphan_withoutLiveController_closedInterrupted</ID>
+    <ID>FunctionNaming:RecordDialAttemptUseCaseTest.kt:RecordDialAttemptUseCaseTest$@Test fun deterministicId_distinguishesContactsAndTimestamps</ID>
+    <ID>FunctionNaming:RecordDialAttemptUseCaseTest.kt:RecordDialAttemptUseCaseTest$@Test fun dialIntent_carriesSimSlotWhenProvided_andStaysNullOtherwise</ID>
+    <ID>FunctionNaming:RecordDialAttemptUseCaseTest.kt:RecordDialAttemptUseCaseTest$@Test fun dialIntent_persistsAttemptedPendingEvent_neverTouchesLastContacted</ID>
+    <ID>FunctionNaming:RecordDialAttemptUseCaseTest.kt:RecordDialAttemptUseCaseTest$@Test fun redialOutsideDedupeWindow_createsIndependentEvent</ID>
+    <ID>FunctionNaming:RecordDialAttemptUseCaseTest.kt:RecordDialAttemptUseCaseTest$@Test fun redialWithinDedupeWindow_mergesIntoExistingEvent_keepingFirstId</ID>
+    <ID>FunctionNaming:RecordEmergencyAttemptUseCaseTest.kt:RecordEmergencyAttemptUseCaseTest$@Test fun blocked_midSession_finishesBlocked_andStops_noAttemptRecorded</ID>
+    <ID>FunctionNaming:RecordEmergencyAttemptUseCaseTest.kt:RecordEmergencyAttemptUseCaseTest$@Test fun contactDeleted_midSession_finishesInterrupted_andStops</ID>
+    <ID>FunctionNaming:RecordEmergencyAttemptUseCaseTest.kt:RecordEmergencyAttemptUseCaseTest$@Test fun continueRinging_belowCeiling_noFinishNoStop</ID>
+    <ID>FunctionNaming:RecordEmergencyAttemptUseCaseTest.kt:RecordEmergencyAttemptUseCaseTest$@Test fun maxReached_atTen_finishesMaxReached_andStops</ID>
+    <ID>FunctionNaming:RecordEmergencyAttemptUseCaseTest.kt:RecordEmergencyAttemptUseCaseTest$@Test fun sessionFinished_whenRecordReturnsNull</ID>
+    <ID>FunctionNaming:RetentionCleanupCoordinatorTest.kt:RetentionCleanupCoordinatorTest$@Test fun launchIn_executesExactlyOnce_despiteDuplicateLaunches</ID>
+    <ID>FunctionNaming:RetentionCleanupCoordinatorTest.kt:RetentionCleanupCoordinatorTest$@Test fun runOnce_containsDaoFailure_returnsNull_andStaysSingleFlightForTheProcess</ID>
+    <ID>FunctionNaming:RetentionCleanupCoordinatorTest.kt:RetentionCleanupCoordinatorTest$@Test fun runOnce_executesCleanupOnce_passingInjectedClock_andPublishesReport</ID>
+    <ID>FunctionNaming:RetentionCleanupCoordinatorTest.kt:RetentionCleanupCoordinatorTest$@Test fun runOnce_isSingleFlight_underConcurrentCalls</ID>
+    <ID>FunctionNaming:RetentionCleanupCoordinatorTest.kt:RetentionCleanupCoordinatorTest$@Test fun runOnce_rethrowsCancellation_andRemainsSingleFlight</ID>
+    <ID>FunctionNaming:RetentionCleanupCoordinatorTest.kt:RetentionCleanupCoordinatorTest$@Test fun runOnce_secondCallAfterSuccess_neverTouchesTheDaoAgain</ID>
+    <ID>FunctionNaming:RetentionCleanupTest.kt:RetentionCleanupTest$@Test fun cleanupExpiredData_activeEmergencySession_survivesRegardlessOfAge</ID>
+    <ID>FunctionNaming:RetentionCleanupTest.kt:RetentionCleanupTest$@Test fun cleanupExpiredData_emergencySession48HourBoundary_exactSemantics</ID>
+    <ID>FunctionNaming:RetentionCleanupTest.kt:RetentionCleanupTest$@Test fun cleanupExpiredData_exactRetentionBoundary_isRetained_andOnlyStrictlyOlderIsDeleted</ID>
+    <ID>FunctionNaming:RetentionCleanupTest.kt:RetentionCleanupTest$@Test fun cleanupExpiredData_isIdempotent_whenRunRepeatedly</ID>
+    <ID>FunctionNaming:RetentionCleanupTest.kt:RetentionCleanupTest$@Test fun cleanupExpiredData_mixedEmergencySessions_exactDeletionCount_andIdempotentRerun</ID>
+    <ID>FunctionNaming:RetentionCleanupTest.kt:RetentionCleanupTest$@Test fun cleanupExpiredData_oldTerminalEmergencySessions_areDeleted_andReported</ID>
+    <ID>FunctionNaming:RetentionCleanupTest.kt:RetentionCleanupTest$@Test fun cleanupExpiredData_preservesUserRecords_notCoveredByRetentionPolicy</ID>
+    <ID>FunctionNaming:RetentionCleanupTest.kt:RetentionCleanupTest$@Test fun cleanupExpiredData_rollsBackEntireTransaction_onMidCleanupFailure_andResumesOnRerun</ID>
+    <ID>FunctionNaming:ScreeningDispatchHostTest.kt:ScreeningDispatchHostTest$@Test fun incomingDirection_respondsNeutralFirst_thenIngests_strictOrder</ID>
+    <ID>FunctionNaming:ScreeningDispatchHostTest.kt:ScreeningDispatchHostTest$@Test fun koinUnavailableIngestReturningNull_stillRespondedNeutralFirst</ID>
+    <ID>FunctionNaming:ScreeningDispatchHostTest.kt:ScreeningDispatchHostTest$@Test fun outgoingDirection_totalSilence_noRespondNoIngest</ID>
+    <ID>FunctionNaming:ScreeningDispatchHostTest.kt:ScreeningDispatchHostTest$@Test fun unknownDirection_beforeApi28_treatedAsIncoming_conservatively</ID>
+    <ID>FunctionNaming:ScreeningDispatchHostTest.kt:ScreeningDispatchHostTest$@Test fun unreadableSignal_respondsNeutralButSkipsIngestion</ID>
+    <ID>FunctionNaming:ScreeningRoleControllerHostTest.kt:ScreeningRoleControllerHostTest$@Test fun `available role produces a request intent`</ID>
+    <ID>FunctionNaming:ScreeningRoleControllerHostTest.kt:ScreeningRoleControllerHostTest$@Test fun `held role is reported`</ID>
+    <ID>FunctionNaming:ScreeningRoleControllerHostTest.kt:ScreeningRoleControllerHostTest$@Test fun `role neither available nor held by default`</ID>
+    <ID>FunctionNaming:ScreeningRoleControllerPreRoleHostTest.kt:ScreeningRoleControllerPreRoleHostTest$@Test fun `before API 29 role is never held and never requestable`</ID>
+    <ID>FunctionNaming:ScreeningSignalIngestionUseCaseTest.kt:ScreeningSignalIngestionUseCaseTest$@Test fun duplicateScreeningSignalWithinWindow_mergesKeepingFirstSource</ID>
+    <ID>FunctionNaming:ScreeningSignalIngestionUseCaseTest.kt:ScreeningSignalIngestionUseCaseTest$@Test fun screeningEvents_neverTouchLastContacted_evenWhenContactIdPresent</ID>
+    <ID>FunctionNaming:ScreeningSignalIngestionUseCaseTest.kt:ScreeningSignalIngestionUseCaseTest$@Test fun screeningSignal_neverMergesWithOpenInAppAttempt_directionMismatch</ID>
+    <ID>FunctionNaming:ScreeningSignalIngestionUseCaseTest.kt:ScreeningSignalIngestionUseCaseTest$@Test fun unverifiedSignal_classifiesLowConfidence</ID>
+    <ID>FunctionNaming:ScreeningSignalIngestionUseCaseTest.kt:ScreeningSignalIngestionUseCaseTest$@Test fun verifiedSignal_classifiesHighConfidenceIncomingUnknown</ID>
+    <ID>FunctionNaming:ScreeningSignalIngestionUseCaseTest.kt:ScreeningSignalIngestionUseCaseTest$@Test fun withheldNumber_storesIndependentRowWithoutDedupeBasis</ID>
+    <ID>FunctionNaming:ServicesFeatureTest.kt:ServicesFeatureTest$@Test fun lookupServiceByPhone_findsServiceByLocalOrE164Number</ID>
+    <ID>FunctionNaming:SettingsFeatureTest.kt:SettingsFeatureTest$@Test fun settingsRepository_updatesLanguageAndTheme</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun getBackupData_collectsCategoriesArhamTagsAndPreferences</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun getBackupData_withoutContactsDao_failsFastInsteadOfSilentEmptyBackup</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun linkUnmatchedEntry_appliesCategoryAndArhamToTargetContact</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun linkUnmatchedEntry_entryWithoutCategoryOrRelation_returnsFalseWithoutWrites</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun linkUnmatchedEntry_missingTargetContact_returnsFalse</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun restoreBackupData_contactVanishedMidRestore_entriesDerivedFromOutcome</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun restoreBackupData_mergeMode_updatesMatchedAndPreservesRest</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun restoreBackupData_replaceMode_resetsPreviousCategoriesAndTags</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun restoreBackupData_withRestorePreferencesTrue_restoresSettings</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun restoreBackupData_withoutDaos_failsFastInsteadOfSilentNoOpRestore</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun restoreBackupData_withoutRestoreRunner_failsFastInsteadOfPartialRestore</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun searchLinkCandidates_shortQuery_returnsEmptyWithoutConsumingSearch</ID>
+    <ID>FunctionNaming:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun searchLinkCandidates_validQuery_delegatesToContactsDaoSearch</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun exportAndPreviewBackup_roundTrip_producesExpectedPreview</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun individualPreferenceUseCases_updateRepositoryState</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun linkUnmatchedEntryUseCase_delegatesAndPropagatesRepositoryOutcome</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun preferenceUseCases_addedForDipRefactor_updateRepositoryState</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun previewBackup_withWrongPassword_throwsBackupDecryptionException</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun restoreBackup_passesPayloadAndFlagsToRepository</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun ringtonePriority_contact_over_category_over_system</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun searchLinkCandidatesUseCase_shortQuery_returnsEmptyWithoutTouchingRepository</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun searchLinkCandidatesUseCase_validQuery_delegatesToRepository</ID>
+    <ID>FunctionNaming:SettingsUseCasesTest.kt:SettingsUseCasesTest$@Test fun setCategoryRingtone_updatesRepositoryAndPropagatesToPlatform</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun backupExportAndRestore_flowEmitsEffectsAndUpdatesState</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun initialPreferences_flowThroughState</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun linkUnmatchedEntry_failedRepository_marksLinkFailedAndKeepsEntrySelection</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun previewFailure_blankPassword_mapsToBlankPasswordKindNotRawMessage</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun previewFailure_decryptionFailure_mapsToDecryptionFailedKindNotRawMessage</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun reminderPreferenceIntents_rescheduleImmediatelyAfterWrite</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun restoreWithUnmatchedEntries_opensResultDialog_andManualLinkRemovesEntry</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun ringtonePicker_dialogState</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun setImportBackupBytes_adoptsCappedNonEmptyBytes_andClearsOnDismissImport</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun setImportBackupBytes_rejectsOversizeAndEmptyAsNoAdoption</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun setLanguage_appliesApplicationLocaleAfterPreferenceWrite</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun t9PreferenceIntents_updateStateCorrectly</ID>
+    <ID>FunctionNaming:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun unrelatedPreferenceIntents_doNotRescheduleReminder</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun apply_emptyChecked_isNoOp</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun apply_failure_emitsShowError_andResetsApplying</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun apply_familyWithRelation_triggersPendingArhamOffer_andWaitsForDecision</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun apply_success_writesCheckedOnly_andNavigatesBack</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun back_emitsNavigateBack</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun confirmArhamOffer_failure_emitsShowError_andNavigatesBack</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun confirmArhamOffer_linksAllOffersWithDefaultFrequency_andNavigatesBack</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun declineArhamOffer_navigatesBackWithoutLinking</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun firstEmission_preselectsHighOnly_andCompletesLoading</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun laterEmission_preservesUserChecked_andPrunesVanishedItems</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun neverAsk_writesExcludeFlag_andItemLeavesStream</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun notThisCategory_recordsRejectedFeedback_andHidesItem</ID>
+    <ID>FunctionNaming:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$@Test fun toggleGroupAll_checksWholeGroup_andSecondTapClearsIt</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun companyField_isWorkLow</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun dictionary_relationMapCoversAllFamilyTerms</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun dictionary_terms_arePostNormalizationForm</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun emergencyKeyword_isHigh</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun emergencyShortCode_isHigh_andLongPersonalNumberNeverMatches</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun engineerTitle_isWorkMedium</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun familyKeyword_stripsDefiniteArticle_andMapsRelation</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun familyPhrase_twoTokenWindow_mapsCousin</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun familyTerm_isNotMatchedAsSubstringOfOtherName</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun family_dialectTerms_gulfAndLevantine</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun serviceKeyword_matchesWholeToken</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun shortHotlineNumber_isServicesLow</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun smartCategorize_picksHighestConfidence_acrossRules</ID>
+    <ID>FunctionNaming:SmartFilterRuleTest.kt:SmartFilterRuleTest$@Test fun tokenExact_noFalseServiceForPossessiveName</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun apply_emptySelection_writesNothing</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun apply_repositoryFailure_isHonestError_withoutFeedbackRecorded</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun apply_writesOnlySelectedGroupedByCategory_andRecordsAcceptedFeedback</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun observe_evaluatesUncategorizedOnly_andHonorsDontAsk</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun observe_gateOff_yieldsNothing</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun observe_groupsDeterministically_familyFirst_thenConfidenceWithin</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun observe_rejectedDominantFeedback_downgradesOneLevel</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun recordFeedback_reject_isWeightedAgainstTokenCategory</ID>
+    <ID>FunctionNaming:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$@Test fun setExclude_marksContact_andIsIdempotent_andHandlesMissing</ID>
+    <ID>FunctionNaming:StartEmergencyRingingUseCaseTest.kt:StartEmergencyRingingUseCaseTest$@Test fun alreadyRunning_whenSessionInProgress_idempotent</ID>
+    <ID>FunctionNaming:StartEmergencyRingingUseCaseTest.kt:StartEmergencyRingingUseCaseTest$@Test fun contactBlocked_stopOnBlockGate_atStart</ID>
+    <ID>FunctionNaming:StartEmergencyRingingUseCaseTest.kt:StartEmergencyRingingUseCaseTest$@Test fun contactNotFound_whenUnknown</ID>
+    <ID>FunctionNaming:StartEmergencyRingingUseCaseTest.kt:StartEmergencyRingingUseCaseTest$@Test fun notEmergencyContact_whenWrongCategory</ID>
+    <ID>FunctionNaming:StartEmergencyRingingUseCaseTest.kt:StartEmergencyRingingUseCaseTest$@Test fun rateLimited_whenWindowCountAtLimit</ID>
+    <ID>FunctionNaming:StartEmergencyRingingUseCaseTest.kt:StartEmergencyRingingUseCaseTest$@Test fun started_insertsRow_andStartsControllerWithIds</ID>
+    <ID>FunctionNaming:StopEmergencyRingingUseCaseTest.kt:StopEmergencyRingingUseCaseTest$@Test fun doubleStop_isIdempotent_secondReturnsFalse</ID>
+    <ID>FunctionNaming:StopEmergencyRingingUseCaseTest.kt:StopEmergencyRingingUseCaseTest$@Test fun explicitId_finishesStoppedByUser_andStops</ID>
+    <ID>FunctionNaming:StopEmergencyRingingUseCaseTest.kt:StopEmergencyRingingUseCaseTest$@Test fun nullIdWithNoSession_returnsFalse_noStopCall</ID>
+    <ID>FunctionNaming:StopEmergencyRingingUseCaseTest.kt:StopEmergencyRingingUseCaseTest$@Test fun nullId_resolvesInProgressSession</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun create_doubleFailure_compensationSwallowed_andErrorStillReturned</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun create_platformFailure_roomIsNeverTouched</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun create_platformFirst_thenRoomReceivesMergedIdentity</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun create_roomFailure_silentlyDeletesTheCreatedPlatformRow</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun findDuplicate_blankE164_returnsEmpty_withoutRepositoryCall</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun findDuplicate_delegatesToRepository_withExclusion</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun photoProcessorFailure_savesWithoutPhoto_neverFailsSave</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun processedPhotoBytes_flowToWriter</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun recentInteractions_blankE164s_skipRepositoryRead</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun recentInteractions_delegatesWithDefaultLimitFive</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun removePhoto_writesEmptyBytesSignal_toWriter</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun save_stampsUpdatedAt_andFallsBackNormalizedNameToDisplayName</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun toWritable_blankIdentityBecomesNulls_forCreate</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun toWritable_projectsMirrorFields_only</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun undoDelete_platformDeletesFirst_thenTombstonesWithClockStamp</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun undoDelete_platformFailure_roomIsNeverTouched</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun undoDelete_tombstoneFailure_returnsError_afterPlatformDeleted</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun undoWindow_isFiveSeconds</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun update_platformFailure_roomIsNeverTouched</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun update_platformFirst_thenRoomReceivesDraft</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun update_preservesOriginalCreatedAt_andRestampsUpdatedAt</ID>
+    <ID>FunctionNaming:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$@Test fun update_roomFailure_restoresPreviousStateToPlatform</ID>
+    <ID>FunctionNaming:T6MigrationTest.kt:T6MigrationTest$@Test fun migration12_createsAllFiveStandardFieldTables_withCorrectColumns</ID>
+    <ID>FunctionNaming:T6MigrationTest.kt:T6MigrationTest$@Test fun migration12_preservesUserPhoneRows_andDefaultsNewColumns</ID>
+    <ID>FunctionNaming:T6MigrationTest.kt:T6MigrationTest$@Test fun migration12_tablesDidNotExist_beforeMigration</ID>
+    <ID>FunctionNaming:T7MigrationTest.kt:T7MigrationTest$@Test fun migration34_createsThreeMergeTables_withExactShapes_andNonDestructive</ID>
+    <ID>FunctionNaming:T7MigrationTest.kt:T7MigrationTest$@Test fun migration34_thenProductionRoomOpen_validatesAndStampsCurrentVersion</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun adoption_callEventsUnknownShape_failsClosed_withoutAnyMutation</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun adoption_v2ShapedZeroVersion_callEventsMigratedPerH2_andRoomStampsCurrentVersion</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_duplicateE164DistinctPks_bothSurvive</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_emptyV2_producesExactV3Shape_singleIndex_andEmergencyTable</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_fullV2Fixture_roomOpensMigrates_andFacadeReadWriteSucceeds</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_malformedDirectionText_failsClosedBeforeAnyWrite</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_malformedSourceText_failsClosedBeforeAnyWrite</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_nonDestructive_allPreExistingRowCountsPreserved</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_rerunOnV3Shape_idempotentNoLoss</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_resultingSchema_passesProductionRoomValidation_userVersionStamped3</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_unrelatedTables_untouched_includingFts</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_validLegacyRows_verbatimPreservation_andH2Derivations</ID>
+    <ID>FunctionNaming:T8MigrationTest.kt:T8MigrationTest$@Test fun migration23_zeroDurationStaysZero_missedFlipsToNull_noRowDropped</ID>
+    <ID>FunctionNaming:TopFiveMaterializationRepositoryImplTest.kt:TopFiveMaterializationRepositoryImplTest$@Test fun endToEnd_batchFailureThroughRepository_markerUnset_retryCompletes</ID>
+    <ID>FunctionNaming:TopFiveMaterializationRepositoryImplTest.kt:TopFiveMaterializationRepositoryImplTest$@Test fun endToEnd_notReadyThenPartialSync_droppedNoPhantom_markerOnlyAfterApply</ID>
+    <ID>FunctionNaming:TopFiveMaterializationRepositoryImplTest.kt:TopFiveMaterializationRepositoryImplTest$@Test fun endToEnd_preservation_existingArhamWins_lastContactedUntouched</ID>
+    <ID>FunctionNaming:TopFiveMaterializationRepositoryImplTest.kt:TopFiveMaterializationRepositoryImplTest$@Test fun endToEnd_replayRun_alreadyMaterialized_stateUnchanged</ID>
+    <ID>FunctionNaming:UpdateKinshipUseCaseTest.kt:UpdateKinshipUseCaseTest$@Test fun defaultFrequency_biweeklyForUnclesAndAuntsBothSides</ID>
+    <ID>FunctionNaming:UpdateKinshipUseCaseTest.kt:UpdateKinshipUseCaseTest$@Test fun defaultFrequency_dailyForParents</ID>
+    <ID>FunctionNaming:UpdateKinshipUseCaseTest.kt:UpdateKinshipUseCaseTest$@Test fun defaultFrequency_monthlyForCousinsBothSides</ID>
+    <ID>FunctionNaming:UpdateKinshipUseCaseTest.kt:UpdateKinshipUseCaseTest$@Test fun defaultFrequency_nullForUnlistedRelations_noInventedDefaults</ID>
+    <ID>FunctionNaming:UpdateKinshipUseCaseTest.kt:UpdateKinshipUseCaseTest$@Test fun defaultFrequency_weeklyForSiblings</ID>
+    <ID>FunctionNaming:UpdateKinshipUseCaseTest.kt:UpdateKinshipUseCaseTest$@Test fun invoke_missingContact_returnsNotFound_withoutAnyUpsert</ID>
+    <ID>FunctionNaming:UpdateKinshipUseCaseTest.kt:UpdateKinshipUseCaseTest$@Test fun invoke_preservesLastContactedAndDerivesLayer_passesParentAndPause</ID>
+    <ID>FunctionNaming:UpdateKinshipUseCaseTest.kt:UpdateKinshipUseCaseTest$@Test fun invoke_withoutPause_clearsPausedUntil_andHandlesContactWithoutArhamInfo</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun defaultPreferences_areArabicRtlAndLightMode</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun diskBackedDataStore_persistsPreferencesAndReusesSameInstanceOnReopen</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun diskBacked_celebratedTransitions_mergeWithPersistedMapOnReopen</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun t9Preferences_allDocumentedDefaults_matchSpec</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun t9Preferences_categoryRingtones_individualAndBulkUpdate</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun t9Preferences_updatingAllSettings_persistsAndLoadsOnDisk</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun topFiveMarker_defaultsFalse_thenRaisedAndEmitted</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun topFiveMarker_neverResetByReSelection</ID>
+    <ID>FunctionNaming:UserPreferencesDataSourceTest.kt:UserPreferencesDataSourceTest$@Test fun updatingLanguageAndTheme_emitsUpdatedPreferences</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun emails_internetAlways_workSuffixOnlyForWork</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun escaping_backslashSemicolonComma_andNewlines</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun minimalContact_producesRfc2426Envelope_withCrlfLineSeparators</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun nameComponent_semicolon_doesNotBreakNStructure</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun nameComponents_composeN_inFamilyGivenOrder</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun organization_companyAndDepartment_commaSeparatedEscaped</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun silaOnlyFields_neverExported_evenWhenPopulated</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun telType_mapping_coversAllModelTypes</ID>
+    <ID>FunctionNaming:VCardGeneratorTest.kt:VCardGeneratorTest$@Test fun websites_eachBecomesUrlLine</ID>
+    <ID>LongMethod:AesGcmCrypto.kt:AesGcmCrypto$internal fun sha256: ByteArray</ID>
+    <ID>LongMethod:AndroidApp.kt:@Composable fun SilaAndroidApp</ID>
+    <ID>LongMethod:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest$@Test fun `contact row maps name parts phones emails organization websites and notes`</ID>
+    <ID>LongMethod:App.kt:@Composable @Preview fun App</ID>
+    <ID>LongMethod:App.kt:@Composable fun SilaMainShell</ID>
+    <ID>LongMethod:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest$@Test fun getRecentCallEvents_mapsV3ColumnsToRecentInteractionContract</ID>
+    <ID>LongMethod:ArhamDashboardAggregationTest.kt:ArhamDashboardAggregationTest$@Test fun aggregation_overLiveRoom_matchesSeededFixtures_exactly</ID>
+    <ID>LongMethod:ArhamScreen.kt:@Composable fun ArhamContent</ID>
+    <ID>LongMethod:ArhamStringsProvider.kt:@Composable fun rememberArhamStrings: ArhamStrings</ID>
+    <ID>LongMethod:ArhamTreeScreen.kt:@Composable fun ArhamTreeScreen</ID>
+    <ID>LongMethod:ContactDetailsScreen.kt:@Composable private fun DetailsBody</ID>
+    <ID>LongMethod:ContactDetailsScreen.kt:@Composable private fun HeaderBlock</ID>
+    <ID>LongMethod:ContactDetailsStringsProvider.kt:@Composable fun rememberContactDetailsStrings: ContactDetailsStrings</ID>
+    <ID>LongMethod:ContactEditScreen.kt:@Composable fun ContactEditContent</ID>
+    <ID>LongMethod:ContactEditScreen.kt:@Composable private fun AdvancedSections</ID>
+    <ID>LongMethod:ContactEditStringsProvider.kt:@Composable fun rememberContactEditStrings: ContactEditStrings</ID>
+    <ID>LongMethod:ContactEditViewModel.kt:ContactEditViewModel$override fun onIntent</ID>
+    <ID>LongMethod:ContactEditViewModel.kt:ContactEditViewModel$private fun buildDraft: Contact</ID>
+    <ID>LongMethod:ContactsNav.kt:@Composable fun ContactsNavFlow</ID>
+    <ID>LongMethod:ContactsScreen.kt:@Composable private fun SwipeToDismissContactRow</ID>
+    <ID>LongMethod:ContactsScreen.kt:@OptIn(ExperimentalFoundationApi::class) @Composable private fun ContactRow</ID>
+    <ID>LongMethod:ContactsStringsProvider.kt:@Composable fun rememberContactsStrings: ContactsStrings</ID>
+    <ID>LongMethod:ContactsSyncEngineTest.kt:ContactsSyncEngineTest$@Test fun phoneUnionPropertyTest_unionOfUniquePhonesPreservedAcrossSyncs</ID>
+    <ID>LongMethod:GetArhamDashboardStatsUseCase.kt:GetArhamDashboardStatsUseCase$operator fun invoke: Flow&lt;ArhamDashboardStats&gt;</ID>
+    <ID>LongMethod:IosContactsPlatformSourceMappingTest.kt:IosContactsPlatformSourceMappingTest$@Test fun cnMutableContact_mapsAllSupportedFieldsWithPureMapper</ID>
+    <ID>LongMethod:IosContactsSourceLogic.kt:fun mapIosContact: PlatformContact</ID>
+    <ID>LongMethod:KinshipEditorSheet.kt:@Composable fun KinshipEditorSheet</ID>
+    <ID>LongMethod:KoinModule.kt:fun createSilaSharedModule: Module</ID>
+    <ID>LongMethod:KonsistArchitectureTest.kt:KonsistArchitectureTest$@Test fun `regression - inheritsFromMviContract supports indirect classes and interfaces and rejects spoofed type names`</ID>
+    <ID>LongMethod:KonsistArchitectureTest.kt:KonsistArchitectureTest$internal fun stripCommentsAndStrings: String</ID>
+    <ID>LongMethod:KonsistArchitectureTest.kt:KonsistArchitectureTest$internal fun stripCommentsKeepStrings: String</ID>
+    <ID>LongMethod:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr01_fixturesB_C_D_E_preserveCompositePartialAutoAndPkIndices_andRejectUnsupportedBeforeMutation</ID>
+    <ID>LongMethod:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$@Test fun sr02_classificationMatrix_casesAtoL_andStrictMetadataAndIndexValidation_zeroMutationOnUnknown</ID>
+    <ID>LongMethod:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$suspend fun readSnapshot: LegacySchemaSnapshot</ID>
+    <ID>LongMethod:LegacySchemaFixtures.kt:LegacySchemaFixtures$private suspend fun createCoreTables</ID>
+    <ID>LongMethod:LocalSilaDatabase.kt:LocalSilaDatabase$override suspend fun applySyncBatch: ContactsSyncBatchResult</ID>
+    <ID>LongMethod:LocalSilaDatabase.kt:LocalSilaDatabase$override suspend fun cleanupExpiredData: CleanupReport</ID>
+    <ID>LongMethod:LocalSilaDatabase.kt:LocalSilaDatabase$private suspend fun readPersistedContactBySystemId: PersistedContact?</ID>
+    <ID>LongMethod:LocalSilaDatabase.kt:LocalSilaDatabase$private suspend fun writeContactRelationsToSqlite</ID>
+    <ID>LongMethod:LocalSilaDatabase.kt:LocalSilaDatabase$suspend fun mergeContactsInRoom: MergeCommitResult</ID>
+    <ID>LongMethod:LocalSilaDatabase.kt:LocalSilaDatabase.Companion$private fun seedInitialContacts: List&lt;Contact&gt;</ID>
+    <ID>LongMethod:MergeContactsUseCase.kt:MergeContactsUseCase$suspend operator fun invoke: AppResult&lt;MergeCommit&gt;</ID>
+    <ID>LongMethod:PermissionExplainerScreen.kt:@Composable internal fun PermissionExplainerScreen</ID>
+    <ID>LongMethod:SettingsRepositoryImpl.kt:SettingsRepositoryImpl$override suspend fun getBackupData: BackupPayload</ID>
+    <ID>LongMethod:SettingsRepositoryImpl.kt:SettingsRepositoryImpl$override suspend fun restoreBackupData: RestoreResult</ID>
+    <ID>LongMethod:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$@Test fun restoreBackupData_withRestorePreferencesTrue_restoresSettings</ID>
+    <ID>LongMethod:SettingsViewModel.kt:SettingsViewModel$override fun onIntent</ID>
+    <ID>LongMethod:SettingsViewModelTest.kt:SettingsViewModelTest$@Test fun restoreWithUnmatchedEntries_opensResultDialog_andManualLinkRemovesEntry</ID>
+    <ID>LongMethod:SilaComponents.kt:@Composable fun SilaActionSheet</ID>
+    <ID>LongMethod:SilaComponents.kt:@Composable fun SilaContactRow</ID>
+    <ID>LongMethod:SilaComponents.kt:@Composable fun SilaServiceCard</ID>
+    <ID>LongMethod:TopFiveScreen.kt:@Composable internal fun TopFiveScreen</ID>
+    <ID>LongMethod:UserPreferencesDataSource.kt:SilaPreferencesDataSource$private fun toUserPreferences: UserPreferences</ID>
+    <ID>LongMethod:WelcomePagerScreen.kt:@Composable internal fun WelcomePagerScreen</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x04</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x09</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x19a4c116.toInt()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x27b70a85.toInt()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x428a2f98.toInt()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x51</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x53</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x60</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x63</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x70</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x748f82ee.toInt()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x8c.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0x983e5152.toInt()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xa2bfe8a1.toInt()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xb7.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xba.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xca.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xcd.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xd0.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xd807aa98.toInt()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xe0.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xe1.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xe49b69c1.toInt()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$0xe7.toByte()</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$val t0 = TE0[(s0 ushr 24) and 0xFF] xor TE1[(s1 ushr 16) and 0xFF] xor TE2[(s2 ushr 8) and 0xFF] xor TE3[s3 and 0xFF] xor w[r * 4]</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$val t1 = TE0[(s1 ushr 24) and 0xFF] xor TE1[(s2 ushr 16) and 0xFF] xor TE2[(s3 ushr 8) and 0xFF] xor TE3[s0 and 0xFF] xor w[r * 4 + 1]</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$val t2 = TE0[(s2 ushr 24) and 0xFF] xor TE1[(s3 ushr 16) and 0xFF] xor TE2[(s0 ushr 8) and 0xFF] xor TE3[s1 and 0xFF] xor w[r * 4 + 2]</ID>
+    <ID>MaxLineLength:AesGcmCrypto.kt:AesGcmCrypto$val t3 = TE0[(s3 ushr 24) and 0xFF] xor TE1[(s0 ushr 16) and 0xFF] xor TE2[(s1 ushr 8) and 0xFF] xor TE3[s2 and 0xFF] xor w[r * 4 + 3]</ID>
+    <ID>MaxLineLength:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$"55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783"</ID>
+    <ID>MaxLineLength:AesGcmCryptoKatTest.kt:AesGcmCryptoKatTest$"e5d7c03e11ae5b90b6669755fd90930259ec77f7f643b3d71d263304358e528a679f2ef40a2306882becc93d7f3f38f213304971033ad47eb3421d72ad20e77c"</ID>
+    <ID>MaxLineLength:CallEventStateMachineTest.kt:CallEventStateMachineTest$Ac8Case("مدة صفر", CallOutcome.COMPLETED, CallConfirmation.PENDING, connectedAt = 1_000L, endedAt = 61_000L, durationSec = 0, expected = false)</ID>
+    <ID>MaxLineLength:ContactDetailsScreen.kt:ActionSheetItem</ID>
+    <ID>MaxLineLength:ContactEditViewModel.kt:private</ID>
+    <ID>MaxLineLength:ContactsSyncDaoTest.kt:ContactsSyncDaoTest$"INSERT INTO contact_phones (id, contactId, raw, e164, type, isPrimary) VALUES (7, 1, '01033334444', '+201033334444', 'MOBILE', 1)"</ID>
+    <ID>MaxLineLength:DetectDuplicatesUseCase.kt:DetectDuplicatesUseCase.Edge$constructor</ID>
+    <ID>MaxLineLength:IosReminderRequestTest.kt:IosReminderRequestTest$assertEquals("واحد:عم المتأخر", request.content.body, "الرأس عنوان المتأخر الأشد إلحاحاً — والنص من صيغ المُرسَب عبر المُنبِّئ النقي")</ID>
+    <ID>MaxLineLength:KoinModule.kt:*</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$"$openBlock com.google.firebase.FirebaseApp in block comment $openBlock nested dev.gitlive.firebase.Firebase $closeBlock $closeBlock"</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$"Arham key sets must be identical in ar and en; ar-only=${arhamArabic.keys - arhamEnglish.keys}, en-only=${arhamEnglish.keys - arhamArabic.keys}"</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$additionalMessage = "Arham presentation Text calls must never take string literals — all UI text comes from resources via ArhamStrings."</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$additionalMessage = "Arham presentation code must never embed Arabic-script string literals — all UI text comes from resources via ArhamStrings."</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$additionalMessage = "Domain layer files must not import or reference data, presentation, database, datastore, designsystem, compose, room, network, or firebase."</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$additionalMessage = "Every production *ViewModel class must implement MviViewModel or extend BaseMviViewModel (directly or indirectly)."</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$additionalMessage = "Every production file and declaration under feature/&lt;feature&gt;/&lt;layer&gt; must reside in package app.sila.feature.&lt;feature&gt;.&lt;layer&gt;.."</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$additionalMessage = "Feature packages must remain completely decoupled from other feature packages (app.sila.feature.&lt;x&gt;.. must not import or reference app.sila.feature.&lt;y&gt;.. when x != y)."</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$additionalMessage = "Presentation and sharedUI files must never import data-layer, database, or datastore packages, nor reference *RepositoryImpl or *Dao."</ID>
+    <ID>MaxLineLength:KonsistArchitectureTest.kt:KonsistArchitectureTest$additionalMessage = "Privacy-sensitive features (contacts, arham) must never import or FQN-reference Ktor, Firebase, :core:network, or :core:firebase."</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdopter.kt:LegacyDatabaseAdopter$"INSERT INTO contacts_fts (docid, displayName, nickname, company, department, notes, normalizedName) VALUES (?, ?, ?, ?, ?, ?, ?)"</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$"INSERT INTO contact_phones (contactId, raw, e164, type, isPrimary) VALUES (1, '01012345678', '+201012345678', 'MOBILE', 1)"</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$"INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) "</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$"INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs, systemDeletedAt) "</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$"INSERT INTO contacts (id, systemContactId, displayName, company, category, isFavorite, normalizedName, createdAt, updatedAt) "</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$"INSERT INTO contacts (id, systemContactId, lookupKey, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) "</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$"INSERT INTO services (cloudId, name, professionId, professionNameAr, professionNameEn, phoneE164, visibility, trustScore, uniqueCallers, retentionRate, ratingAvg, ratingCount) "</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$"VALUES ('srv_1', 'سباك', 'p1', 'سباكة', 'Plumbing', '+201099990000', '${ServiceVisibility.VERIFIED.name}', 0.9, 5, 0.8, 4.5, 10)"</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$conn.executeSQL("INSERT INTO contact_phones (contactId, raw, e164, type, isPrimary) VALUES (1, '01011112222', '+201011112222', 'MOBILE', 1)")</ID>
+    <ID>MaxLineLength:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest$conn.executeSQL("INSERT INTO contact_phones (contactId, raw, e164, type, isPrimary) VALUES (1, '01077776666', '+201077776666', 'MOBILE', 1)")</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_arham_inbox_sent", unique = false, origin = "c", partial = false, columns = listOf("sentAt"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_call_events_ts", unique = false, origin = "c", partial = false, columns = listOf("timestamp"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_addresses_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_custom_fields_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_dates_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_emails_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_merge_snapshots_createdAt", unique = false, origin = "c", partial = false, columns = listOf("createdAt"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_merge_snapshots_groupId", unique = false, origin = "c", partial = false, columns = listOf("groupId"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_phones_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_phones_e164", unique = false, origin = "c", partial = false, columns = listOf("e164"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contact_websites_cid", unique = false, origin = "c", partial = false, columns = listOf("contactId"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contacts_category", unique = false, origin = "c", partial = false, columns = listOf("category"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contacts_fav", unique = false, origin = "c", partial = false, columns = listOf("isFavorite"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_contacts_norm_name", unique = false, origin = "c", partial = false, columns = listOf("normalizedName"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_duplicate_dismissals_groupKey", unique = false, origin = "c", partial = false, columns = listOf("groupKey"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_services_phone", unique = false, origin = "c", partial = false, columns = listOf("phoneE164"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_services_prof", unique = false, origin = "c", partial = false, columns = listOf("professionId"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFingerprint.kt:LegacySchemaFingerprint$LegacyIndex("idx_smart_filter_feedback_token", unique = false, origin = "c", partial = false, columns = listOf("token"), orders = listOf("ASC"))</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `arham_inbox` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `senderUid` TEXT NOT NULL, `senderName` TEXT NOT NULL, `recipientUid` TEXT NOT NULL, `messageText` TEXT NOT NULL, `direction` TEXT NOT NULL, `status` TEXT NOT NULL, `sentAt` INTEGER NOT NULL)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `arham` (`contactId` INTEGER NOT NULL, `relation` TEXT NOT NULL, `layer` TEXT NOT NULL, `parentContactId` INTEGER, `frequency` TEXT NOT NULL, `lastContactedAt` INTEGER, `pausedUntil` INTEGER, `createdAt` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`contactId`))"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `call_events` (`callLogId` TEXT NOT NULL, `e164` TEXT NOT NULL, `direction` TEXT NOT NULL, `durationSec` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `source` TEXT NOT NULL, PRIMARY KEY(`callLogId`))"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `contact_addresses` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `street` TEXT, `city` TEXT, `region` TEXT, `postalCode` TEXT, `country` TEXT, `type` TEXT NOT NULL DEFAULT 'HOME', `sortOrder` INTEGER NOT NULL DEFAULT 0)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `contact_custom_fields` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `label` TEXT NOT NULL, `value` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL DEFAULT 0)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `contact_dates` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `type` TEXT NOT NULL, `label` TEXT, `month` INTEGER NOT NULL, `day` INTEGER NOT NULL, `year` INTEGER, `sortOrder` INTEGER NOT NULL DEFAULT 0)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `contact_emails` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `address` TEXT NOT NULL, `type` TEXT NOT NULL DEFAULT 'PERSONAL', `label` TEXT, `sortOrder` INTEGER NOT NULL DEFAULT 0)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `contact_phones` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `raw` TEXT NOT NULL, `e164` TEXT NOT NULL, `type` TEXT NOT NULL DEFAULT 'MOBILE', `isPrimary` INTEGER NOT NULL DEFAULT 0, `label` TEXT, `sortOrder` INTEGER NOT NULL DEFAULT 0)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `contact_websites` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `contactId` INTEGER NOT NULL, `url` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL DEFAULT 0)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `contacts` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `systemContactId` TEXT NOT NULL, `lookupKey` TEXT, `accountType` TEXT, `accountName` TEXT, `displayName` TEXT NOT NULL, `fileAs` TEXT NOT NULL DEFAULT '', `prefix` TEXT, `firstName` TEXT, `middleName` TEXT, `lastName` TEXT, `suffix` TEXT, `nickname` TEXT, `phoneticName` TEXT, `company` TEXT, `department` TEXT, `photoUri` TEXT, `category` TEXT NOT NULL, `isFavorite` INTEGER NOT NULL DEFAULT 0, `customRingtoneUri` TEXT, `sendToVoicemail` INTEGER NOT NULL DEFAULT 0, `isBlocked` INTEGER NOT NULL DEFAULT 0, `notes` TEXT, `linkedServiceCloudId` TEXT, `excludeFromSmartFilter` INTEGER NOT NULL DEFAULT 0, `normalizedName` TEXT NOT NULL, `createdAt` INTEGER NOT NULL DEFAULT 0, `updatedAt` INTEGER NOT NULL DEFAULT 0, `systemDeletedAt` INTEGER)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `dispute_logs` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `serviceCloudId` TEXT NOT NULL, `description` TEXT NOT NULL, `status` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `resolvedAt` INTEGER)"</ID>
+    <ID>MaxLineLength:LegacySchemaFixtures.kt:LegacySchemaFixtures$"CREATE TABLE IF NOT EXISTS `services` (`cloudId` TEXT NOT NULL, `name` TEXT NOT NULL, `professionId` TEXT NOT NULL, `professionNameAr` TEXT NOT NULL, `professionNameEn` TEXT NOT NULL, `phoneE164` TEXT NOT NULL, `visibility` TEXT NOT NULL, `trustScore` REAL NOT NULL, `uniqueCallers` INTEGER NOT NULL, `retentionRate` REAL NOT NULL, `ratingAvg` REAL NOT NULL, `ratingCount` INTEGER NOT NULL, `isHot` INTEGER NOT NULL DEFAULT 0, `city` TEXT, `ownerVerified` INTEGER NOT NULL DEFAULT 0, `isSavedByUser` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`cloudId`))"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"INSERT INTO arham_inbox (id, senderUid, senderName, recipientUid, messageText, direction, status, sentAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"INSERT INTO contact_addresses (contactId, street, city, region, postalCode, country, type, sortOrder) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"INSERT INTO contacts_fts (docid, displayName, nickname, company, department, notes, normalizedName) VALUES (?, ?, ?, ?, ?, ?, ?)"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"INSERT INTO dispute_logs (id, serviceCloudId, description, status, createdAt, updatedAt, resolvedAt) VALUES (?, ?, ?, ?, ?, ?, ?)"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"INSERT INTO duplicate_dismissals (groupKey, reason, createdAt) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM duplicate_dismissals WHERE groupKey = ?)"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"INSERT INTO emergency_ringing_sessions (id, contactId, startedAt, lastAttemptAt, attempts, status) VALUES (?, ?, ?, ?, ?, ?)"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"SELECT COUNT(*) FROM dispute_logs WHERE status = '${DisputeStatus.RESOLVED.name}' AND resolvedAt IS NOT NULL AND resolvedAt &lt; ?"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"SELECT id, contactId, raw, e164, type, label, sortOrder, isPrimary FROM contact_phones WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"SELECT id, contactId, street, city, region, postalCode, country, type, sortOrder FROM contact_addresses WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"SELECT id, contactId, type, label, month, day, year, sortOrder FROM contact_dates WHERE contactId = ? ORDER BY sortOrder ASC, id ASC"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"SELECT id, groupId, payloadJson, contactCount, createdAt, status, restoredAt, expiresAt FROM contact_merge_snapshots WHERE id = ?"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$"SELECT id, groupId, payloadJson, contactCount, createdAt, status, restoredAt, expiresAt FROM contact_merge_snapshots WHERE status = 'ACTIVE' AND createdAt &lt;= ?"</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$)</ID>
+    <ID>MaxLineLength:LocalSilaDatabase.kt:LocalSilaDatabase$while (stmt.step()) parentLinks += (requireNotNull(stmt.getLong(0)) { "arham child id NULL" }) to (stmt.getLong(1) ?: 0L)</ID>
+    <ID>MaxLineLength:MergePlanner.kt:MergePlanner$addresses = unionBy(contacts, { it.addresses }, { listOf(it.street, it.city, it.region, it.postalCode, it.country, it.type).joinToString("|") })</ID>
+    <ID>MaxLineLength:MergePlanner.kt:MergePlanner${ it.name.let { n -&gt; listOf(n.prefix, n.firstName, n.middleName, n.lastName, n.suffix, n.nickname, n.phoneticName).count { part -&gt; !part.isNullOrBlank() } } }</ID>
+    <ID>MaxLineLength:MergePlannerTest.kt:MergePlannerTest$contact(2, 200L, "نور عادل", phones = listOf("+201000000002", "+201000000003"), emails = listOf("a@x.com", "b@x.com"), websites = listOf("https://nour.example"))</ID>
+    <ID>MaxLineLength:MergeTablesDdl.kt:MergeTablesDdl$"CREATE TABLE IF NOT EXISTS `contact_merge_snapshots` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `groupId` TEXT NOT NULL, `payloadJson` TEXT NOT NULL, `contactCount` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `status` TEXT NOT NULL DEFAULT 'ACTIVE', `restoredAt` INTEGER, `expiresAt` INTEGER NOT NULL)"</ID>
+    <ID>MaxLineLength:MergeTablesDdl.kt:MergeTablesDdl$"CREATE TABLE IF NOT EXISTS `duplicate_dismissals` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `groupKey` TEXT NOT NULL, `reason` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)"</ID>
+    <ID>MaxLineLength:MergeTablesDdl.kt:MergeTablesDdl$"CREATE TABLE IF NOT EXISTS `smart_filter_feedback` (`token` TEXT NOT NULL, `suggestedCategory` TEXT NOT NULL, `acceptedCount` INTEGER NOT NULL DEFAULT 0, `rejectedCount` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`token`, `suggestedCategory`))"</ID>
+    <ID>MaxLineLength:MergeUndoUseCaseTest.kt:MergeUndoUseCaseTest$assertTrue(restoredContent.members.any { it.systemContactId == "sys_new_ios" }, "هوية iOS المُعاد إنشاؤها تُهاجر داخل الاسترجاع (agy F3a)")</ID>
+    <ID>MaxLineLength:ReconcileInterruptedSessionUseCaseTest.kt:ReconcileInterruptedSessionUseCaseTest$private</ID>
+    <ID>MaxLineLength:RecordEmergencyAttemptUseCaseTest.kt:RecordEmergencyAttemptUseCaseTest$private suspend</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$ArhamInboxEntity(id = 1L, senderUid = "u1", senderName = "مُرسل", recipientUid = "أنا", messageText = "عند الحد", direction = MessageDirection.RECEIVED, status = MessageStatus.READ, sentAt = now - 30 * dayMs)</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$ArhamInboxEntity(id = 2L, senderUid = "u2", senderName = "مُرسل", recipientUid = "أنا", messageText = "بعد الحد", direction = MessageDirection.RECEIVED, status = MessageStatus.READ, sentAt = now - 30 * dayMs - 1)</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$DisputeLogEntity(id = 1L, serviceCloudId = "srv_1", description = "عند الحد", status = DisputeStatus.RESOLVED, createdAt = now - 200 * dayMs, updatedAt = now - 90 * dayMs, resolvedAt = now - 90 * dayMs)</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$DisputeLogEntity(id = 2L, serviceCloudId = "srv_1", description = "بعد الحد", status = DisputeStatus.RESOLVED, createdAt = now - 200 * dayMs, updatedAt = now - 90 * dayMs - 1, resolvedAt = now - 90 * dayMs - 1)</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$assertEquals(listOf(30L, 40L, 50L), db.readEmergencySessionsForTest().map { it.id }, "عند الحد + داخل النافذة + النشطة يبقون جميعاً")</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$assertNotNull(rows.firstOrNull { it.systemContactId == "tomb_exact" &amp;&amp; it.systemDeletedAt != null }, "القبر عند الحد بالضبط يبقى قابلاً للاسترجاع")</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$assertNotNull(rows.firstOrNull { it.systemContactId == "tomb_fresh" &amp;&amp; it.systemDeletedAt != null }, "القبر الحديث يبقى صفوفاً قابلة للاسترجاع")</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$assertNotNull(rows.firstOrNull { it.systemContactId == "user_active" &amp;&amp; it.systemDeletedAt == null }, "جهة المستخدم الحية غير مشمولة بالاستبقاء إطلاقاً")</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$assertNotNull(rowsAfterFailure.firstOrNull { it.systemContactId == "tomb_expired" &amp;&amp; it.systemDeletedAt != null }, "القبر المنتهي بقى موجوداً بعد التراجع")</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$listOf(ArhamInboxEntity(id = 1L, senderUid = "u1", senderName = "مُرسل", recipientUid = "أنا", messageText = "قديمة", direction = MessageDirection.RECEIVED, status = MessageStatus.READ, sentAt = now - 40 * dayMs))</ID>
+    <ID>MaxLineLength:RetentionCleanupTest.kt:RetentionCleanupTest$listOf(DisputeLogEntity(id = 1L, serviceCloudId = "srv_1", description = "محلوم قديم", status = DisputeStatus.RESOLVED, createdAt = now - 200 * dayMs, updatedAt = now - 100 * dayMs, resolvedAt = now - 100 * dayMs))</ID>
+    <ID>MaxLineLength:ScreeningDispatchHostTest.kt:ScreeningDispatchHostTest$private</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:else</ID>
+    <ID>MaxLineLength:SettingsScreen.kt:if</ID>
+    <ID>MaxLineLength:SettingsUseCasesTest.kt:SettingsUseCasesTest.FakeSettingsRepository$override suspend fun setArhamNotificationsEnabled</ID>
+    <ID>MaxLineLength:SettingsUseCasesTest.kt:SettingsUseCasesTest.FakeSettingsRepository$override suspend fun setAutoUpdatePhonebookServices</ID>
+    <ID>MaxLineLength:SettingsUseCasesTest.kt:SettingsUseCasesTest.FakeSettingsRepository$override suspend fun setPostCallCategorizeEnabled</ID>
+    <ID>MaxLineLength:SettingsViewModel.kt:SettingsUiState$/** بايتات نسخة مختارة من ملف الجهاز (SAF/مضيف Android) عبر نية SetImportBackupBytes — يُتبنّى ضمن سقف 16MB ويُمسح عند إغلاق أو إتمام مسار الاستعادة. */</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest$val dummyCipher = crypto.encrypt("""{"version":1,"exportedAt":"now","appVersion":"1.0.0","categories":[{"lookupKey":"k1","displayName":"Ali","category":"FAMILY"}]}""".encodeToByteArray(), "SecretPassword123")</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setAutoTrackingEnabled</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setAutoUpdatePhonebookServices</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setCrashReportsEnabled</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setDashboardPeriod</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setDuplicateScanEnabled</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setPostCallCategorizeEnabled</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setQuickRatingEnabled</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setSmartFilterEnabled</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$override suspend fun setVisibleAccounts</ID>
+    <ID>MaxLineLength:SettingsViewModelTest.kt:SettingsViewModelTest.TestSettingsRepository$val updated = if (uri == null) prefsFlow.value.categoryRingtones - category else prefsFlow.value.categoryRingtones + (category to uri)</ID>
+    <ID>MaxLineLength:T8MigrationTest.kt:T8MigrationTest$"INSERT INTO contacts (id, systemContactId, displayName, category, isFavorite, normalizedName, createdAt, updatedAt, fileAs) "</ID>
+    <ID>MaxLineLength:T8MigrationTest.kt:T8MigrationTest$assertEquals(SILA_ROOM_VERSION, userVersionOfFile(tempDbPath), "Room ختم الإصدار الحالي — فتحه الناتج v3 يمر عبر MIGRATION_3_4 (T7) تلقائياً بعد إعادة تشغيله الذكية على شكل v3 كانت عبوراً صامتاً أيام v3")</ID>
+    <ID>MaxLineLength:T8MigrationTest.kt:T8MigrationTest$assertEquals(SILA_ROOM_VERSION, userVersionOfFile(tempDbPath), "الشيم أوصل الشكل الحالي كاملاً (v3 + جداول الدمج الثلاثة — T7) ثم Room ختمت إصدارها الحالي")</ID>
+    <ID>MaxLineLength:T8MigrationTest.kt:T8MigrationTest$assertEquals(SILA_ROOM_VERSION, userVersionOfFile(tempDbPath), "الفتح الإنتاجي رحّل 2→3→4 (سلسلة MIGRATION_2_3 ثم MIGRATION_3_4 لجداول الدمج — T7) وختم الإصدار الحالي")</ID>
+    <ID>MaxLineLength:T8MigrationTest.kt:T8MigrationTest$assertEquals(setOf("log_out", "inapp_1"), recent.map { it.callLogId }.toSet(), "المرئي: OUT المهاجر + الجديد؛ MISSED/NULL محجوب")</ID>
+    <ID>MaxLineLength:build.gradle.kts:(text.contains("import io.ktor") || text.contains("import com.google.firebase") || text.contains("import dev.gitlive.firebase"))</ID>
+    <ID>SwallowedException:AndroidApp.kt:fileErr: IOException</ID>
+    <ID>SwallowedException:AndroidApp.kt:fileErr: SecurityException</ID>
+    <ID>SwallowedException:ContactsSyncEngine.kt:ContactsSyncEngine$@Suppress("TooGenericExceptionCaught") failure: Exception</ID>
+    <ID>SwallowedException:IosKoinBootstrap.kt:IosKoinBootstrap$e: TimeoutCancellationException</ID>
+    <ID>SwallowedException:SilaDatabaseBackup.kt:SilaDatabaseBackup$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:AndroidBackupCryptoEngine.kt:AndroidBackupCryptoEngine$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ArhamCallStateObserver.kt:AndroidCallStateObserver$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ArhamEmergencyRingingService.kt:ArhamEmergencyRingingService$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ArhamKinshipBridge.kt:ArhamBridgeKinshipLinker$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ArhamMaterializationCoordinator.kt:ArhamMaterializationCoordinator$failure: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ArhamOccasionBridge.kt:ArhamBridgeOccasionRecorder$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:DeleteContactWithUndoUseCase.kt:DeleteContactWithUndoUseCase$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:EmergencyStopActionReceiver.kt:EmergencyStopActionReceiver$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:IosKoinBootstrap.kt:IosKoinBootstrap$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LegacyDatabaseAdopter.kt:LegacyDatabaseAdopter$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:LocalSilaDatabase.kt:LocalSilaDatabase$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:MergeContactsUseCase.kt:MergeContactsUseCase$compEx: Throwable</ID>
+    <ID>TooGenericExceptionCaught:MergeContactsUseCase.kt:MergeContactsUseCase$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:MergeSweepCoordinator.kt:MergeSweepCoordinator$failure: Throwable</ID>
+    <ID>TooGenericExceptionCaught:ObserveSmartFilterSuggestionsUseCase.kt:ApplySmartFilterSuggestionsUseCase$failure: Throwable</ID>
+    <ID>TooGenericExceptionCaught:PreviewBackupUseCase.kt:PreviewBackupUseCase$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RestoreBackupUseCase.kt:RestoreBackupUseCase$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RetentionCleanupCoordinator.kt:RetentionCleanupCoordinator$failure: Throwable</ID>
+    <ID>TooGenericExceptionCaught:SaveContactUseCase.kt:SaveContactUseCase$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:SettingsViewModel.kt:SettingsViewModel$err: Exception</ID>
+    <ID>TooGenericExceptionCaught:SilaDatabaseBackup.kt:SilaDatabaseBackup$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:TelephonyStateWatcher.kt:TelephonyStateWatcher$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:UndoMergeUseCase.kt:UndoMergeUseCase$t: Throwable</ID>
+    <ID>TooManyFunctions:AesGcmCrypto.kt:AesGcmCrypto : BackupCryptoEngine</ID>
+    <ID>TooManyFunctions:AndroidContactsPlatformSource.kt:AndroidContactsPlatformSource : ContactsPlatformSource</ID>
+    <ID>TooManyFunctions:AndroidContactsPlatformWriter.kt:AndroidContactsPlatformWriter : ContactsPlatformWriter</ID>
+    <ID>TooManyFunctions:AndroidContactsSourceLogicTest.kt:AndroidContactsSourceLogicTest</ID>
+    <ID>TooManyFunctions:ArhamCallEventPersistenceTest.kt:ArhamCallEventPersistenceTest</ID>
+    <ID>TooManyFunctions:ArhamCallEventUseCasesTest.kt:ArhamCallEventUseCasesTest</ID>
+    <ID>TooManyFunctions:ArhamMaterializationTest.kt:ArhamMaterializationTest</ID>
+    <ID>TooManyFunctions:ArhamStrings.kt:ArhamStrings</ID>
+    <ID>TooManyFunctions:ArhamViewModelTest.kt:ArhamViewModelTest</ID>
+    <ID>TooManyFunctions:CallEventStateMachineTest.kt:CallEventStateMachineTest</ID>
+    <ID>TooManyFunctions:ContactDao.kt:ContactDao</ID>
+    <ID>TooManyFunctions:ContactDetailsViewModelTest.kt:ContactDetailsViewModelTest$FakeContactsRepository : ContactsRepository</ID>
+    <ID>TooManyFunctions:ContactEntityDao.kt:ContactEntityDao</ID>
+    <ID>TooManyFunctions:ContactsListDomainTest.kt:ContactsListDomainTest$FakeContactsRepository : ContactsRepository</ID>
+    <ID>TooManyFunctions:ContactsRepository.kt:ContactsRepository</ID>
+    <ID>TooManyFunctions:ContactsRepositoryImpl.kt:ContactsRepositoryImpl : ContactsRepository</ID>
+    <ID>TooManyFunctions:ContactsScreen.kt:app.sila.feature.contacts.presentation.ContactsScreen.kt</ID>
+    <ID>TooManyFunctions:ContactsSyncEngineTest.kt:ContactsSyncEngineTest</ID>
+    <ID>TooManyFunctions:ContactsViewModelKoinTest.kt:ContactsViewModelKoinTest</ID>
+    <ID>TooManyFunctions:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest</ID>
+    <ID>TooManyFunctions:DuplicatesReviewViewModelTest.kt:DuplicatesReviewViewModelTest$FakeContactsRepository : ContactsRepository</ID>
+    <ID>TooManyFunctions:GetArhamDashboardStatsUseCaseTest.kt:GetArhamDashboardStatsUseCaseTest</ID>
+    <ID>TooManyFunctions:IosArhamReminderDispatchTest.kt:FakeUserPreferencesDataSource : UserPreferencesDataSource</ID>
+    <ID>TooManyFunctions:IosContactsPlatformSource.kt:IosContactsPlatformSource : ContactsPlatformSource</ID>
+    <ID>TooManyFunctions:IosEmergencyRingingControllerTest.kt:IosEmergencyRingingControllerTest</ID>
+    <ID>TooManyFunctions:IosKoinBootstrap.kt:IosKoinBootstrap</ID>
+    <ID>TooManyFunctions:KonsistArchitectureTest.kt:KonsistArchitectureTest</ID>
+    <ID>TooManyFunctions:LegacyDatabaseAdopter.kt:LegacyDatabaseAdopter</ID>
+    <ID>TooManyFunctions:LegacyDatabaseAdoptionTest.kt:LegacyDatabaseAdoptionTest</ID>
+    <ID>TooManyFunctions:LegacySchemaFingerprint.kt:LegacySchemaFingerprint</ID>
+    <ID>TooManyFunctions:LocalSilaDatabase.kt:LocalSilaDatabase : ContactDaoArhamDaoServiceDaoDataRetentionCleanupDaoContactsSyncDaoTopFiveMaterializationDaoEmergencySessionDaoClassificationRestoreRunner</ID>
+    <ID>TooManyFunctions:OnboardingViewModelKoinTest.kt:OnboardingViewModelKoinTest</ID>
+    <ID>TooManyFunctions:SettingsPreferencesPort.kt:SettingsPreferencesPort</ID>
+    <ID>TooManyFunctions:SettingsPreferencesPort.kt:SettingsPreferencesPortImpl : SettingsPreferencesPort</ID>
+    <ID>TooManyFunctions:SettingsRepository.kt:SettingsRepository</ID>
+    <ID>TooManyFunctions:SettingsRepositoryImpl.kt:SettingsRepositoryImpl : SettingsRepository</ID>
+    <ID>TooManyFunctions:SettingsRepositoryImplTest.kt:SettingsRepositoryImplTest$FakeContactDao : ContactDao</ID>
+    <ID>TooManyFunctions:SettingsUseCasesTest.kt:SettingsUseCasesTest$FakeSettingsRepository : SettingsRepository</ID>
+    <ID>TooManyFunctions:SettingsViewModelTest.kt:SettingsViewModelTest</ID>
+    <ID>TooManyFunctions:SettingsViewModelTest.kt:SettingsViewModelTest$TestSettingsRepository : SettingsRepository</ID>
+    <ID>TooManyFunctions:SilaTypeConverters.kt:SilaTypeConverters</ID>
+    <ID>TooManyFunctions:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest</ID>
+    <ID>TooManyFunctions:SmartFilterReviewViewModelTest.kt:SmartFilterReviewViewModelTest$FakeContactsRepository : ContactsRepository</ID>
+    <ID>TooManyFunctions:SmartFilterRuleTest.kt:SmartFilterRuleTest</ID>
+    <ID>TooManyFunctions:SmartFilterSuggestionsTest.kt:SmartFilterSuggestionsTest$FakeContactsRepository : ContactsRepository</ID>
+    <ID>TooManyFunctions:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest</ID>
+    <ID>TooManyFunctions:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$IgnoredRepository : ContactsRepository</ID>
+    <ID>TooManyFunctions:T6ContactWriteDomainTest.kt:T6ContactWriteDomainTest$RecordingRepository : ContactsRepository</ID>
+    <ID>TooManyFunctions:T8MigrationTest.kt:T8MigrationTest</ID>
+    <ID>TooManyFunctions:UserPreferencesDataSource.kt:SilaPreferencesDataSource : UserPreferencesDataSource</ID>
+    <ID>TooManyFunctions:UserPreferencesDataSource.kt:UserPreferencesDataSource</ID>
+  </CurrentIssues>
+</SmellBaseline>

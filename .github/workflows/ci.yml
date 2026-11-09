@@ -32,6 +32,25 @@ jobs:
       - name: Verify Clean Architecture & Privacy Boundaries
         run: ./gradlew checkArchitectureBoundaries --console=plain
 
+      - name: Detekt (pinned CLI, baseline ratchet + settings-decomposition floor)
+        run: |
+          DETEKT_JAR="$RUNNER_TEMP/detekt-cli-2.0.0-alpha.6.jar"
+          DETEKT_SHA256="d46ca62ea4d62769b5d5c3ba94d49fa9b80ba11c7dba74ddb6df7fcc2c19c5fd"
+          curl -fsSL -o "$DETEKT_JAR" "https://repo1.maven.org/maven2/dev/detekt/detekt-cli/2.0.0-alpha.6/detekt-cli-2.0.0-alpha.6-all.jar"
+          echo "$DETEKT_SHA256  $DETEKT_JAR" | sha256sum -c -
+          java -jar "$DETEKT_JAR" \
+            --config config/detekt/detekt.yml \
+            --input . \
+            --excludes "**/build/**,**/generated/**" \
+            --baseline config/detekt/baseline.xml
+          # Hard floor for the S2-17 decomposition: settings UI files must never
+          # again carry frozen complexity debt (LongMethod / CCM / TooManyFunctions)
+          # in the baseline — new debt must be fixed inline, not ratcheted.
+          if grep -Eq "(LongMethod|CyclomaticComplexMethod|TooManyFunctions):(SettingsScreen|SettingsStrings|SettingsSections|SettingsDialogs|SettingsSectionPreviews|SettingsContentDialogsPreviews)\.kt:" config/detekt/baseline.xml; then
+            echo "::error::Settings UI files carry frozen complexity debt in the baseline — decomposition floor violated"
+            exit 1
+          fi
+
       - name: Run All KMP Host Unit Tests (Core + Features + SharedLogic + Android App)
         run: >-
           ./gradlew

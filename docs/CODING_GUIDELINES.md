@@ -42,7 +42,7 @@
 ## 6. Git
 - الفروع: `main` (محمي)، `develop`، `feature/<area>-<short-desc>`، `fix/...`.
 - **Conventional Commits:** `feat(arham): add podium dashboard`, `fix(contacts): ...`, `docs:`, `refactor:`, `test:`, `chore:`.
-- PR صغير ومركّز، يمر CI (build + tests + detekt + ktlint)، ومراجعة واحدة على الأقل.
+- PR صغير ومركّز، يمر CI (بناء + اختبارات + detekt عبر CLI المثبت)، ومراجعة واحدة على الأقل.
 - قالب PR: الوصف، الميزة المرتبطة، لقطات شاشة (عربي/إنجليزي، فاتح/داكن)، قائمة DoD من [AGENTS.md](../AGENTS.md).
 
 ## 7. ممنوعات

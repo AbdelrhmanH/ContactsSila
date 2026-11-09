@@ -1,8 +1,12 @@
 # Sila Static Analysis Configuration (Detekt) — مرجع: docs/CODING_GUIDELINES.md
-build:
-  maxIssues: 0
-  excludeCorrectable: false
-
+#
+# مخطط detekt 2.0 (dev.detekt 2.0.0-alpha.6). لا قسم «build/maxIssues» في هذا
+# الإصدار — مفهوم العتبة الإجمالية استُبدل بـ `--fail-on-severity` (الافتراضي Error)
+# في سطر أوامر المُشغِّل (خطوة CLI المثبتة في CI)، فأي مخالفة واحدة تفشل الخطوة.
+#
+# نزاهة LongMethod (تذكرة #67): الحد يسري على الدوال المركِّبة `@Composable`
+# حصراً بلا استثناء حسب التعليق التوضيحي — الشاشة العملاقة تُفكَّك إلى وحدات
+# أصغر بدل تغيير الحد أو استثنائها صامتاً.
 config:
   validation: true
   warningsAsErrors: true
@@ -11,19 +15,19 @@ complexity:
   active: true
   CyclomaticComplexMethod:
     active: true
-    threshold: 15
+    allowedComplexity: 15
   LongMethod:
     active: true
-    threshold: 60
+    allowedLines: 60
   LongParameterList:
     active: true
-    functionThreshold: 8
-    constructorThreshold: 10
-    ignoreAnnotated: ['Composable']
+    allowedFunctionParameters: 8
+    allowedConstructorParameters: 10
+    ignoreAnnotatedParameter: ['Composable']
   TooManyFunctions:
     active: true
-    thresholdInFiles: 20
-    thresholdInClasses: 15
+    allowedFunctionsPerFile: 20
+    allowedFunctionsPerClass: 15
 
 coroutines:
   active: true
