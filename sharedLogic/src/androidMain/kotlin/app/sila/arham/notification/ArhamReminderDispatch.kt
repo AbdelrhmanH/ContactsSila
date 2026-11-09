@@ -69,11 +69,14 @@ object ArhamReminderDispatch {
     }
 
     /**
-     * إعادة جدولة من اللحظة الحالية (تشغيل عملية/إقلاع/تغيير وقت/«ذكّرني غداً»):
+     * إعادة جدولة من اللحظة الحالية (تشغيل عملية/إقلاع/**تغيير وقت**/«ذكّرني غداً»):
      * الميزة مفعّلة ⇒ خطة جديدة من `now` وتُجدول؛ معطّلة ⇒ لا جدولة إطلاقاً.
+     *
+     * بلا `Context` — مسار الجدولة لا يلمس المنصة (قراءة تفضيلات + خطة + جدولة في
+     * العقد المشترك [ArhamAlarmScheduler])؛ هذا جعل الالتفاف عليه من مسار التفضيلات
+     * الممكَن عبر منفذ إعادة الجدولة (S2-13 · تذكرة #71 · ADR-0016).
      */
     suspend fun rescheduleFromNow(
-        context: Context,
         preferences: UserPreferencesDataSource,
         planner: PlanArhamDailyNotificationUseCase,
         scheduler: ArhamAlarmScheduler,

@@ -17,6 +17,7 @@
 | [0013](0013-merge-write-path.md) | مسار كتابة الدمج: تجميع منصوي + معاملة Room واحدة + تراجع بجلسة الشاشة | مقترح |
 | [0014](0014-settings-vm-ports-dip.md) | بوابات نطاق ضيقة لاعتمادات ViewModel الإعدادات (DIP كامل) | مقترح |
 | [0015](0015-atomic-restore-transaction-passage.md) | استعادة النسخ الاحتياطي ذرّياً: ممرّ معاملة Room واحدة فوق `LocalSilaDatabase` | مقترح |
+| [0016](0016-immediate-reminder-rescheduling-port.md) | إعادة جدولة تذكير أرحام من مسار الإعدادات: منفذ منصّي ضيق لا قرار مكرر | مقترح |
 
 ## القالب
 ```markdown

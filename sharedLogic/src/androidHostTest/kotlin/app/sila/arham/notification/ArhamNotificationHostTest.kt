@@ -105,6 +105,13 @@ class ArhamNotificationHostTest {
     }
 
     @Test
+    fun `reminder scheduling port resolves to the settings-driven android wrapper`() {
+        // S2-13 (تذكرة #71 · ADR-0016): مسار التفضيلات يُسعى له المنفذ نفسه في الحاوية الحقيقية.
+        val port = koin.get<app.sila.feature.settings.domain.ArhamReminderSchedulingPort>()
+        assertTrue(port is AndroidArhamReminderSchedulingPort, "ربط المنفذ أندرويد = الغلاف الحقيقي (بلا صامت)")
+    }
+
+    @Test
     fun `rescheduling replaces the single alarm instead of accumulating`() {
         val scheduler = koin.get<ArhamAlarmScheduler>()
         val now = System.currentTimeMillis()
@@ -123,13 +130,11 @@ class ArhamNotificationHostTest {
     fun `dispatch reschedule is idempotent and intent carries no PII`() = runBlocking {
         val now = System.currentTimeMillis()
         dispatch().rescheduleFromNow(
-            context = app,
             preferences = koin.get(),
             planner = koin.get(),
             scheduler = koin.get(),
         )
         dispatch().rescheduleFromNow(
-            context = app,
             preferences = koin.get(),
             planner = koin.get(),
             scheduler = koin.get(),

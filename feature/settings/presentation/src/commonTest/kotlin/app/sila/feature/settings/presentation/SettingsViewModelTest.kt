@@ -13,6 +13,7 @@ import app.sila.core.model.DefaultTab
 import app.sila.core.model.NameOrder
 import app.sila.core.model.Phone
 import app.sila.core.model.UserPreferences
+import app.sila.feature.settings.domain.ArhamReminderSchedulingPort
 import app.sila.feature.settings.domain.BackupCryptoEngine
 import app.sila.feature.settings.domain.BackupDecryptionException
 import app.sila.feature.settings.domain.BackupErrorKind
@@ -56,7 +57,10 @@ class SettingsViewModelTest {
         override val default = testDispatcher
     }
 
-    private class TestSettingsRepository : SettingsRepository {
+    /** سجل أحداث مشترك: «الكتابة قبل الجدولة» تُثبت ترتبتها بعد الحقيقة (S2-13 · تذكرة #71). */
+    private class TestSettingsRepository(
+        val events: MutableList<String> = mutableListOf()
+    ) : SettingsRepository {
         val prefsFlow = MutableStateFlow(UserPreferences())
         override val preferences: Flow<UserPreferences> get() = prefsFlow.asStateFlow()
 
@@ -67,13 +71,18 @@ class SettingsViewModelTest {
         override suspend fun setDefaultTab(tab: DefaultTab) { prefsFlow.value = prefsFlow.value.copy(defaultTab = tab) }
         override suspend fun setVisibleAccounts(accounts: Set<String>) { prefsFlow.value = prefsFlow.value.copy(visibleAccounts = accounts) }
         override suspend fun setDefaultSimSlot(slot: Int?) { prefsFlow.value = prefsFlow.value.copy(defaultSimSlot = slot) }
-        override suspend fun setArhamNotificationsEnabled(enabled: Boolean) { prefsFlow.value = prefsFlow.value.copy(arhamNotificationsEnabled = enabled) }
+        override suspend fun setArhamNotificationsEnabled(enabled: Boolean) {
+            prefsFlow.value = prefsFlow.value.copy(arhamNotificationsEnabled = enabled)
+            events += "notifications:$enabled"
+        }
         override suspend fun setArhamNotificationTime(hour: Int, minute: Int) {
             prefsFlow.value = prefsFlow.value.copy(arhamNotificationHour = hour, arhamNotificationMinute = minute)
+            events += "notificationTime:$hour:$minute"
         }
         override suspend fun setArhamMaxPerDay(max: Int) { prefsFlow.value = prefsFlow.value.copy(arhamMaxPerDay = max) }
         override suspend fun setQuietHours(startHour: Int, endHour: Int) {
             prefsFlow.value = prefsFlow.value.copy(quietHoursStartHour = startHour, quietHoursEndHour = endHour)
+            events += "quietHours:$startHour-$endHour"
         }
         override suspend fun setDashboardPeriod(period: DashboardPeriod) { prefsFlow.value = prefsFlow.value.copy(dashboardPeriod = period) }
         override suspend fun setConfettiEnabled(enabled: Boolean) { prefsFlow.value = prefsFlow.value.copy(confettiEnabled = enabled) }
@@ -225,6 +234,66 @@ class SettingsViewModelTest {
         assertEquals(45, vm.state.value.preferences.arhamNotificationMinute)
         assertEquals(ContactSwipeAction.NONE, vm.state.value.preferences.swipeStartAction)
         assertEquals("content://media/family.ogg", vm.state.value.categoryRingtones[Category.FAMILY])
+    }
+
+    /** مسجّل إعادة الجدولة (تذكرة #71): يعلّم كل نداء في سجل الأحداث المشترك للترتاب. */
+    private class RecordingReminderSchedulingPort(
+        private val events: MutableList<String>
+    ) : ArhamReminderSchedulingPort {
+        override suspend fun rescheduleFromNow() {
+            events += "reschedule"
+        }
+    }
+
+    @Test
+    fun reminderPreferenceIntents_rescheduleImmediatelyAfterWrite() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = TestSettingsRepository(events)
+        val vm = SettingsViewModel(
+            repository = repo,
+            reminderSchedulingPort = RecordingReminderSchedulingPort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.SetArhamNotificationTime(19, 45))
+        vm.onIntent(SettingsIntent.SetQuietHours(22, 7))
+        vm.onIntent(SettingsIntent.SetArhamNotifications(true))
+        settle()
+
+        // S2-13 (تذكرة #71 · ADR-0016): كل نية تُجدول فوراً بعد نجاح كتابتها —
+        // بلا انتظار إقلاع لاحق، وكل نية نداءً واحداً بترتيب الحدوث حرفاً.
+        assertEquals(
+            listOf(
+                "notificationTime:19:45", "reschedule",
+                "quietHours:22-7", "reschedule",
+                "notifications:true", "reschedule",
+            ),
+            events,
+            "الجدولة الفورية تتبع الكتابة مباشرة لكل نية تؤثر على موعد التذكير",
+        )
+    }
+
+    @Test
+    fun unrelatedPreferenceIntents_doNotRescheduleReminder() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = TestSettingsRepository(events)
+        val vm = SettingsViewModel(
+            repository = repo,
+            reminderSchedulingPort = RecordingReminderSchedulingPort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.SetThemeMode(AppThemeMode.DARK))
+        vm.onIntent(SettingsIntent.SetDigits(AppDigits.HINDI))
+        settle()
+
+        assertTrue(events.isEmpty(), "تفضيلات لا تمس موعد التذكير لا تُشغّل جدولة إطلاقاً")
     }
 
     @Test

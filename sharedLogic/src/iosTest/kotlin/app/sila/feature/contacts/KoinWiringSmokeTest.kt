@@ -4,6 +4,7 @@ import app.sila.arham.notification.ArhamAlarmScheduler
 import app.sila.arham.notification.IosArhamNotificationCenterRegistrar
 import app.sila.arham.notification.IosArhamNotificationCenterRegistering
 import app.sila.arham.notification.IosArhamNotificationScheduler
+import app.sila.arham.notification.IosArhamReminderSchedulingPort
 import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.arham.observer.IosCallStateObserver
 import app.sila.arham.emergency.IosEmergencyCallPlacer
@@ -80,6 +81,13 @@ class KoinWiringSmokeTest {
             val scheduler = app.koin.get<ArhamAlarmScheduler>()
             assertTrue(scheduler is IosArhamNotificationScheduler, "ArhamAlarmScheduler must resolve to the iOS notification scheduler.")
 
+            // S2-13 (تذكرة #71 · ADR-0016): منفذ إعادة الجدولة الفورية يُحلّ بغلاف iOS
+            // (فارق المنصة الموثّق: تعطيل الميزة يُلغي المعلّق فوراً عبر كائن المتابعة).
+            val schedulingPort = app.koin.get<app.sila.feature.settings.domain.ArhamReminderSchedulingPort>()
+            assertTrue(
+                schedulingPort is IosArhamReminderSchedulingPort,
+                "ArhamReminderSchedulingPort must resolve to the iOS wrapper (cancelPending on disable).",
+            )
             val observer = app.koin.get<ArhamCallStateObserver>()
             assertTrue(observer is IosCallStateObserver, "ArhamCallStateObserver must resolve to the CXCallObserver bridge.")
 

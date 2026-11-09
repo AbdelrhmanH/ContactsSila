@@ -7,10 +7,12 @@ import app.sila.arham.notification.IosArhamNotificationCenterRegistering
 import app.sila.arham.notification.IosArhamNotificationScheduler
 import app.sila.arham.notification.IosArhamNotificationStrings
 import app.sila.arham.notification.IosArhamReminderScheduling
+import app.sila.arham.notification.IosArhamReminderSchedulingPort
 import app.sila.arham.notification.IosBundleArhamNotificationStrings
 import app.sila.arham.notification.IosNotificationCapabilityProbe
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.feature.arham.domain.PlanArhamDailyNotificationUseCase
+import app.sila.feature.settings.domain.ArhamReminderSchedulingPort
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -37,6 +39,15 @@ internal actual val platformArhamNotificationModule: Module = module {
     single<ArhamAlarmScheduler> { get<IosArhamNotificationScheduler>() }
     // عقد إزاحة iOS («ذكّرني غداً»/المهيئ) — نفس المفرد (التنفيذ ينفّذ العقدَين):
     single<IosArhamReminderScheduling> { get<IosArhamNotificationScheduler>() }
+    // منفذ إعادة الجدولة الفورية من الإعدادات (S2-13 · تذكرة #71 · ADR-0016) —
+    // يمرّ عبر كائن المتابعة ليحفظ فارق المنصة: تعطيل الميزة يُلغي المعلّق فوراً.
+    single<ArhamReminderSchedulingPort> {
+        IosArhamReminderSchedulingPort(
+            preferences = get(),
+            planner = get(),
+            scheduling = get(),
+        )
+    }
     single { IosNotificationCapabilityProbe() }
     // المندوب تحت مفتاح الواجهة الصرفة حصراً (غلاف Kotlin صرف حول الخرسانة ObjC) —
     // KClass لأنواع ObjC الفرعية غير مدعوم على K/N وخلط Supertypes ممنوع

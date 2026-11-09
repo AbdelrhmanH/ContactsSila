@@ -36,7 +36,6 @@ class ArhamNotificationActionReceiver : BroadcastReceiver() {
                             val koin = resolveArhamKoin()
                             if (koin != null) {
                                 ArhamReminderDispatch.rescheduleFromNow(
-                                    context = appContext,
                                     preferences = koin.get(),
                                     planner = koin.get(),
                                     scheduler = koin.get(),
