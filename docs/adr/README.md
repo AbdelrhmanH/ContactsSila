@@ -18,6 +18,7 @@
 | [0014](0014-settings-vm-ports-dip.md) | بوابات نطاق ضيقة لاعتمادات ViewModel الإعدادات (DIP كامل) | مقترح |
 | [0015](0015-atomic-restore-transaction-passage.md) | استعادة النسخ الاحتياطي ذرّياً: ممرّ معاملة Room واحدة فوق `LocalSilaDatabase` | مقترح |
 | [0016](0016-immediate-reminder-rescheduling-port.md) | إعادة جدولة تذكير أرحام من مسار الإعدادات: منفذ منصّي ضيق لا قرار مكرر | مقترح |
+| [0017](0017-hand-rolled-backup-crypto-engine.md) | محرك التشفير الاحتياطي اليدوي: توثيق القابلية المشتركة وقفله بمتجهات KAT | مقترح |
 
 ## القالب
 ```markdown
