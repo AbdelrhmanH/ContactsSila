@@ -5,6 +5,10 @@
 ## [Unreleased]
 
 ### Added
+- **حوكمة محرك التشفير الاحتياطي اليدوي — متجهات KAT + ADR-0017 (Issue #64 — S2-9):**
+  - توثيق قرار `AesGcmCrypto` (المحرك المشترك للتصدير المشفر منذ T9) في [ADR-0017](docs/adr/0017-hand-rolled-backup-crypto-engine.md): لماذا محرك يدوي كومن-النقي بدل JCA/CryptoKit — التوافق بايت-بالبايت وغياب `javax.crypto` على iOS — مع مقايضاته الصريحة.
+  - حُقنت متجهات اختبار معروفة-النتيجة في `AesGcmCryptoKatTest` (`commonTest`): FIPS-197 C.3 لدور كتلة AES-256، NIST GCM (النظامان 13/14 من نظام McGrew-Viega + متجه L-60 جزئي البايت معُثبَت المعايرة بمقارنة مزوّدين مستقلين JDK وBouncyCastle)، RFC 7914 §11.1 ل PBKDF2-HMAC-SHA256، أمثلة SHA-256 المنشورة، ورفض العلامة المفسدة بفحص ثابت الزمن.
+  - فُتحت رؤية الوظائف الأربع للوصول الاختباري (`private` → `internal`: `sha256`/`aesEncryptBlock`/`encryptAes256Gcm`/`decryptAes256Gcm`)، ووُاءمت §2.8 في `SECURITY_PRIVACY.md` مع واقع التصدير النافذ.
 - **بوابة إطلاق المرحلة 1 والتحقق الشامل (Issue #31 — T10):**
   - استيفاء واعتماد كافة معايير القبول للمرحلة 1 عبر وثيقة `docs/RELEASE_GATE_PHASE1.md`.
   - التحقق من صفر خروقات معمارية وخصوصية عبر 20 موديولاً (`checkArchitectureBoundaries` = 0 violations).

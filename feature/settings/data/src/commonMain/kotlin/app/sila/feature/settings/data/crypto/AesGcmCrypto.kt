@@ -87,7 +87,7 @@ object AesGcmCrypto : BackupCryptoEngine {
     // NIST AES-256 Engine
     // ==========================================
 
-    private fun encryptAes256Gcm(plain: ByteArray, key: ByteArray, iv: ByteArray): Pair<ByteArray, ByteArray> {
+    internal fun encryptAes256Gcm(plain: ByteArray, key: ByteArray, iv: ByteArray): Pair<ByteArray, ByteArray> {
         val h = ByteArray(16)
         aesEncryptBlock(ByteArray(16), h, key)
 
@@ -126,7 +126,7 @@ object AesGcmCrypto : BackupCryptoEngine {
         return Pair(ciphertext, tag)
     }
 
-    private fun decryptAes256Gcm(ciphertext: ByteArray, tag: ByteArray, key: ByteArray, iv: ByteArray): ByteArray {
+    internal fun decryptAes256Gcm(ciphertext: ByteArray, tag: ByteArray, key: ByteArray, iv: ByteArray): ByteArray {
         val h = ByteArray(16)
         aesEncryptBlock(ByteArray(16), h, key)
 
@@ -229,7 +229,7 @@ object AesGcmCrypto : BackupCryptoEngine {
     }
 
     // AES block encryption (16 bytes input -> 16 bytes output with 32-byte key)
-    private fun aesEncryptBlock(input: ByteArray, output: ByteArray, key: ByteArray) {
+    internal fun aesEncryptBlock(input: ByteArray, output: ByteArray, key: ByteArray) {
         val w = expandKey(key)
         var s0 = (((input[0].toInt() and 0xFF) shl 24) or ((input[1].toInt() and 0xFF) shl 16) or ((input[2].toInt() and 0xFF) shl 8) or (input[3].toInt() and 0xFF)) xor w[0]
         var s1 = (((input[4].toInt() and 0xFF) shl 24) or ((input[5].toInt() and 0xFF) shl 16) or ((input[6].toInt() and 0xFF) shl 8) or (input[7].toInt() and 0xFF)) xor w[1]
@@ -360,7 +360,7 @@ object AesGcmCrypto : BackupCryptoEngine {
     }
 
     // Pure SHA-256
-    private fun sha256(data: ByteArray): ByteArray {
+    internal fun sha256(data: ByteArray): ByteArray {
         var h0 = 0x6a09e667.toInt()
         var h1 = 0xbb67ae85.toInt()
         var h2 = 0x3c6ef372.toInt()
