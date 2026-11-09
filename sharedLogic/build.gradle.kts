@@ -96,6 +96,8 @@ kotlin {
             implementation(libs.androidx.glance.appwidget)
             // T8-10: LifecycleService لحلقة الرنين (coroutine scope مرتبط بدورة الخدمة).
             implementation(libs.androidx.lifecycle.service)
+            // S2-14 (#68): per-app locales — منفذ `AppLocalePort` يفوّض إلى AppCompatDelegate.
+            implementation(libs.androidx.appcompat)
             // T8-10: كادنس الودجت — تعليقات @Composable وColor/Dp لـ Glance.
             implementation(libs.compose.runtime)
             implementation(libs.compose.ui)

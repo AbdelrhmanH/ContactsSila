@@ -13,6 +13,7 @@ import app.sila.core.model.DefaultTab
 import app.sila.core.model.NameOrder
 import app.sila.core.model.Phone
 import app.sila.core.model.UserPreferences
+import app.sila.feature.settings.domain.AppLocalePort
 import app.sila.feature.settings.domain.ArhamReminderSchedulingPort
 import app.sila.feature.settings.domain.BackupCryptoEngine
 import app.sila.feature.settings.domain.BackupDecryptionException
@@ -245,6 +246,25 @@ class SettingsViewModelTest {
         }
     }
 
+    /** S2-14 (تذكرة #68): مستودع يسجّل كتابة اللغة في سجل الأحداث المشترك لتثبيت الترتيب. */
+    private class LanguageRecordingRepository(
+        events: MutableList<String>
+    ) : TestSettingsRepository(events) {
+        override suspend fun setLanguage(language: AppLanguage) {
+            super.setLanguage(language)
+            events += "language:${language.code}"
+        }
+    }
+
+    /** S2-14 (تذكرة #68): منفذ تطبيق لغة المنصة يسجّل استدعاءه في نفس سجل الأحداث. */
+    private class RecordingAppLocalePort(
+        private val events: MutableList<String>
+    ) : AppLocalePort {
+        override suspend fun applyApplicationLocale(language: AppLanguage) {
+            events += "applyLocale:${language.code}"
+        }
+    }
+
     @Test
     fun reminderPreferenceIntents_rescheduleImmediatelyAfterWrite() = runTest(testDispatcher) {
         val events = mutableListOf<String>()
@@ -273,6 +293,36 @@ class SettingsViewModelTest {
             ),
             events,
             "الجدولة الفورية تتبع الكتابة مباشرة لكل نية تؤثر على موعد التذكير",
+        )
+    }
+
+    @Test
+    fun setLanguage_appliesApplicationLocaleAfterPreferenceWrite() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = LanguageRecordingRepository(events)
+        val vm = SettingsViewModel(
+            repository = repo,
+            appLocalePort = RecordingAppLocalePort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.SetLanguage(AppLanguage.ENGLISH))
+        settle()
+
+        // S2-14 (تذكرة #68): نية `SetLanguage` تُقيّد التفضيل أولاً وتطبّق لغة المنصة
+        // بعده حصراً (نمط ADR-0016 «فور نجاح الكتابة») — بالترتيب ذاته لا معكوسه.
+        assertEquals(
+            listOf("language:en", "applyLocale:en"),
+            events,
+            "تطبيق لغة المنصة يتبع نجاح كتابة التفضيل حصراً وبترتيب الحدوث",
+        )
+        assertEquals(
+            AppLanguage.ENGLISH,
+            repo.prefsFlow.value.language,
+            "التفضيل ذاته قُيّد باللغة الجديدة",
         )
     }
 

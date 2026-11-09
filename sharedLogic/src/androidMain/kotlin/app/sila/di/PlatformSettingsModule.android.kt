@@ -5,6 +5,7 @@ import app.sila.core.model.Category
 import app.sila.feature.settings.data.AndroidBackupCryptoEngine
 import app.sila.feature.settings.data.ringtone.AndroidRingtoneSource
 import app.sila.feature.settings.domain.BackupCryptoEngine
+import app.sila.feature.settings.domain.AppLocalePort
 import app.sila.feature.settings.domain.PlatformRingtoneSource
 import app.sila.feature.settings.domain.RingtoneItem
 import org.koin.core.module.Module
@@ -20,6 +21,9 @@ internal actual val platformSettingsModule: Module = module {
             HostAbsentPlatformRingtoneSource
         }
     }
+    // S2-14 (تذكرة #68): per-app locales عبر AppCompatDelegate — نيّة SetLanguage
+    // تصير هي منبع لغة المنصة الفعلية فتتبع الموارد كلها لا شاشة الإعدادات وحدها.
+    single<AppLocalePort> { AndroidAppLocalePort() }
 }
 
 private data object HostAbsentPlatformRingtoneSource : PlatformRingtoneSource {

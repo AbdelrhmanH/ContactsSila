@@ -37,11 +37,11 @@
 | المفتاح | النوع | الافتراضي |
 |---|---|---|
 | `theme_mode` | SYSTEM/LIGHT/DARK | SYSTEM |
-| `language` | ar/en | ثابت (ARABIC)؛ سلوك «لغة الجهاز» خارج المرحلة 1 (تذكرة #68) |
-| `digits` | ARABIC/HINDI | ثابت ARABIC؛ بلا مستهلك عرض حالياً (تذكرة #68) |
+| `language` | ar/en | ثابت (ARABIC)؛ تقود الموارد فعلياً عبر منفذ `AppLocalePort`: أندرويد per-app locales (تذكرة #68) وiOS بقراءة التفضيل مباشرة — افتراض «لغة الجهاز» خارج نطاق المرحلة 1 |
+| `digits` | ARABIC/HINDI | ثابت ARABIC؛ تنسيق عرض الأرقام «خارج نطاق المرحلة 1» بقرار صريح (تذكرة #68) — بلا مستهلك عرض بعد اليوم |
 | `default_tab` | CONTACTS/SERVICES/ARHAM | CONTACTS |
 | `name_order` | FIRST_LAST/LAST_FIRST | FIRST_LAST |
-| `visible_accounts` | Set<String> | ∅؛ لا فلترة مستهلكة بعد (تذكرة #68) |
+| `visible_accounts` | Set<String> | ∅ — «خارج نطاق المرحلة 1» بقرار صريح (تذكرة #68): تدفق «الحسابات المعروضة» غير موجود صفاً وينتمي إلى واجهة الخدمات (تذكرة #70) |
 | `swipe_start` / `swipe_end` | CALL/MESSAGE/NONE | CALL / MESSAGE |
 | `arham_notifications` | Boolean | true |
 | `arham_reminder_time` | LocalTime | 19:00 |

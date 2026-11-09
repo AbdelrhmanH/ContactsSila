@@ -499,6 +499,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             cryptoEngine = get(),
             platformRingtoneSource = get(),
             reminderSchedulingPort = get(),
+            appLocalePort = get(),
             dispatchers = get()
         )
     }
