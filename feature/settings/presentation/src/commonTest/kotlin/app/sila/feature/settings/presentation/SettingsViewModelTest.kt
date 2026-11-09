@@ -549,7 +549,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun ringtoneGuidanceAndPicker_dialogStates() = runTest(testDispatcher) {
+    fun ringtonePicker_dialogState() = runTest(testDispatcher) {
         val repo = TestSettingsRepository()
         val vm = SettingsViewModel(
             repository = repo,
@@ -559,14 +559,6 @@ class SettingsViewModelTest {
 
         backgroundScope.launch { vm.state.collect {} }
         settle()
-
-        vm.onIntent(SettingsIntent.ShowRingtoneGuidance)
-        settle()
-        assertTrue(vm.state.value.showRingtoneGuidanceDialog)
-
-        vm.onIntent(SettingsIntent.DismissRingtoneGuidance)
-        settle()
-        assertFalse(vm.state.value.showRingtoneGuidanceDialog)
 
         vm.onIntent(SettingsIntent.OpenRingtonePicker(Category.FAMILY))
         settle()
