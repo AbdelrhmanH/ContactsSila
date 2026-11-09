@@ -490,8 +490,10 @@ struct SettingsView: View {
                 .foregroundColor(.secondary)
 
             Button {
-                store.send(SettingsIntentShowRingtoneGuidance.shared)
-                store.send(SettingsIntentDismissRingtoneGuidance.shared)
+                // S1-16 (Issue #65): مخطط `contacts` مسجَّل في Info.plist فيجيب
+                // `canOpenURL` فعلياً؛ الاحتياط يبقى إعدادات النظام لحالة غياب
+                // تطبيق جهات الاتصال. حوار التوجيه أزيل نهائياً (حالة Show/Dismiss
+                // المزدوجة كانت ميتة بلا مستهلك على أي منصة — قرار تذكرة #65).
                 if let url = URL(string: "contacts://"), UIApplication.shared.canOpenURL(url) {
                     UIApplication.shared.open(url)
                 } else if let url = URL(string: UIApplication.openSettingsURLString) {

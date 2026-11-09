@@ -23,6 +23,10 @@
 		<!-- T8-13 (§L.4 · PLATFORM_PERMISSIONS §7): فحص توفر `tel:` (iPad/بلا شريحة) —
 		     دون التصريح يعيد canOpenURL القيمة false دائماً وتُخفى أزرار الطوارئ خطأً. -->
 		<string>tel</string>
+		<!-- S1-16 (Issue #65): فحص توفر `contacts:` لزر «فتح تطبيق جهات الاتصال» في
+		     شاشة الإعدادات — دون التصريح يعيد canOpenURL القيمة false دائماً (من iOS 9+)
+		     فيقع الاحتياط على فتح إعدادات التطبيق نفسها بدل تطبيق جهات الاتصال. -->
+		<string>contacts</string>
 	</array>
 	<!-- T8-13 (D6): مُعرِّف App Group للناشر (Kotlin) — يُوسَّع من APP_GROUP_ID في Config.xcconfig؛
 	     إضافة الودجت تقرأ مفتاحها المماثل من Info.plist الخاصة بها. -->

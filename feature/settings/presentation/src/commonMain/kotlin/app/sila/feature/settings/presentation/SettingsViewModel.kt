@@ -61,7 +61,6 @@ data class SettingsUiState(
     val showImportPasswordDialog: Boolean = false,
     val showRestorePreviewDialog: Boolean = false,
     val showRingtonePickerCategory: Category? = null,
-    val showRingtoneGuidanceDialog: Boolean = false,
     // حالة حوار نتائج الاستعادة والربط اليدوي لسجلات غير مطابقة (S1-15 — تذكرة #62)
     val showRestoreResultDialog: Boolean = false,
     val unmatchedRemaining: List<UnmatchedBackupEntry> = emptyList(),
@@ -126,8 +125,6 @@ sealed interface SettingsIntent {
     // حوارات النغمات
     data class OpenRingtonePicker(val category: Category) : SettingsIntent
     data object DismissRingtonePicker : SettingsIntent
-    data object ShowRingtoneGuidance : SettingsIntent
-    data object DismissRingtoneGuidance : SettingsIntent
 }
 
 sealed interface SettingsEffect {
@@ -402,8 +399,6 @@ class SettingsViewModel(
             // النغمات
             is SettingsIntent.OpenRingtonePicker -> _uiState.update { it.copy(showRingtonePickerCategory = intent.category) }
             is SettingsIntent.DismissRingtonePicker -> _uiState.update { it.copy(showRingtonePickerCategory = null) }
-            is SettingsIntent.ShowRingtoneGuidance -> _uiState.update { it.copy(showRingtoneGuidanceDialog = true) }
-            is SettingsIntent.DismissRingtoneGuidance -> _uiState.update { it.copy(showRingtoneGuidanceDialog = false) }
         }
     }
 
