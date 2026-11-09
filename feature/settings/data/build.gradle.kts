@@ -39,6 +39,12 @@ kotlin {
             implementation(libs.androidx.work.runtime.ktx)
             implementation(libs.koin.core)
         }
+        getByName("androidHostTest").dependencies {
+            // تذكرة #63 (S2-10): Robolectric + WorkManager الاختباري لاختبار عامل نغمة
+            // التصنيف كاملاً فوق Robolectric — بلا Koin حقيقية (إديوم sharedLogic · T8-10).
+            implementation(libs.robolectric)
+            implementation(libs.androidx.work.testing)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
