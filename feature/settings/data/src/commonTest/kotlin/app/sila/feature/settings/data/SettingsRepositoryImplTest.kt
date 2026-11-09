@@ -1,6 +1,9 @@
 package app.sila.feature.settings.data
 
 import app.sila.core.database.dao.ArhamDao
+import app.sila.core.database.dao.ClassificationRestoreOutcome
+import app.sila.core.database.dao.ClassificationRestorePlan
+import app.sila.core.database.dao.ClassificationRestoreRunner
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.LastContactedUpdate
 import app.sila.core.datastore.SilaPreferencesDataSource
@@ -14,6 +17,7 @@ import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
 import app.sila.core.model.DefaultTab
+import app.sila.core.model.ImportantDate
 import app.sila.core.model.NameOrder
 import app.sila.core.model.RecentInteraction
 import app.sila.core.model.Relation
@@ -111,13 +115,65 @@ class SettingsRepositoryImplTest {
         override suspend fun updateLastContacted(contactId: Long, timestampMillis: Long) {}
     }
 
+    /**
+     * ممرّ الاستعادة الزائف (تذكرة #60 · ADR-0015): يطبّق الخطة بكامل ترتيبها كما
+     * يفعل المعامل الحقيقي — شطف REPLACE أولاً ثم النسخ الموحّدة بتحقق وجود
+     * داخل المعاملة، ويعيد الناتج درجياً. [deleteBeforeRewrites] يحاكي غياباً/قبراً
+     * يُكتشف داخل المعاملة ليُثبت أن احتساب غير-المطابقة يأتي من ناتج المعاملة
+     * لا من الكاش وحده. الذرّية ذاتها (فشل وسط المعاملة ⇒ تراجع كلي) تُختبر في
+     * `:core:database` فوق التنفيذ الحقيقي (`ClassificationRestoreAtomicityTest`).
+     */
+    private class FakeClassificationRestoreRunner(
+        private val contactDao: FakeContactDao,
+        private val deleteBeforeRewrites: Set<Long> = emptySet()
+    ) : ClassificationRestoreRunner {
+        var lastPlan: ClassificationRestorePlan? = null
+            private set
+
+        override suspend fun applyClassificationRestore(plan: ClassificationRestorePlan): ClassificationRestoreOutcome {
+            lastPlan = plan
+            var cleared = 0
+            val appliedIds = mutableListOf<Long>()
+            val missingIds = mutableListOf<Long>()
+
+            // ترتيب التنفيذ الحقيقي: شطف REPLACE كاملاً قبل أي نسخة موحّدة.
+            if (plan.replaceBeforeApply) {
+                for (replacement in plan.replacementContacts) {
+                    contactDao.contactsMap[replacement.id] = replacement
+                    cleared++
+                }
+            }
+
+            for (rewrite in plan.contactRewrites) {
+                if (rewrite.id in deleteBeforeRewrites) {
+                    contactDao.contactsMap.remove(rewrite.id)
+                    missingIds += rewrite.id
+                    continue
+                }
+                if (rewrite.id !in contactDao.contactsMap) {
+                    missingIds += rewrite.id
+                    continue
+                }
+                contactDao.contactsMap[rewrite.id] = rewrite
+                appliedIds += rewrite.id
+            }
+
+            return ClassificationRestoreOutcome(
+                clearedContacts = cleared,
+                appliedContactIds = appliedIds,
+                missingContactIds = missingIds
+            )
+        }
+    }
+
     private fun createContact(
         id: Long,
         lookupKey: String,
         displayName: String,
         category: Category = Category.UNCATEGORIZED,
         tags: List<String> = emptyList(),
-        arham: ArhamInfo? = null
+        arham: ArhamInfo? = null,
+        dates: List<ImportantDate> = emptyList()
     ): Contact = Contact(
         id = id,
         systemContactId = lookupKey,
@@ -125,7 +181,8 @@ class SettingsRepositoryImplTest {
         name = ContactName(displayName = displayName),
         category = category,
         tags = tags,
-        arham = arham
+        arham = arham,
+        dates = dates
     )
 
     @Test
@@ -173,12 +230,14 @@ class SettingsRepositoryImplTest {
 
         val fakeContactDao = FakeContactDao(listOf(existing1, existing2))
         val fakeArhamDao = FakeArhamDao()
+        val fakeRunner = FakeClassificationRestoreRunner(fakeContactDao)
         val dataSource = SilaPreferencesDataSource()
 
         val repository = SettingsRepositoryImpl(
             dataSource = dataSource,
             contactDao = fakeContactDao,
-            arhamDao = fakeArhamDao
+            arhamDao = fakeArhamDao,
+            classificationRestoreRunner = fakeRunner
         )
 
         val payload = BackupPayload(
@@ -211,11 +270,18 @@ class SettingsRepositoryImplTest {
         assertFalse(result.restoredPreferences)
         assertEquals(2, result.unmatchedEntries.size)
 
-        // التحقق من تحديث جهة الاتصال 1
+        // شكل الخطة في وضع الدمج: بلا شطف (replacements فارغة) وكتابات موحّدة للجهات الملموسة حصراً.
+        val plan = checkNotNull(fakeRunner.lastPlan)
+        assertEquals(false, plan.replaceBeforeApply)
+        assertEquals(0, plan.replacementContacts.size)
+        assertEquals(listOf(1L), plan.contactRewrites.map { it.id })
+        // التحقق من تحديث جهة الاتصال 1 (النسخة الموحّدة: تصنيف + أرحام + وسوم في كتابة واحدة)
         val updated1 = fakeContactDao.getContactById(1)
         assertEquals(Category.FAMILY, updated1?.category)
         assertEquals(listOf("عائلة", "طبيب"), updated1?.tags)
-        assertEquals(Relation.BROTHER, fakeArhamDao.arhamMap[1]?.relation)
+        assertEquals(Relation.BROTHER, updated1?.arham?.relation)
+        // كتابات الأرحام المنفصلة لم تعد موجودة بعد اليوم — الممر الذرّي وحده الكاتب
+        assertTrue(fakeArhamDao.arhamMap.isEmpty(), "Arham writes must flow through the restore transaction, not upsertArhamInfo")
 
         // التحقق من بقاء جهة الاتصال 2 دون تغيير في وضع الدمج
         val unchanged2 = fakeContactDao.getContactById(2)
@@ -224,17 +290,27 @@ class SettingsRepositoryImplTest {
 
     @Test
     fun restoreBackupData_replaceMode_resetsPreviousCategoriesAndTags() = runTest {
+        val birthday = ImportantDate(type = "BIRTHDAY", month = 3, day = 14)
         val existing1 = createContact(id = 1, lookupKey = "lookup_1", displayName = "أحمد", category = Category.WORK, tags = listOf("قديم"))
-        val existing2 = createContact(id = 2, lookupKey = "lookup_2", displayName = "سارة", category = Category.FRIENDS, tags = listOf("جامعة"))
+        val existing2 = createContact(
+            id = 2,
+            lookupKey = "lookup_2",
+            displayName = "سارة",
+            category = Category.FRIENDS,
+            tags = listOf("جامعة"),
+            dates = listOf(birthday)
+        )
 
         val fakeContactDao = FakeContactDao(listOf(existing1, existing2))
         val fakeArhamDao = FakeArhamDao()
+        val fakeRunner = FakeClassificationRestoreRunner(fakeContactDao)
         val dataSource = SilaPreferencesDataSource()
 
         val repository = SettingsRepositoryImpl(
             dataSource = dataSource,
             contactDao = fakeContactDao,
-            arhamDao = fakeArhamDao
+            arhamDao = fakeArhamDao,
+            classificationRestoreRunner = fakeRunner
         )
 
         val payload = BackupPayload(
@@ -254,23 +330,41 @@ class SettingsRepositoryImplTest {
 
         repository.restoreBackupData(payload, mode = RestoreMode.REPLACE, restorePreferences = false)
 
-        // جهة 1 تأخذ التصنيف الجديد من النسخة
+        // شكل الخطة في وضع REPLACE: نسخ محو كاملة لكل الجهات الحية (تصنيف عطيف/
+        // وسوم فارغة/بلا أرحام) مع حفظ ما لا تملكه الحمولة (التواريخ والأطفال)،
+        // وأعلى منها نسخة موحّدة نهائية للجهة الملموسة تحمل التصنيف الجديد.
+        val plan = checkNotNull(fakeRunner.lastPlan)
+        assertTrue(plan.replaceBeforeApply)
+        assertEquals(listOf(1L, 2L), plan.replacementContacts.map { it.id })
+        assertTrue(
+            plan.replacementContacts.all { it.category == Category.UNCATEGORIZED && it.tags.isEmpty() && it.arham == null },
+            "REPLACE replacement copies must reset classification on top of preserved identity"
+        )
+        assertEquals(listOf(1L), plan.contactRewrites.map { it.id })
+        assertEquals(Category.FAMILY, plan.contactRewrites.first().category)
+
+        // جهة 1 تأخذ التصنيف الجديد من النسخة (الوسوم القديمة شُطبت بلا تنازل)
         assertEquals(Category.FAMILY, fakeContactDao.getContactById(1)?.category)
-        // جهة 2 لم تكن في النسخة فيتم تصفير تصنيفها ووسومها
+        assertTrue(fakeContactDao.getContactById(1)?.tags?.isEmpty() == true)
+        // جهة 2 لم تكن في النسخة فيتم تصفير تصنيفها ووسومها دون مساس تواريخها (عهد المسار القديم)
         assertEquals(Category.UNCATEGORIZED, fakeContactDao.getContactById(2)?.category)
         assertTrue(fakeContactDao.getContactById(2)?.tags?.isEmpty() == true)
+        assertEquals(listOf(birthday), fakeContactDao.getContactById(2)?.dates)
+        assertTrue(fakeArhamDao.arhamMap.isEmpty())
     }
 
     @Test
     fun restoreBackupData_withRestorePreferencesTrue_restoresSettings() = runTest {
         val fakeContactDao = FakeContactDao()
         val fakeArhamDao = FakeArhamDao()
+        val fakeRunner = FakeClassificationRestoreRunner(fakeContactDao)
         val dataSource = SilaPreferencesDataSource()
 
         val repository = SettingsRepositoryImpl(
             dataSource = dataSource,
             contactDao = fakeContactDao,
-            arhamDao = fakeArhamDao
+            arhamDao = fakeArhamDao,
+            classificationRestoreRunner = fakeRunner
         )
 
         val prefsEntry = BackupPreferencesEntry(
@@ -328,6 +422,90 @@ class SettingsRepositoryImplTest {
         assertEquals(2, restoredPrefs.defaultSimSlot)
         assertEquals(21, restoredPrefs.quietHoursStartHour)
         assertEquals("content://media/chime", restoredPrefs.categoryRingtones[Category.FAMILY])
+
+        // التفضيلات (ونغمات التصنيفات المرتبطة بها — ADR-0015) خارج المعاملة حصراً:
+        // الدفتر فارغ فالخطة بلا شطف ولا كتابات، وتُنفَّذ DataStore بعد COMMIT.
+        val plan = checkNotNull(fakeRunner.lastPlan)
+        assertEquals(false, plan.replaceBeforeApply)
+        assertEquals(0, plan.contactRewrites.size)
+    }
+
+    @Test
+    fun restoreBackupData_withoutRestoreRunner_failsFastInsteadOfPartialRestore() = runTest {
+        val fakeContactDao = FakeContactDao(
+            listOf(createContact(1, "lookup_1", "أحمد", category = Category.WORK, tags = listOf("قدم")))
+        )
+        val repository = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = fakeContactDao,
+            arhamDao = FakeArhamDao()
+        )
+
+        val result = runCatching {
+            repository.restoreBackupData(
+                payload = BackupPayload(
+                    version = 1,
+                    exportedAt = "2026-11-08T12:00:00Z",
+                    appVersion = "1.0.0",
+                    categories = listOf(
+                        BackupCategoryEntry(lookupKey = "lookup_1", displayName = "أحمد", category = Category.FAMILY)
+                    )
+                ),
+                mode = RestoreMode.REPLACE,
+                restorePreferences = false
+            )
+        }
+
+        assertTrue(result.isFailure, "Missing ClassificationRestoreRunner must fail fast (partial restore was the defect)")
+        // الحرس سابق للخطة والشطف: لا مسح REPLACE نصف منفَّذ ولا كتابة جزئية.
+        assertEquals(Category.WORK, fakeContactDao.getContactById(1)?.category)
+        assertEquals(listOf("قدم"), fakeContactDao.getContactById(1)?.tags)
+    }
+
+    @Test
+    fun restoreBackupData_contactVanishedMidRestore_entriesDerivedFromOutcome() = runTest {
+        val existing1 = createContact(1, "lookup_1", "أحمد")
+        val fakeContactDao = FakeContactDao(listOf(existing1))
+        // محاكاة قبر/غياب يُكتشف داخل المعاملة حصراً (نمط getLiveContactCreatedAt):
+        // الممرّ يعلن المعرف محدوماً والنطاق يربط مدخلاته به كغير-مطابقة.
+        val fakeRunner = FakeClassificationRestoreRunner(
+            contactDao = fakeContactDao,
+            deleteBeforeRewrites = setOf(1L)
+        )
+        val repository = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = fakeContactDao,
+            arhamDao = FakeArhamDao(),
+            classificationRestoreRunner = fakeRunner
+        )
+        val payload = BackupPayload(
+            version = 1,
+            exportedAt = "2026-11-08T12:00:00Z",
+            appVersion = "1.0.0",
+            categories = listOf(
+                BackupCategoryEntry(lookupKey = "lookup_1", displayName = "أحمد", category = Category.FAMILY)
+            ),
+            arham = listOf(
+                BackupArhamEntry(lookupKey = "lookup_1", relation = Relation.BROTHER, frequency = ArhamFrequency.WEEKLY)
+            ),
+            tags = listOf(BackupTagEntry(lookupKey = "lookup_1", tags = listOf("طبيب"))),
+            preferences = null,
+            categoryRingtones = emptyMap(),
+            automations = emptyList(),
+            disputes = emptyList()
+        )
+
+        val result = repository.restoreBackupData(payload, mode = RestoreMode.MERGE, restorePreferences = false)
+
+        // مدخلات الحمولة الموجّهة للجهة المحدومة داخل المعاملة كلها غير مطابقة
+        // (احتسابها من ناتج المعاملة لا من الكاش الحي).
+        assertEquals(0, result.matchedCategories)
+        assertEquals(1, result.unmatchedCategories)
+        assertEquals(0, result.matchedArham)
+        assertEquals(1, result.unmatchedArham)
+        assertEquals(1, result.unmatchedEntries.size)
+        // وتحقق العدم داخل المعاملة منع أي كتابة موحّدة (لا قبر ثم كتابة).
+        assertFalse(fakeContactDao.contactsMap.containsKey(1L))
     }
 
     @Test

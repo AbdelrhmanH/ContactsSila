@@ -6,6 +6,7 @@ import app.sila.core.common.DefaultAppDispatchers
 import app.sila.core.common.SystemAppClock
 import app.sila.core.database.SilaRoomDatabase
 import app.sila.core.database.dao.ArhamDao
+import app.sila.core.database.dao.ClassificationRestoreRunner
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.ContactsSyncDao
 import app.sila.core.database.dao.DataRetentionCleanupDao
@@ -191,6 +192,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single<EmergencySessionDao> { get<LocalSilaDatabase>() }
     // T8-15 (F-1): واجهة تجسيد «أهم 5» — تنفّذها [LocalSilaDatabase] مباشرة (نمط PR B نفسه).
     single<TopFiveMaterializationDao> { get<LocalSilaDatabase>() }
+    // تذكرة #60 (S1-1 · ADR-0015): ممرّ الذرّية لاستعادة النسخ الاحتياطي — تنفّذه
+    // [LocalSilaDatabase] مباشرة (نمط PR B نفسه)؛ معاملة Room واحدة بلا تسريب Room
+    // إلى `:feature:settings:data`.
+    single<ClassificationRestoreRunner> { get<LocalSilaDatabase>() }
 
     // محرك المزامنة التزايدية لجهات الاتصال (Issue #23 · ADR-0010) — يُشغَّل من مهيئات المنصات
     // (SilaApplication / IosKoinBootstrap) عبر start(scope) بمعرّف idempotent.
@@ -476,6 +481,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             dataSource = get(),
             contactDao = get(),
             arhamDao = get(),
+            classificationRestoreRunner = get(),
         )
     }
     // بوابات نطاق ضيقة فوق حالات استخدام الإعدادات (تذكرة #66 · ADR-0014) — الواجهة الوحيدة
