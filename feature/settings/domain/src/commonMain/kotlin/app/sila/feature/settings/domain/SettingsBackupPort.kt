@@ -1,7 +1,7 @@
 package app.sila.feature.settings.domain
 
+import app.sila.core.common.AppDispatchers
 import app.sila.core.model.Contact
-import app.sila.core.model.BackupPreview
 
 /**
  * بوابة نطاق ضيقة لعمليات النسخ الاحتياطي والاستعادة والربط اليدوي (تذكرة #66 · ADR-0014)
