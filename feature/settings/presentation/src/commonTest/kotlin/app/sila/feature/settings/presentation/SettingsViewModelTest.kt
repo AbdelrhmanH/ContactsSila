@@ -59,7 +59,7 @@ class SettingsViewModelTest {
     }
 
     /** سجل أحداث مشترك: «الكتابة قبل الجدولة» تُثبت ترتبتها بعد الحقيقة (S2-13 · تذكرة #71). */
-    private class TestSettingsRepository(
+    private open class TestSettingsRepository(
         val events: MutableList<String> = mutableListOf()
     ) : SettingsRepository {
         val prefsFlow = MutableStateFlow(UserPreferences())
