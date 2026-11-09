@@ -35,6 +35,9 @@
         <package android:name="org.thoughtcrime.securesms" />
     </queries>
 
+    <!-- S2-14 (تذكرة #68): قيمة من عائلة Theme.AppCompat إلزامية مع AppCompatActivity —
+         مندوب appcompat يرفض قيمة منصة (شرط سمات النافذة المعتمَدة)؛ DayNight يقلب
+         الخلفية والأشرطة مع الوضع الداكن، والواجهة كلها Compose فلا أثر بصري XML -->
     <application
         android:name=".SilaApplication"
         android:allowBackup="true"
@@ -44,7 +47,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
         <activity
             android:exported="true"
             android:name=".MainActivity">
@@ -54,6 +57,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- S2-14 (تذكرة #68): per-app locales — خدمة التخزين الخلفي لـ appcompat
+             (خاصةٌ بالمنصات 26–32): `autoStoreLocales` يجعل التطبيق يحفظ اختيار
+             اللغة تلقائياً فتُستعاد مع الإقلاع التالي بلا منطق إضافي؛ وعلى
+             المنصة 33+ يتولى النظام (LocaleManager) التطبيق والخزن معاً. -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
 
         <!-- مستقبِلات إشعارات أرحام (T8-08) — غير مُصدَّرة حصراً: الإنذار اليومي
              (بلا مرشح — Intent صريح من الجدولة)، أفعال الإشعار، واستمرارية الجدولة

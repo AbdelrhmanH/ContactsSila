@@ -15,6 +15,10 @@ dependencies {
     implementation(project(":sharedUI"))
 
     implementation(libs.androidx.activity.compose)
+    // S2-14 (#68): AppCompatActivity لا ComponentActivity — تطبيق اللغة على المنصات
+    // 26–32 يعمل عبر مندوب appcompat حصراً (يُقترن بأنشطة AppCompatActivity)،
+    // والمنصة 33+ تطبّقها نظامياً عبر LocaleManager.
+    implementation(libs.androidx.appcompat)
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)

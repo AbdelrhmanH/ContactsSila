@@ -25,6 +25,7 @@ import app.sila.feature.settings.domain.RingtoneItem
 import app.sila.feature.settings.domain.SettingsBackupPort
 import app.sila.feature.settings.domain.SettingsBackupPortImpl
 import app.sila.feature.settings.domain.ArhamReminderSchedulingPort
+import app.sila.feature.settings.domain.AppLocalePort
 import app.sila.feature.settings.domain.SettingsPreferencesPort
 import app.sila.feature.settings.domain.SettingsPreferencesPortImpl
 import app.sila.feature.settings.domain.SettingsRepository
@@ -151,6 +152,12 @@ class SettingsViewModel(
      * والبناء المريح (الاختبارات) يُغني عنه حين لا يفحص المسار.
      */
     private val reminderSchedulingPort: ArhamReminderSchedulingPort? = null,
+    /**
+     * منفذ تطبيق لغة المنصة (S2-14 · تذكرة #68): نية `SetLanguage` يعقبها تطبيق
+     * per-app locales فور نجاح كتابة التفضيل — فتقود الموارد كلها لا شاشة الإعدادات
+     * حصراً. اختياري بالحقن بنمط منفذ الجدولة أعلاه؛ iOS تنفيذه كائن سلبي.
+     */
+    private val appLocalePort: AppLocalePort? = null,
     private val dispatchers: AppDispatchers = DefaultAppDispatchers()
 ) : BaseMviViewModel<SettingsUiState, SettingsIntent, SettingsEffect>(SettingsUiState()) {
 
@@ -163,12 +170,14 @@ class SettingsViewModel(
         cryptoEngine: BackupCryptoEngine? = null,
         platformRingtoneSource: PlatformRingtoneSource? = null,
         reminderSchedulingPort: ArhamReminderSchedulingPort? = null,
+        appLocalePort: AppLocalePort? = null,
         dispatchers: AppDispatchers = DefaultAppDispatchers()
     ) : this(
         preferencesPort = SettingsPreferencesPortImpl(repository),
         backupPort = SettingsBackupPortImpl(repository, cryptoEngine, dispatchers),
         ringtonePort = SettingsRingtonePortImpl(repository, platformRingtoneSource),
         reminderSchedulingPort = reminderSchedulingPort,
+        appLocalePort = appLocalePort,
         dispatchers = dispatchers
     )
 
@@ -200,7 +209,13 @@ class SettingsViewModel(
     override fun onIntent(intent: SettingsIntent) {
         when (intent) {
             is SettingsIntent.SetThemeMode -> viewModelScope.launch { preferencesPort.setThemeMode(intent.mode) }
-            is SettingsIntent.SetLanguage -> viewModelScope.launch { preferencesPort.setLanguage(intent.language) }
+            is SettingsIntent.SetLanguage -> viewModelScope.launch {
+                preferencesPort.setLanguage(intent.language)
+                // S2-14 (تذكرة #68): تفضيل اللغة تُقيَّد أولاً — وتطبيقه على موارد
+                // المنصة (per-app locales على أندرويد) يتبع نجاح الكتابة حصراً
+                // (نمط ADR-0016 «فور نجاح الكتابة»).
+                appLocalePort?.applyApplicationLocale(intent.language)
+            }
             is SettingsIntent.SetDigits -> viewModelScope.launch { preferencesPort.setDigits(intent.digits) }
             is SettingsIntent.SetNameOrder -> viewModelScope.launch { preferencesPort.setNameOrder(intent.order) }
             is SettingsIntent.SetDefaultTab -> viewModelScope.launch { preferencesPort.setDefaultTab(intent.tab) }
