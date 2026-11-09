@@ -1,6 +1,8 @@
 package app.sila.feature.settings.data
 
 import app.sila.core.database.dao.ArhamDao
+import app.sila.core.database.dao.ClassificationRestorePlan
+import app.sila.core.database.dao.ClassificationRestoreRunner
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.core.model.AppDigits
@@ -36,20 +38,27 @@ import kotlinx.datetime.Clock
 class SettingsRepositoryImpl(
     private val dataSource: UserPreferencesDataSource,
     private val contactDao: ContactDao? = null,
-    private val arhamDao: ArhamDao? = null
+    private val arhamDao: ArhamDao? = null,
+    /**
+     * ممرّ الذرّية (S1-1 · تذكرة #60 · [ADR-0015](docs/adr/0015-atomic-restore-transaction-passage.md)):
+     * الاستعادة تُنفَّذ عبر واجهة معاملات في `:core:database` — المعاملة واحدة
+     * فوق `LocalSilaDatabase` بلا تسريب Room إلى طبقة data هذه. غيابه يجعل
+     * `restoreBackupData` ترفع فشلاً فورياً (نمط حراسة DAO هنا نفسها) فلا
+     * استعادة جزئية صامتة أبداً.
+     */
+    private val classificationRestoreRunner: ClassificationRestoreRunner? = null
 ) : SettingsRepository {
 
-    /**
-     * حارس مسارات النسخ الاحتياطي (مراجع T9 · اكتشاف DAOs nullable — سكوت البيانات):
-     * التصدير/الاستعادة بغير DAOs كانت تُنتج نسخة «ناجحة المنظر» فارغة أو استعادة
-     * لا-عمل — يُرفع الآن فشل فوري بدل التوفيق الصامت (الاختبارات المراجعة لا
-     * تستدعي مسارات النسخ بغير DAOs أصلاً).
-     */
     private fun requireContactsDao(): ContactDao =
         requireNotNull(contactDao) { "Backup export/restore requires ContactDao wiring (silent no-op guard)" }
 
     private fun requireArhamDao(): ArhamDao =
         requireNotNull(arhamDao) { "Backup restore requires ArhamDao wiring (silent no-op guard)" }
+
+    private fun requireRestoreRunner(): ClassificationRestoreRunner =
+        requireNotNull(classificationRestoreRunner) {
+            "Backup restore requires ClassificationRestoreRunner wiring (atomic all-or-nothing passage)"
+        }
 
     override val preferences: Flow<UserPreferences> get() = dataSource.preferences
 
@@ -165,82 +174,137 @@ class SettingsRepositoryImpl(
         )
     }
 
+    /**
+     * استعادة التصنيفات والأرحام والوسوم — S1-1 (تذكرة #60 · [ADR-0015](docs/adr/0015-atomic-restore-transaction-passage.md)):
+     * عقد «كل-أو-لا-شيء» عبر [ClassificationRestoreRunner] — معاملة Room واحدة في
+     * `:core:database` (بلا تسريب Room إلى طبقة data هذه). الخطة تُبنى هنا من
+     * قراءة لحظية واحدة (كاش الاتصالات + الحمولة المفكوكة حصراً قبل المعاملة)
+     * أصنافاً صفية (`:core:model` — بلا أنواع الحمولة في النطاق المشترك)،
+     * والنتيجة تُحتسب من ناتج المعاملة (المطبَّق فعلياً والمحدوم داخلياً) لا من
+     * حلّ الكاش وحده.
+     *
+     * عهد الدلالة المحفوظ حرفاً من المسار القديم:
+     * - شطف REPLACE: تصنيف عطيف/وسوم فارغة/بلا أرحام لكل الجهات الحية ولا يمس
+     *   التواريخ ولا الأطفال ولا الحقول القياسية.
+     * - إسناد أرحام يُلزم التصنيف إلى `FAMILY` (عهد `ArhamDao.upsertArhamInfo`)
+     *   ويستبدل التواريخ حصراً حين تقدّم الحمولة تواريخاً غير فارغة.
+     * - استبعاد يدوي/تعويض ربط يمسّ تصنيفًا وصلةً رحم معاً على طبقة العلاقة ذاتها.
+     * - **دلالة `restorePreferences` الموثّقة:** `true` يستعيد تفضيلات الحمولة
+     *   **ونغمات التصنيفات `categoryRingtones` معها** (ملف الترابط نفسه — سلوك
+     *   كان في الكود بلا تدوين منذ T9 ويُدنّ الآن موسّعاً في `docs/features/07`).
+     * - تفضيلات DataStore تُنفَّذ **بعد COMMIT حصراً**: فشل المعاملة يبقي
+     *   التفضيلات بلا مساس، وفشل DataStore اللاحق لا يبقي قاعدة نصف مستعادة.
+     */
     override suspend fun restoreBackupData(
         payload: BackupPayload,
         mode: RestoreMode,
         restorePreferences: Boolean
     ): RestoreResult {
         val contactDao = requireContactsDao()
-        val arhamDao = requireArhamDao()
+        requireArhamDao()
+        val restoreRunner = requireRestoreRunner()
         val allContacts = contactDao.observeContacts().first()
         val contactByLookup = mutableMapOf<String, Long>()
         for (c in allContacts) {
             c.lookupKey?.let { contactByLookup[it] = c.id }
             contactByLookup[c.systemContactId] = c.id
         }
+        val contactById = allContacts.associateBy { it.id }
 
-        if (mode == RestoreMode.REPLACE) {
-            for (c in allContacts) {
-                contactDao.upsertContact(c.copy(category = Category.UNCATEGORIZED, tags = emptyList(), arham = null))
-                arhamDao.deleteArhamInfo(c.id)
-            }
+        val replaceBeforeApply = mode == RestoreMode.REPLACE
+        // قاعدة النسخ الموحّدة: REPLACE يبني من نسخ المحو (فلا تعود وسوم/أرحام
+        // قديمة خارج الحمولة فوق الشطف) وMERGE من الحالة القائمة حرفاً.
+        val replaceBaseById: Map<Long, Contact> = if (replaceBeforeApply) {
+            allContacts.associate { it.id to it.copy(category = Category.UNCATEGORIZED, tags = emptyList(), arham = null) }
+        } else {
+            emptyMap()
         }
+
+        val unifiedById = mutableMapOf<Long, Contact>()
+        fun unifiedBase(contactId: Long): Contact? =
+            unifiedById[contactId]
+                ?: replaceBaseById[contactId]
+                ?: contactById[contactId]
+
+        val categoryEntryById = mutableListOf<Pair<BackupCategoryEntry, Long?>>()
+        for (cat in payload.categories) {
+            val contactId = contactByLookup[cat.lookupKey]
+            categoryEntryById += cat to contactId
+            val base = contactId?.let { unifiedBase(it) } ?: continue
+            unifiedById[contactId] = base.copy(category = cat.category)
+        }
+
+        val arhamEntryById = mutableListOf<Pair<BackupArhamEntry, Long?>>()
+        for (arham in payload.arham) {
+            val contactId = contactByLookup[arham.lookupKey]
+            arhamEntryById += arham to contactId
+            val base = contactId?.let { unifiedBase(it) } ?: continue
+            unifiedById[contactId] = base.copy(
+                category = Category.FAMILY,
+                arham = ArhamInfo(
+                    relation = arham.relation,
+                    layer = arham.layer,
+                    parentContactId = arham.parentLookupKey?.let { contactByLookup[it] },
+                    frequency = arham.frequency,
+                    lastContactedAt = arham.lastContactedAt,
+                    pausedUntil = arham.pausedUntil
+                ),
+                dates = if (arham.dates.isNotEmpty()) arham.dates else base.dates
+            )
+        }
+
+        val tagEntryById = mutableListOf<Pair<BackupTagEntry, Long?>>()
+        for (tagEntry in payload.tags) {
+            val contactId = contactByLookup[tagEntry.lookupKey]
+            tagEntryById += tagEntry to contactId
+            val base = contactId?.let { unifiedBase(it) } ?: continue
+            unifiedById[contactId] = base.copy(tags = tagEntry.tags)
+        }
+
+        val outcome = restoreRunner.applyClassificationRestore(
+            ClassificationRestorePlan(
+                replaceBeforeApply = replaceBeforeApply,
+                replacementContacts = if (replaceBeforeApply) {
+                    replaceBaseById.values.toList()
+                } else {
+                    emptyList()
+                },
+                contactRewrites = unifiedById.entries.sortedBy { it.key }.map { it.value }
+            )
+        )
+
+        // نتيجة كل قسم من ناتج المعاملة: المعرف الملصق بكل مدخل يُصنَّف مطبَّقاً
+        // أو محدوماً (الانحراف الوحيد المُرسَم — انتهت الجهة قيد المعاملة)؛
+        // ترتيب الحمولة الأصلي محفوظ في قوائم غير-المطابقة كما في المسار القديم.
+        val appliedIds = outcome.appliedContactIds.toSet()
+        val missingIds = outcome.missingContactIds.toSet()
 
         var matchedCategoriesCount = 0
         val unmatchedCategories = mutableListOf<BackupCategoryEntry>()
-
-        for (cat in payload.categories) {
-            val contactId = contactByLookup[cat.lookupKey]
-            if (contactId != null) {
-                contactDao.updateCategory(contactId, cat.category)
-                matchedCategoriesCount++
-            } else {
-                unmatchedCategories += cat
+        for ((cat, contactId) in categoryEntryById) {
+            when {
+                contactId == null || contactId in missingIds -> unmatchedCategories += cat
+                contactId in appliedIds -> matchedCategoriesCount++
+                else -> unmatchedCategories += cat
             }
         }
 
         var matchedArhamCount = 0
         val unmatchedArhamList = mutableListOf<BackupArhamEntry>()
-
-        for (arham in payload.arham) {
-            val contactId = contactByLookup[arham.lookupKey]
-            if (contactId != null) {
-                val parentId = arham.parentLookupKey?.let { contactByLookup[it] }
-                arhamDao.upsertArhamInfo(
-                    contactId = contactId,
-                    info = ArhamInfo(
-                        relation = arham.relation,
-                        layer = arham.layer,
-                        parentContactId = parentId,
-                        frequency = arham.frequency,
-                        lastContactedAt = arham.lastContactedAt,
-                        pausedUntil = arham.pausedUntil
-                    )
-                )
-                if (arham.dates.isNotEmpty()) {
-                    val existing = contactDao.getContactById(contactId)
-                    if (existing != null) {
-                        contactDao.upsertContact(existing.copy(dates = arham.dates))
-                    }
-                }
-                matchedArhamCount++
-            } else {
-                unmatchedArhamList += arham
+        for ((arham, contactId) in arhamEntryById) {
+            when {
+                contactId == null || contactId in missingIds -> unmatchedArhamList += arham
+                contactId in appliedIds -> matchedArhamCount++
+                else -> unmatchedArhamList += arham
             }
         }
 
-        // استعادة الوسوم (Tags)
-        for (tagEntry in payload.tags) {
-            val contactId = contactByLookup[tagEntry.lookupKey]
-            if (contactId != null) {
-                val existing = contactDao.getContactById(contactId)
-                if (existing != null) {
-                    contactDao.upsertContact(existing.copy(tags = tagEntry.tags))
-                }
-            }
-        }
+        // استعادة الوسوم مسؤولة الكتابة للممر الذرّي أعلاه (نسخ موحّدة)؛ مدخلاتها
+        // غير المطابقة لم تُعرض أبداً في نتيجة الاستعادة القديمة — نفس العهد بلا مساس.
 
         // استعادة التفضيلات إذا طلب المستخدم صراحة ذلك (AC: لا تُستعاد التفضيلات تلقائياً)
+        // — بعد COMMIT حصراً (ADR-0015): فشل المعاملة يبقي DataStore بلا مساس،
+        // وفشل DataStore اللاحق لا يترك قاعدة نصف مستعادة (المعاملة سبقت كل كتابة).
         if (restorePreferences) {
             payload.preferences?.let { p ->
                 dataSource.setThemeMode(p.themeMode)

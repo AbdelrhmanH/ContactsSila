@@ -128,7 +128,7 @@ class LocalSilaDatabase internal constructor(
     private val seedDemoData: Boolean,
     private val adoptionStageHook: ((AdoptionVerificationStage) -> Unit)?,
     private val backupDeleteOverride: (() -> Boolean)?,
-) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao, TopFiveMaterializationDao, EmergencySessionDao {
+) : ContactDao, ArhamDao, ServiceDao, DataRetentionCleanupDao, ContactsSyncDao, TopFiveMaterializationDao, EmergencySessionDao, ClassificationRestoreRunner {
 
     constructor(
         dbFilePath: String = ":memory:",
@@ -695,6 +695,87 @@ private val emergencySessionEntityDao = room.emergencySessionEntityDao()
             restored
         }
     }
+
+    // ===== T9 التصحيحي (تذكرة #60 · S1-1 · S3-22 · ADR-0015) — استعادة التصنيفات في معاملة واحدة =====
+
+    /**
+     * خطاف حقن فشل داخل معاملة [applyClassificationRestore] — يُرمى **بعد شطف
+     * REPLACE وقبل كتابات الحمولة** ليُثبت الاختبار أن أثقل سيناريو («محوّة بلا
+     * استعادة») يتراجع كلياً ولا يغيّر أي صف؛ بنفس مبدأ [materializationFaultHook].
+     */
+    internal var classificationRestoreFaultHook: (() -> Throwable)? = null
+
+    /**
+     * تنفيذ خطة استعادة التصنيفات ذاتها (S1-1) داخل **معاملة IMMEDIATE واحدة** على
+     * اتصال الكاتب الوحيد — عقد «كل-أو-لا-شيء»: فشل أي خطوة (أو انقطاع العملية)
+     * بين الشطف والكتابات يُرجِع كل ما وُصف ولا يبقي جزئية.
+     *
+     * القراءات والكتابة على [Transactor] نفسه (لا مناداة `useWriterConnection` متداخلة،
+     * ولا كاش صيغ وسطية — حقيقة المعاملة حقيقة القاعدة). الموجودية تتحقّق داخل
+     * المعاملة ذاتها عبر [getLiveContactCreatedAt] (القبر والغياب يحدّان الإسناد
+     * بدل الكتابة الأعمى — الخطة تُبنى من قراءة لحظة واحدة والانحراف الوحيد
+     * المُرسَم يظهر في [ClassificationRestoreOutcome.missingContactIds]).
+     *
+     * عهد الدلالة المحفوظ حرفاً من المسار القديم (قبل التذكرة):
+     * - شطف REPLACE يُعمد تصنيف/وسوم/أرحام الجهات الحية كافة ولا يمس التواريخ
+     *   ولا الأطفال ولا الحقول القياسية ([ClassificationRestorePlan.replacementContacts] تحمل النسخ كاملة).
+     * - إسناد أرحام يُلزم تصنيف الجهة إلى [Category.FAMILY] (عهد `ArhamDao.upsertArhamInfo`)
+     *   ويعيد كتابة التواريخ حصراً حين تقدّم الحمولة تواريخاً غير فارغة.
+     * - الكاش (`contactsState`) والمستمعون بعد COMMIT حصراً: إعادة قراءة كاملة
+     *   (الاستعادة تدفع صفوفاً كثيرة) + إشعار أرحام مجمَّع مرة واحدة لتغيّر أرحام.
+     */
+    override suspend fun applyClassificationRestore(plan: ClassificationRestorePlan): ClassificationRestoreOutcome =
+        withContext(dispatchers.io) {
+            dbMutex.withLock {
+                val outcome = inWriteTransaction { conn ->
+                    var cleared = 0
+                    val appliedIds = mutableListOf<Long>()
+                    val missingIds = mutableListOf<Long>()
+
+                    if (plan.replaceBeforeApply) {
+                        for (replacement in plan.replacementContacts) {
+                            writeContactToSqlite(conn, replacement)
+                            cleared++
+                        }
+                    }
+
+                    // الفشل المُحاكَى **بعد الشطف وقبل الكتابات** — أثقل الانقطاعات (محوّة بلا استعادة)
+                    // يُثبت الاختبار تراجعها كلياً هنا (نمط `mergeFaultHook` حرفاً).
+                    classificationRestoreFaultHook?.invoke()?.let { throw it }
+
+                    for (rewrite in plan.contactRewrites) {
+                        // التحقق الحيّ داخل المعاملة (لا الكاش): صف حي بلا قبر — وإلا
+                        // محدومٌ بلا كتابة. النسخة نفسها تحمل createdAt مسبقاً من
+                        // القراءة اللحظية للنطاق (createdAt ثابت بعد الإدراج — لا انحراف).
+                        if (getLiveContactCreatedAt(conn, rewrite.id) == null) {
+                            missingIds += rewrite.id
+                            continue
+                        }
+                        writeContactToSqlite(conn, rewrite)
+                        appliedIds += rewrite.id
+                    }
+
+                    ClassificationRestoreOutcome(
+                        clearedContacts = cleared,
+                        appliedContactIds = appliedIds,
+                        missingContactIds = missingIds,
+                    )
+                }
+                // الكاش بعد COMMIT حصراً (عهد الواجهة — نمط الدمج والتراجع):
+                // إعادة قراءة كاملة لأن الاستعادة تدفع صفوفاً متعددة بأجزاءها العلاقية.
+                contactsState.value = loadContactsFromRoom()
+                // إشعار أرحام مجمَّع حصراً حين تغيّرت رحمةٌ فعلاً داخل المعاملة
+                // (شطف مسّ جهاتٍ حية، أو نسخة موحّدة مطبَّقة حملت أرحاماً) —
+                // عهد المسار القديم كان يُطلق لكل كتابة أرحام حقيقية فحسب.
+                val appliedSet = outcome.appliedContactIds.toSet()
+                val touchedArham = (plan.replaceBeforeApply && outcome.clearedContacts > 0) ||
+                    plan.contactRewrites.any { it.arham != null && it.id in appliedSet }
+                if (touchedArham) {
+                    notifyArhamDataChanged()
+                }
+                outcome
+            }
+        }
 
     // ——— استبعاد أزواج المكررات (duplicate_dismissals — T7) ———
 
