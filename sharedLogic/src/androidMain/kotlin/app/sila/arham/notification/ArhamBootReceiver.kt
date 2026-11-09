@@ -20,18 +20,19 @@ class ArhamBootReceiver : BroadcastReceiver() {
             Intent.ACTION_BOOT_COMPLETED,
             ACTION_TIME_SET,
             Intent.ACTION_TIMEZONE_CHANGED,
-            -> reschedule(context.applicationContext)
+            -> reschedule()
         }
     }
 
-    private fun reschedule(appContext: Context) {
+    private fun reschedule() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 runCatching {
                     val koin = resolveArhamKoin() ?: return@runCatching
+                    // مسار الجدولة لا يلمس المنصة (S2-13 · تذكرة #71): القراءات والخطة
+                    // والجدولة في عقد النطاق المشترك — بلا `Context` في النية الأصلية.
                     ArhamReminderDispatch.rescheduleFromNow(
-                        context = appContext,
                         preferences = koin.get(),
                         planner = koin.get(),
                         scheduler = koin.get(),

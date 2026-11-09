@@ -24,6 +24,7 @@ import app.sila.feature.settings.domain.RestoreResult
 import app.sila.feature.settings.domain.RingtoneItem
 import app.sila.feature.settings.domain.SettingsBackupPort
 import app.sila.feature.settings.domain.SettingsBackupPortImpl
+import app.sila.feature.settings.domain.ArhamReminderSchedulingPort
 import app.sila.feature.settings.domain.SettingsPreferencesPort
 import app.sila.feature.settings.domain.SettingsPreferencesPortImpl
 import app.sila.feature.settings.domain.SettingsRepository
@@ -138,14 +139,21 @@ sealed interface SettingsEffect {
 
 /**
  * ViewModel ميزة الإعدادات والتفضيلات — يعتمد بوابات نطاق ضيقة ([SettingsPreferencesPort]
- * و[SettingsBackupPort] و[SettingsRingtonePort]) فتمر كل كتابة عبر UseCase حقيقية مرة
- * واحدة (DIP حقيقي بلا مسار `useCase ?: repository` مزدوج) ويحول التدفقات التفاعلية إلى
- * StateFlow (CODING_GUIDELINES.md §1, §8 · ADR-0014).
+ * و[SettingsBackupPort] و[SettingsRingtonePort] و[ArhamReminderSchedulingPort]) فتمر كل
+ * كتابة عبر UseCase حقيقية مرة واحدة (DIP حقيقي بلا مسار `useCase ?: repository` مزدوج)
+ * ويحول التدفقات التفاعلية إلى StateFlow (CODING_GUIDELINES.md §1, §8 · ADR-0014).
  */
 class SettingsViewModel(
     private val preferencesPort: SettingsPreferencesPort,
     private val backupPort: SettingsBackupPort,
     private val ringtonePort: SettingsRingtonePort,
+    /**
+     * منفذ إعادة الجدولة الفورية للتذكير (S2-13 · تذكرة #71 · ADR-0016): كتابةٌ تغيّر
+     * موعد تذكير أرحام (الميزة/الوقت/ساعات الهدوء) يعقبها `rescheduleFromNow()` فوراً
+     * دون انتظار إقلاع لاحق. اختياري بالحقن — كومة التركيب الحقيقية (Koin) تربطه دائماً،
+     * والبناء المريح (الاختبارات) يُغني عنه حين لا يفحص المسار.
+     */
+    private val reminderSchedulingPort: ArhamReminderSchedulingPort? = null,
     private val dispatchers: AppDispatchers = DefaultAppDispatchers()
 ) : BaseMviViewModel<SettingsUiState, SettingsIntent, SettingsEffect>(SettingsUiState()) {
 
@@ -157,11 +165,13 @@ class SettingsViewModel(
         repository: SettingsRepository,
         cryptoEngine: BackupCryptoEngine? = null,
         platformRingtoneSource: PlatformRingtoneSource? = null,
+        reminderSchedulingPort: ArhamReminderSchedulingPort? = null,
         dispatchers: AppDispatchers = DefaultAppDispatchers()
     ) : this(
         preferencesPort = SettingsPreferencesPortImpl(repository),
         backupPort = SettingsBackupPortImpl(repository, cryptoEngine, dispatchers),
         ringtonePort = SettingsRingtonePortImpl(repository, platformRingtoneSource),
+        reminderSchedulingPort = reminderSchedulingPort,
         dispatchers = dispatchers
     )
 
@@ -201,13 +211,20 @@ class SettingsViewModel(
             is SettingsIntent.SetDefaultSimSlot -> viewModelScope.launch { preferencesPort.setDefaultSimSlot(intent.slot) }
             is SettingsIntent.SetArhamNotifications -> viewModelScope.launch {
                 preferencesPort.setArhamNotificationsEnabled(intent.enabled)
+                // S2-13 (تذكرة #71 · ADR-0016): تعديل الميزة يؤثر على الموعد والمعلّق —
+                // إعادة الجدولة فوراً من التفضيل الجديد (iOS: إلغاء المعلّق عند التعطيل).
+                reminderSchedulingPort?.rescheduleFromNow()
             }
             is SettingsIntent.SetArhamNotificationTime -> viewModelScope.launch {
                 preferencesPort.setArhamNotificationTime(intent.hour, intent.minute)
+                // S2-13: الوقت المفضل يشكل الموعد القادم حتماً — جدولة فورية (تذكرة #71).
+                reminderSchedulingPort?.rescheduleFromNow()
             }
             is SettingsIntent.SetArhamMaxPerDay -> viewModelScope.launch { preferencesPort.setArhamMaxPerDay(intent.max) }
             is SettingsIntent.SetQuietHours -> viewModelScope.launch {
                 preferencesPort.setQuietHours(intent.startHour, intent.endHour)
+                // S2-13: ساعات الهدوء تدفع الموعد (أو عبر منتصف الليل) — جدولة فورية (تذكرة #71).
+                reminderSchedulingPort?.rescheduleFromNow()
             }
             is SettingsIntent.SetDashboardPeriod -> viewModelScope.launch {
                 preferencesPort.setDashboardPeriod(intent.period)

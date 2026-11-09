@@ -106,7 +106,6 @@ class SilaApplication : Application() {
         reminderRescheduled = true
         applicationScope.launch {
             ArhamReminderDispatch.rescheduleFromNow(
-                context = this@SilaApplication,
                 preferences = koin.get(),
                 planner = koin.get(),
                 scheduler = koin.get(),

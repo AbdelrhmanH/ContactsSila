@@ -2,8 +2,10 @@ package app.sila.di
 
 import android.content.Context
 import app.sila.arham.notification.AndroidAlarmScheduler
+import app.sila.arham.notification.AndroidArhamReminderSchedulingPort
 import app.sila.arham.notification.ArhamAlarmScheduler
 import app.sila.arham.notification.HostAbsentAlarmScheduler
+import app.sila.feature.settings.domain.ArhamReminderSchedulingPort
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -25,5 +27,15 @@ internal actual val platformArhamNotificationModule: Module = module {
         } else {
             HostAbsentAlarmScheduler
         }
+    }
+    // منفذ إعادة الجدولة الفورية من الإعدادات (S2-13 · تذكرة #71 · ADR-0016):
+    // بلا Context أصلًا — الجدولة في العقد المشترك، فمسار مضيف الاختبارات يُحلّ
+    // عبر [AndroidArhamReminderSchedulingPort] مباشرة (لا مسار صامت مزدوج).
+    single<ArhamReminderSchedulingPort> {
+        AndroidArhamReminderSchedulingPort(
+            preferences = get(),
+            planner = get(),
+            scheduler = get(),
+        )
     }
 }
