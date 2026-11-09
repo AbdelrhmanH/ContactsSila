@@ -46,7 +46,7 @@ jobs:
           # Hard floor for the S2-17 decomposition: settings UI files must never
           # again carry frozen complexity debt (LongMethod / CCM / TooManyFunctions)
           # in the baseline — new debt must be fixed inline, not ratcheted.
-          if grep -Eq "(LongMethod|CyclomaticComplexMethod|TooManyFunctions):(SettingsScreen|SettingsStrings|SettingsSections|SettingsDialogs|SettingsPreviews)\.kt:" config/detekt/baseline.xml; then
+          if grep -Eq "(LongMethod|CyclomaticComplexMethod|TooManyFunctions):(SettingsScreen|SettingsStrings|SettingsSections|SettingsDialogs|SettingsSectionPreviews|SettingsContentDialogsPreviews)\.kt:" config/detekt/baseline.xml; then
             echo "::error::Settings UI files carry frozen complexity debt in the baseline — decomposition floor violated"
             exit 1
           fi

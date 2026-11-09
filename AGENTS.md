@@ -40,8 +40,8 @@ java -jar detekt-cli-2.0.0-alpha.6-all.jar \
 - **خط متدرج:** الديون القديمة مجمدة في `config/detekt/baseline.xml` — أي مخالفة
   جديدة تفشل فوراً؛ أصلِحها داخل الشيفرة ولا تُضِفها إلى الـ baseline.
 - **أرضية الإعدادات (S2-17):** ملفات واجهة الإعدادات (`SettingsScreen/Strings/
-  Sections/Dialogs/Previews.kt`) ممنوع أن تحمل أي دين تعقيد (LongMethod/CCM/
-  TooManyFunctions) في الـ baseline إطلاقاً — خطوة CI تفحص ذلك ويجب ألا تنكسر.
+  Sections/Dialogs/SectionPreviews/ContentDialogsPreviews.kt`) ممنوع أن تحمل أي دين تعقيد
+  (LongMethod/CCM/TooManyFunctions) في الـ baseline إطلاقاً — خطوة CI تفحص ذلك ويجب ألا تنكسر.
 
 ## تعريف "منتهي" (Definition of Done)
 - [ ] يلبي معايير القبول في ملف الميزة.

@@ -3,25 +3,30 @@ package app.sila.feature.settings.presentation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import app.sila.core.designsystem.SilaTheme
+import app.sila.core.model.AppLanguage
 import app.sila.core.model.Category
 import app.sila.core.model.UserPreferences
 import app.sila.feature.settings.domain.BackupPreview
 import app.sila.feature.settings.domain.RingtoneItem
-import androidx.compose.ui.tooling.preview.Preview
 
 /**
- * معاينات شاشة الإعدادات متعددة الحالات (S2-17 — تذكرة #67):
- * كل قسم سطحي في حالتَيه اللغويتين (عربي فاتح / إنجليزي داكن)، الجسد الكامل عبر
- * [SettingsContent] في حالتي الخط 200% وحالة الوضع الداكن الإنجليزية، وجسدا حوار
- * للتصدير ومعاينة الاستعادة — وفق CODING_GUIDELINES: RTL أولاً وأحجام خطوط كبيرة.
+ * معاينات الأقسام الثلاثة الأخيرة والجسد الكامل والحوارات بأكمل مصفوفة الحالات
+ * (S2-17 — تذكرة #67): لكل قسم أربعة أحوال — عربي-فاتح / عربي-داكن /
+ * إنجليزي-فاتح / إنجليزي-داكن — وفق CODING_GUIDELINES: RTL أولاً + Dark mode +
+ * أحجام خطوط كبيرة، مع جسدين كاملين وجسدي حوار.
  *
- * عدد دوال الملف = 19 (أقل من سقف TooManyFunctions = 20): حالات المعاينة خصائص
- * ثابتة لا تُحتسب دوالاً.
+ * الغلاف [SettingsPreviewShell] وثابتات الحالة الداخلية معرَّفة هنا ليستخدمهما
+ * [SettingsSectionPreviews] كذلك. عدد دوال الملف = 17 (أقل من سقف
+ * TooManyFunctions = 20)؛ حالات المعاينة خصائص ثابتة لا تُحتسب دوالاً.
  */
 
+// ===== ثابتات الحالة المشتركة (internal لأن الملف المجاور يستخدم شيئين منها) =====
+
 /** حالة معاينة مشتركة: تفضيلات افتراضية معرّبة ونغمات متاحة لكل التصنيفات. */
-private val PreviewState: SettingsUiState = SettingsUiState(
+internal val PreviewState: SettingsUiState = SettingsUiState(
     preferences = UserPreferences(),
     categoryRingtones = mapOf(
         Category.FAMILY to "content://media/sila/family",
@@ -32,6 +37,11 @@ private val PreviewState: SettingsUiState = SettingsUiState(
         RingtoneItem("نغمة النظام الثانية", "content://media/ringtone/2"),
         RingtoneItem("نغمة النظام الثالثة", "content://media/ringtone/3")
     )
+)
+
+/** النسخة الإنجليزية للحالة: اللغة فقط تُبدَّل لتظهر صف «اللغة = الإنجليزية» في المظهر. */
+internal val PreviewStateEnglish: SettingsUiState = PreviewState.copy(
+    preferences = PreviewState.preferences.copy(language = AppLanguage.ENGLISH)
 )
 
 /** معاينة مُعوَّضة لفحص النسخة في حوار التأكيد (أعداد ثابتة للعرض، خارجة عن أي بيانات حقيقية). */
@@ -55,88 +65,27 @@ private val PreviewRestoreDialogState: SettingsUiState = PreviewState.copy(
     backupPreview = PreviewBackup
 )
 
-/** غلاف المعاينات: [SilaTheme] مع اتجاه اللغة اختياري وتكبير الخط عبر [LocalDensity]. */
+/**
+ * غلاف المعاينات المشترك: [SilaTheme] مع اتجاه اللغة اختياري وتكبير الخط عبر
+ * [LocalDensity] بإعادة بناء قيمه صراحةً (واجهة Density بلا `copy`).
+ */
 @Composable
-private fun SettingsPreviewShell(
+internal fun SettingsPreviewShell(
     darkTheme: Boolean,
     isRtl: Boolean,
     fontScale: Float = 1f,
     content: @Composable () -> Unit
 ) {
-    CompositionLocalProvider(
-        LocalDensity provides LocalDensity.current.copy(fontScale = fontScale)
-    ) {
+    val current = LocalDensity.current
+    val adjusted = Density(density = current.density, fontScale = current.fontScale * fontScale)
+    CompositionLocalProvider(LocalDensity provides adjusted) {
         SilaTheme(darkTheme = darkTheme, isRtl = isRtl) {
             content()
         }
     }
 }
 
-// ===== الأقسام السبعة: عربي فاتح / إنجليزي داكن =====
-
-@Preview(showBackground = true)
-@Composable
-private fun AppearanceSectionArabicLightPreview() {
-    SettingsPreviewShell(darkTheme = false, isRtl = true) {
-        SettingsAppearanceSection(PreviewState.preferences, SettingsStrings.arabic(), {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun AppearanceSectionEnglishDarkPreview() {
-    SettingsPreviewShell(darkTheme = true, isRtl = false) {
-        SettingsAppearanceSection(PreviewState.preferences, SettingsStrings.english(), {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun GeneralSectionArabicLightPreview() {
-    SettingsPreviewShell(darkTheme = false, isRtl = true) {
-        SettingsGeneralSection(PreviewState.preferences, SettingsStrings.arabic(), true, {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun GeneralSectionEnglishDarkPreview() {
-    SettingsPreviewShell(darkTheme = true, isRtl = false) {
-        SettingsGeneralSection(PreviewState.preferences, SettingsStrings.english(), false, {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun ArhamSectionArabicLightPreview() {
-    SettingsPreviewShell(darkTheme = false, isRtl = true) {
-        SettingsArhamSection(PreviewState.preferences, SettingsStrings.arabic(), {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun ArhamSectionEnglishDarkPreview() {
-    SettingsPreviewShell(darkTheme = true, isRtl = false) {
-        SettingsArhamSection(PreviewState.preferences, SettingsStrings.english(), {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun OrganizationSectionArabicLightPreview() {
-    SettingsPreviewShell(darkTheme = false, isRtl = true) {
-        SettingsOrganizationSection(PreviewState.preferences, SettingsStrings.arabic(), true, {})
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun OrganizationSectionEnglishDarkPreview() {
-    SettingsPreviewShell(darkTheme = true, isRtl = false) {
-        SettingsOrganizationSection(PreviewState.preferences, SettingsStrings.english(), false, {})
-    }
-}
+// ===== النغمات × 4 =====
 
 @Preview(showBackground = true)
 @Composable
@@ -155,18 +104,50 @@ private fun RingtonesSectionArabicLightPreview() {
 
 @Preview(showBackground = true)
 @Composable
-private fun RingtonesSectionEnglishDarkPreview() {
-    SettingsPreviewShell(darkTheme = true, isRtl = false) {
+private fun RingtonesSectionArabicDarkPreview() {
+    SettingsPreviewShell(darkTheme = true, isRtl = true) {
         SettingsRingtonesSection(
             categoryRingtones = PreviewState.categoryRingtones,
             pickerCategory = null,
             availableRingtones = PreviewState.availableRingtones,
+            strings = SettingsStrings.arabic(),
+            isArabic = true,
+            onIntent = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun RingtonesSectionEnglishLightPreview() {
+    SettingsPreviewShell(darkTheme = false, isRtl = false) {
+        SettingsRingtonesSection(
+            categoryRingtones = PreviewStateEnglish.categoryRingtones,
+            pickerCategory = null,
+            availableRingtones = PreviewStateEnglish.availableRingtones,
             strings = SettingsStrings.english(),
             isArabic = false,
             onIntent = {}
         )
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun RingtonesSectionEnglishDarkPreview() {
+    SettingsPreviewShell(darkTheme = true, isRtl = false) {
+        SettingsRingtonesSection(
+            categoryRingtones = PreviewStateEnglish.categoryRingtones,
+            pickerCategory = null,
+            availableRingtones = PreviewStateEnglish.availableRingtones,
+            strings = SettingsStrings.english(),
+            isArabic = false,
+            onIntent = {}
+        )
+    }
+}
+
+// ===== النسخ الاحتياطي × 4 =====
 
 @Preview(showBackground = true)
 @Composable
@@ -184,10 +165,24 @@ private fun BackupSectionArabicLightPreview() {
 
 @Preview(showBackground = true)
 @Composable
-private fun BackupSectionEnglishDarkPreview() {
-    SettingsPreviewShell(darkTheme = true, isRtl = false) {
+private fun BackupSectionArabicDarkPreview() {
+    SettingsPreviewShell(darkTheme = true, isRtl = true) {
         SettingsBackupSection(
             prefs = PreviewState.preferences,
+            strings = SettingsStrings.arabic(),
+            isArabic = true,
+            restoreBytesBuffer = null,
+            onIntent = {}
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun BackupSectionEnglishLightPreview() {
+    SettingsPreviewShell(darkTheme = false, isRtl = false) {
+        SettingsBackupSection(
+            prefs = PreviewStateEnglish.preferences,
             strings = SettingsStrings.english(),
             isArabic = false,
             restoreBytesBuffer = byteArrayOf(0x53),
@@ -198,9 +193,41 @@ private fun BackupSectionEnglishDarkPreview() {
 
 @Preview(showBackground = true)
 @Composable
+private fun BackupSectionEnglishDarkPreview() {
+    SettingsPreviewShell(darkTheme = true, isRtl = false) {
+        SettingsBackupSection(
+            prefs = PreviewStateEnglish.preferences,
+            strings = SettingsStrings.english(),
+            isArabic = false,
+            restoreBytesBuffer = byteArrayOf(0x53),
+            onIntent = {}
+        )
+    }
+}
+
+// ===== حول صِلَة × 4 =====
+
+@Preview(showBackground = true)
+@Composable
 private fun AboutSectionArabicLightPreview() {
     SettingsPreviewShell(darkTheme = false, isRtl = true) {
         SettingsAboutSection(SettingsStrings.arabic())
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun AboutSectionArabicDarkPreview() {
+    SettingsPreviewShell(darkTheme = true, isRtl = true) {
+        SettingsAboutSection(SettingsStrings.arabic())
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun AboutSectionEnglishLightPreview() {
+    SettingsPreviewShell(darkTheme = false, isRtl = false) {
+        SettingsAboutSection(SettingsStrings.english())
     }
 }
 
@@ -233,7 +260,7 @@ private fun FullContentArabicLightLargeFontPreview() {
 private fun FullContentEnglishDarkPreview() {
     SettingsPreviewShell(darkTheme = true, isRtl = false) {
         SettingsContent(
-            state = PreviewState,
+            state = PreviewStateEnglish,
             strings = SettingsStrings.english(),
             isArabic = false,
             onIntent = {},
