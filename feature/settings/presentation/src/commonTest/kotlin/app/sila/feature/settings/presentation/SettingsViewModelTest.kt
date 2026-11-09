@@ -18,15 +18,10 @@ import app.sila.feature.settings.domain.BackupDecryptionException
 import app.sila.feature.settings.domain.BackupErrorKind
 import app.sila.feature.settings.domain.BackupPayload
 import app.sila.feature.settings.domain.BackupPreferencesEntry
-import app.sila.feature.settings.domain.ObserveUserPreferencesUseCase
 import app.sila.feature.settings.domain.PlatformRingtoneSource
 import app.sila.feature.settings.domain.RestoreMode
 import app.sila.feature.settings.domain.RestoreResult
 import app.sila.feature.settings.domain.RingtoneItem
-import app.sila.feature.settings.domain.SetArhamNotificationsUseCase
-import app.sila.feature.settings.domain.SetLanguageUseCase
-import app.sila.feature.settings.domain.SetSmartFilterUseCase
-import app.sila.feature.settings.domain.SetThemeModeUseCase
 import app.sila.feature.settings.domain.SettingsRepository
 import app.sila.feature.settings.domain.UnmatchedBackupEntry
 import kotlinx.coroutines.Dispatchers
@@ -187,11 +182,6 @@ class SettingsViewModelTest {
     fun initialPreferences_flowThroughState() = runTest(testDispatcher) {
         val repo = TestSettingsRepository()
         val vm = SettingsViewModel(
-            observePreferences = ObserveUserPreferencesUseCase(repo),
-            setThemeMode = SetThemeModeUseCase(repo),
-            setLanguage = SetLanguageUseCase(repo),
-            setArhamNotifications = SetArhamNotificationsUseCase(repo),
-            setSmartFilter = SetSmartFilterUseCase(repo),
             repository = repo,
             dispatchers = testDispatchers
         )
@@ -207,11 +197,6 @@ class SettingsViewModelTest {
     fun t9PreferenceIntents_updateStateCorrectly() = runTest(testDispatcher) {
         val repo = TestSettingsRepository()
         val vm = SettingsViewModel(
-            observePreferences = ObserveUserPreferencesUseCase(repo),
-            setThemeMode = SetThemeModeUseCase(repo),
-            setLanguage = SetLanguageUseCase(repo),
-            setArhamNotifications = SetArhamNotificationsUseCase(repo),
-            setSmartFilter = SetSmartFilterUseCase(repo),
             repository = repo,
             dispatchers = testDispatchers
         )

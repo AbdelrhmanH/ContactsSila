@@ -6,6 +6,7 @@ import app.sila.core.model.AppThemeMode
 import app.sila.core.model.ArhamFrequency
 import app.sila.core.model.Category
 import app.sila.core.model.Contact
+import app.sila.core.model.ContactName
 import app.sila.core.model.ContactSwipeAction
 import app.sila.core.model.DashboardPeriod
 import app.sila.core.model.DefaultTab
@@ -143,17 +144,24 @@ class SettingsUseCasesTest {
             )
         }
 
-        // S1-15 (تذكرة #62): مسارات الربط اليدوي — لا UseCase خاص بهما في النطاق
-        // (يُنفَّذان مباشرة من الـ ViewModel عبر المستودع)، فالتنفيذ هنا عقد اكتمال لا سلوكاً
-        // يُشكَّل عليه.
+        // تذكرة #66: مسارات الربط اليدوي أصبحت UseCases (SearchLinkCandidatesUseCase/
+        // LinkUnmatchedEntryUseCase) — الـ fake قابل للتهيئة لكل اختبار مع تسجيل المناديات.
         var lastLinkCandidatesQuery: String? = null
+        var linkCandidatesToReturn: List<Contact> = emptyList()
+        var lastLinkEntry: UnmatchedBackupEntry? = null
+        var lastLinkTargetId: Long? = null
+        var linkOutcome: Boolean = false
 
         override suspend fun searchLinkCandidates(query: String): List<Contact> {
             lastLinkCandidatesQuery = query
-            return emptyList()
+            return linkCandidatesToReturn
         }
 
-        override suspend fun linkUnmatchedEntry(entry: UnmatchedBackupEntry, targetContactId: Long): Boolean = false
+        override suspend fun linkUnmatchedEntry(entry: UnmatchedBackupEntry, targetContactId: Long): Boolean {
+            lastLinkEntry = entry
+            lastLinkTargetId = targetContactId
+            return linkOutcome
+        }
     }
 
     @Test
@@ -276,5 +284,93 @@ class SettingsUseCasesTest {
 
         SetCrashReportsUseCase(repo)(false)
         assertEquals(false, repo.preferences.first().crashReportsEnabled)
+    }
+
+    @Test
+    fun preferenceUseCases_addedForDipRefactor_updateRepositoryState() = runTest {
+        val repo = FakeSettingsRepository()
+
+        SetDefaultTabUseCase(repo)(DefaultTab.ARHAM)
+        assertEquals(DefaultTab.ARHAM, repo.preferences.first().defaultTab)
+
+        SetVisibleAccountsUseCase(repo)(setOf("acme", "work"))
+        assertEquals(setOf("acme", "work"), repo.preferences.first().visibleAccounts)
+
+        SetDefaultSimSlotUseCase(repo)(1)
+        assertEquals(1, repo.preferences.first().defaultSimSlot)
+
+        SetConfettiEnabledUseCase(repo)(false)
+        assertEquals(false, repo.preferences.first().confettiEnabled)
+
+        SetDefaultCityUseCase(repo)("القاهرة")
+        assertEquals("القاهرة", repo.preferences.first().defaultCity)
+
+        SetSearchRadiusKmUseCase(repo)(15)
+        assertEquals(15, repo.preferences.first().searchRadiusKm)
+
+        SetQuickRatingEnabledUseCase(repo)(false)
+        assertEquals(false, repo.preferences.first().quickRatingEnabled)
+
+        SetAutoUpdatePhonebookServicesUseCase(repo)(true)
+        assertEquals(true, repo.preferences.first().autoUpdatePhonebookServices)
+
+        SetPostCallCategorizeEnabledUseCase(repo)(true)
+        assertEquals(true, repo.preferences.first().postCallCategorizeEnabled)
+
+        SetInterestTagsUseCase(repo)(setOf("عائلة", "العمل"))
+        assertEquals(setOf("عائلة", "العمل"), repo.preferences.first().interestTags)
+    }
+
+    @Test
+    fun searchLinkCandidatesUseCase_shortQuery_returnsEmptyWithoutTouchingRepository() = runTest {
+        val repo = FakeSettingsRepository()
+        val useCase = SearchLinkCandidatesUseCase(repo)
+
+        assertEquals(0, useCase("").size)
+        assertEquals(0, useCase("  ").size)
+        assertEquals(0, useCase("س").size)
+
+        // الحارس يمنع المناداة أصلاً — لا استعلام وصل المستودع
+        assertEquals(null, repo.lastLinkCandidatesQuery)
+    }
+
+    @Test
+    fun searchLinkCandidatesUseCase_validQuery_delegatesToRepository() = runTest {
+        val repo = FakeSettingsRepository()
+        val candidate = Contact(
+            id = 5,
+            systemContactId = "sys_5",
+            name = ContactName(displayName = "سعاد"),
+            phones = emptyList()
+        )
+        repo.linkCandidatesToReturn = listOf(candidate)
+        val useCase = SearchLinkCandidatesUseCase(repo)
+
+        val candidates = useCase("سعاد")
+
+        assertEquals("سعاد", repo.lastLinkCandidatesQuery)
+        assertEquals(listOf(candidate), candidates)
+    }
+
+    @Test
+    fun linkUnmatchedEntryUseCase_delegatesAndPropagatesRepositoryOutcome() = runTest {
+        val repo = FakeSettingsRepository()
+        val useCase = LinkUnmatchedEntryUseCase(repo)
+        val entry = UnmatchedBackupEntry(
+            lookupKey = "old_key",
+            displayName = "منى",
+            category = Category.FAMILY,
+            arhamRelation = null
+        )
+
+        // الافتراضي: فشل معلوم (false) — يُمرَّر بمصداقية
+        assertEquals(false, useCase(entry, targetContactId = 7))
+        assertEquals(entry, repo.lastLinkEntry)
+        assertEquals(7L, repo.lastLinkTargetId)
+
+        // نجاح المستودع يُمرَّر كما هو
+        repo.linkOutcome = true
+        assertEquals(true, useCase(entry, targetContactId = 8))
+        assertEquals(8L, repo.lastLinkTargetId)
     }
 }

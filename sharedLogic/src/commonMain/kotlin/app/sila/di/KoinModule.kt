@@ -107,27 +107,13 @@ import app.sila.feature.services.domain.ObserveServicesDirectoryUseCase
 import app.sila.feature.services.domain.ServicesRepository
 import app.sila.feature.services.presentation.ServicesViewModel
 import app.sila.feature.settings.data.SettingsRepositoryImpl
-import app.sila.feature.settings.domain.ExportBackupUseCase
-import app.sila.feature.settings.domain.GetEffectiveRingtoneUseCase
-import app.sila.feature.settings.domain.ObserveCategoryRingtonesUseCase
-import app.sila.feature.settings.domain.ObserveUserPreferencesUseCase
-import app.sila.feature.settings.domain.PreviewBackupUseCase
-import app.sila.feature.settings.domain.RestoreBackupUseCase
-import app.sila.feature.settings.domain.SetArhamNotificationTimeUseCase
-import app.sila.feature.settings.domain.SetArhamNotificationsUseCase
-import app.sila.feature.settings.domain.SetAutoTrackingEnabledUseCase
-import app.sila.feature.settings.domain.SetCategoryRingtoneUseCase
-import app.sila.feature.settings.domain.SetCrashReportsUseCase
-import app.sila.feature.settings.domain.SetDashboardPeriodUseCase
-import app.sila.feature.settings.domain.SetDigitsUseCase
-import app.sila.feature.settings.domain.SetDuplicateScanUseCase
-import app.sila.feature.settings.domain.SetLanguageUseCase
-import app.sila.feature.settings.domain.SetNameOrderUseCase
-import app.sila.feature.settings.domain.SetQuietHoursUseCase
-import app.sila.feature.settings.domain.SetSmartFilterUseCase
-import app.sila.feature.settings.domain.SetSwipeActionsUseCase
-import app.sila.feature.settings.domain.SetThemeModeUseCase
+import app.sila.feature.settings.domain.SettingsBackupPort
 import app.sila.feature.settings.domain.SettingsRepository
+import app.sila.feature.settings.domain.SettingsRingtonePort
+import app.sila.feature.settings.domain.SettingsPreferencesPort
+import app.sila.feature.settings.domain.SettingsPreferencesPortImpl
+import app.sila.feature.settings.domain.SettingsBackupPortImpl
+import app.sila.feature.settings.domain.SettingsRingtonePortImpl
 import app.sila.feature.settings.presentation.SettingsViewModel
 import app.sila.maintenance.ArhamMaterializationCoordinator
 import app.sila.maintenance.MergeSweepCoordinator
@@ -492,49 +478,21 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             arhamDao = get(),
         )
     }
-    factory { ObserveUserPreferencesUseCase(repository = get()) }
-    factory { SetThemeModeUseCase(repository = get()) }
-    factory { SetLanguageUseCase(repository = get()) }
-    factory { SetArhamNotificationsUseCase(repository = get()) }
-    factory { SetSmartFilterUseCase(repository = get()) }
-    factory { SetDigitsUseCase(repository = get()) }
-    factory { SetNameOrderUseCase(repository = get()) }
-    factory { SetSwipeActionsUseCase(repository = get()) }
-    factory { SetQuietHoursUseCase(repository = get()) }
-    factory { SetArhamNotificationTimeUseCase(repository = get()) }
-    factory { SetDashboardPeriodUseCase(repository = get()) }
-    factory { SetAutoTrackingEnabledUseCase(repository = get()) }
-    factory { SetDuplicateScanUseCase(repository = get()) }
-    factory { SetCrashReportsUseCase(repository = get()) }
-    factory { ObserveCategoryRingtonesUseCase(repository = get()) }
-    factory { SetCategoryRingtoneUseCase(repository = get(), platformRingtoneSource = get()) }
-    factory { GetEffectiveRingtoneUseCase(repository = get(), platformRingtoneSource = get()) }
-    factory { ExportBackupUseCase(repository = get(), cryptoEngine = get(), dispatchers = get()) }
-    factory { PreviewBackupUseCase(cryptoEngine = get(), dispatchers = get()) }
-    factory { RestoreBackupUseCase(repository = get(), cryptoEngine = get(), dispatchers = get()) }
+    // بوابات نطاق ضيقة فوق حالات استخدام الإعدادات (تذكرة #66 · ADR-0014) — الواجهة الوحيدة
+    // التي يعتمدها SettingsViewModel، فكُلّ مسار يمر عبر UseCase حقيقية لا عبر المستودع مباشرة.
+    single<SettingsPreferencesPort> { SettingsPreferencesPortImpl(repository = get()) }
+    single<SettingsBackupPort> {
+        SettingsBackupPortImpl(repository = get(), cryptoEngine = get(), dispatchers = get())
+    }
+    single<SettingsRingtonePort> {
+        SettingsRingtonePortImpl(repository = get(), platformRingtoneSource = get())
+    }
     single {
         SettingsViewModel(
-            observePreferences = get(),
-            setThemeMode = get(),
-            setLanguage = get(),
-            setArhamNotifications = get(),
-            setSmartFilter = get(),
-            setDigitsUseCase = get(),
-            setNameOrderUseCase = get(),
-            setSwipeActionsUseCase = get(),
-            setQuietHoursUseCase = get(),
-            setArhamNotificationTimeUseCase = get(),
-            setDashboardPeriodUseCase = get(),
-            setAutoTrackingEnabledUseCase = get(),
-            setDuplicateScanUseCase = get(),
-            setCrashReportsUseCase = get(),
             repository = get(),
-            exportBackup = get(),
-            previewBackup = get(),
-            restoreBackup = get(),
-            setCategoryRingtoneUseCase = get(),
+            cryptoEngine = get(),
             platformRingtoneSource = get(),
-            dispatchers = get(),
+            dispatchers = get()
         )
     }
 
