@@ -23,9 +23,25 @@
 ```bash
 ./gradlew build
 ./gradlew allTests
-./gradlew detekt ktlintFormat
 ./gradlew :shared:umbrella:assembleXCFramework   # لـ iOS
 ```
+
+### detekt (تحليل ساكن — عبر CLI مثبت، لا توجد مهمة Gradle له)
+لا توجد مهمة `detekt` في Gradle في هذا المستودع؛ يُشغَّل عبر سطر أوامر
+مثبَّت الإصدار (خطوة CI في `.github/workflows/ci.yml` بلبمة SHA-256):
+
+```bash
+java -jar detekt-cli-2.0.0-alpha.6-all.jar \
+  --config config/detekt/detekt.yml \
+  --input . --excludes "**/build/**,**/generated/**" \
+  --baseline config/detekt/baseline.xml
+```
+
+- **خط متدرج:** الديون القديمة مجمدة في `config/detekt/baseline.xml` — أي مخالفة
+  جديدة تفشل فوراً؛ أصلِحها داخل الشيفرة ولا تُضِفها إلى الـ baseline.
+- **أرضية الإعدادات (S2-17):** ملفات واجهة الإعدادات (`SettingsScreen/Strings/
+  Sections/Dialogs/Previews.kt`) ممنوع أن تحمل أي دين تعقيد (LongMethod/CCM/
+  TooManyFunctions) في الـ baseline إطلاقاً — خطوة CI تفحص ذلك ويجب ألا تنكسر.
 
 ## تعريف "منتهي" (Definition of Done)
 - [ ] يلبي معايير القبول في ملف الميزة.
@@ -33,7 +49,7 @@
 - [ ] يعمل بدون إنترنت (إن كانت الميزة محلية).
 - [ ] حالات Loading / Empty / Error / Permission denied مُنفذة.
 - [ ] RTL + Dark mode + أحجام خطوط كبيرة.
-- [ ] Detekt و ktlint بلا أخطاء.
+- [ ] Detekt (CLI المثبت) بلا مخالفات جديدة — الديون المجمدة في الـ baseline لا تزيد.
 - [ ] تحديث `CHANGELOG.md` والتوثيق عند الحاجة.
 
 ## Agent skills

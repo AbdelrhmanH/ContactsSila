@@ -40,6 +40,8 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
+            // معاينات متعددة الحالات (S2-17 — تذكرة #67): أداة المعاينات للمصادر المشتركة
+            implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
         }
@@ -48,4 +50,9 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
         }
     }
+}
+
+// أدوات معاينة أندرويد حصراً (uiTooling مخصص لأندرويد فقط) — النمط نفسه المعتمد في sharedUI.
+dependencies {
+    androidRuntimeClasspath(libs.compose.uiTooling)
 }
