@@ -131,6 +131,13 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/arham_widget_info" />
         </receiver>
+
+        <!-- ADR-0018 (بوابة CI): بروفايلابل لقراءة آثار التتبع الدقيقة (StartupTimingMetric)
+             دون debuggable — علم آمن للإنتاج يخدم بنيتَي release/benchmark في القياس على
+             العتاد المرجعي حصراً -->
+        <profileable
+            android:enabled="true"
+            android:shell="true" />
     </application>
 
 </manifest>

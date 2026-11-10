@@ -14,7 +14,9 @@ jobs:
   verify-architecture-and-tests:
     name: Architecture Boundaries, Unit Tests & Debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # رفع السقف من 30 إلى 40: خطوة التجميع أضافت بناء AAB وموديول القياس (:benchmark
+    # مع R8 ثانٍ لبنية benchmark) وخطوة الاختبارات أضافت أربع مهام مضيفة سابقة الغياب.
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository
@@ -51,7 +53,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run All KMP Host Unit Tests (Core + Features + SharedLogic + Android App)
+      - name: Run All KMP Host Unit Tests (Core + Features + SharedLogic + SharedUI + Android App)
         run: >-
           ./gradlew
           :core:common:testAndroidHostTest
@@ -60,17 +62,21 @@ jobs:
           :core:datastore:testAndroidHostTest
           :feature:contacts:domain:testAndroidHostTest
           :feature:contacts:data:testAndroidHostTest
+          :feature:contacts:presentation:testAndroidHostTest
+          :feature:arham:domain:testAndroidHostTest
           :feature:arham:data:testAndroidHostTest
+          :feature:arham:presentation:testAndroidHostTest
           :feature:services:data:testAndroidHostTest
           :feature:settings:data:testAndroidHostTest
           :feature:settings:domain:testAndroidHostTest
           :feature:settings:presentation:testAndroidHostTest
           :sharedLogic:testAndroidHostTest
+          :sharedUI:testAndroidHostTest
           :androidApp:testDebugUnitTest
           --console=plain
 
-      - name: Assemble Android Debug & Release APK (ProGuard/R8 Check)
-        run: ./gradlew :androidApp:assembleDebug :androidApp:assembleRelease --console=plain
+      - name: Assemble Debug & Release APK (R8 Check) + Release AAB Path + Benchmark Harness
+        run: ./gradlew :androidApp:assembleDebug :androidApp:assembleRelease :androidApp:bundleRelease :androidApp:assembleBenchmark :benchmark:assembleBenchmark --console=plain
 
   verify-ios:
     name: iOS Simulator Tests, SKIE Framework & App Build

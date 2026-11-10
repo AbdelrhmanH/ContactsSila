@@ -3,6 +3,7 @@ plugins {
     // in each subproject's classloader
     alias(libs.plugins.androidApplication) apply false
     alias(libs.plugins.androidMultiplatformLibrary) apply false
+    alias(libs.plugins.androidTest) apply false
     alias(libs.plugins.composeMultiplatform) apply false
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
@@ -122,7 +123,7 @@ tasks.register("checkArchitectureBoundaries") {
                     violations.joinToString("\n") { " - $it" }
             )
         } else {
-            println("✅ All Clean Architecture & Privacy Boundaries verified across 20 modules (0 violations).")
+            println("✅ All Clean Architecture & Privacy Boundaries verified across 21 modules (0 violations).")
         }
     }
 }
