@@ -46,7 +46,7 @@ class DisputeLogDaoTest {
         val db = LocalSilaDatabase(dispatchers = testDispatchers)
         try {
             db.seedDisputesForTest(listOf(newest, older))
-            val rows = db.disputeLogEntityDao().observeDisputeLogsOrdered().first()
+            val rows = db.room.disputeLogEntityDao().observeDisputeLogsOrdered().first()
 
             assertEquals(2, rows.size, "الاستعلام يقرأ الصفوف من Room حصراً — القراءة لا تُصنع من الفراغ")
             assertEquals(listOf(2L, 1L), rows.map { it.id }, "الأحدث وفق `updatedAt` يتصدر الاستعلام المرتّب")
@@ -60,7 +60,7 @@ class DisputeLogDaoTest {
     fun observeDisputeLogsOrderedReturnsEmptyListForFreshRoom() = runTest {
         val db = LocalSilaDatabase(dispatchers = testDispatchers)
         try {
-            val rows = db.disputeLogEntityDao().observeDisputeLogsOrdered().first()
+            val rows = db.room.disputeLogEntityDao().observeDisputeLogsOrdered().first()
             assertEquals(0, rows.size, "قاعدة جديدة بلا نزاعات تقرأ قائمة فارغة حقيقية من Room")
         } finally {
             db.closeConnection()
