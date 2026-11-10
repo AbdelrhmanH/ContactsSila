@@ -59,12 +59,9 @@ internal fun SettingsAppearanceSection(
                 AppThemeMode.SYSTEM -> strings.themeSystem
             },
             onClick = {
-                val next = when (prefs.themeMode) {
-                    AppThemeMode.SYSTEM -> AppThemeMode.LIGHT
-                    AppThemeMode.LIGHT -> AppThemeMode.DARK
-                    AppThemeMode.DARK -> AppThemeMode.SYSTEM
-                }
-                onIntent(SettingsIntent.SetThemeMode(next))
+                // S2-12 (تذكرة #69): دورة السمة قرار في الـ ViewModel حصراً —
+                // الشاشة ترسل النية فحسب (شاشة إسناد صرف).
+                onIntent(SettingsIntent.CycleThemeMode)
             },
             showDivider = true
         )
@@ -187,8 +184,9 @@ internal fun SettingsArhamSection(
                 value = "${prefs.arhamNotificationHour.toString().padStart(2, '0')}:" +
                     "${prefs.arhamNotificationMinute.toString().padStart(2, '0')}",
                 onClick = {
-                    val nextHour = (prefs.arhamNotificationHour + 1) % 24
-                    onIntent(SettingsIntent.SetArhamNotificationTime(nextHour, 0))
+                    // S2-12 (تذكرة #69): لفّ الساعة وتصفير الدقيقة قرار في الـ VM —
+                    // مع إعادة الجدولة الفورية داخل معالج النية (تذكرة #71).
+                    onIntent(SettingsIntent.CycleArhamNotificationHour)
                 },
                 showDivider = true
             )
@@ -197,8 +195,8 @@ internal fun SettingsArhamSection(
                 title = strings.arhamMaxPerDay,
                 value = "${prefs.arhamMaxPerDay}",
                 onClick = {
-                    val next = if (prefs.arhamMaxPerDay >= 5) 1 else prefs.arhamMaxPerDay + 1
-                    onIntent(SettingsIntent.SetArhamMaxPerDay(next))
+                    // S2-12 (تذكرة #69): حدود الدورة 1..5 قرار في الـ VM حصراً.
+                    onIntent(SettingsIntent.CycleArhamMaxPerDay)
                 },
                 showDivider = true
             )

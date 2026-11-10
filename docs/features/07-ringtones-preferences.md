@@ -36,7 +36,7 @@
 ### مفاتيح التخزين
 | المفتاح | النوع | الافتراضي |
 |---|---|---|
-| `theme_mode` | SYSTEM/LIGHT/DARK | SYSTEM |
+| `theme_mode` | SYSTEM/LIGHT/DARK | SYSTEM — الدورة SYSTEM→LIGHT→DARK ثم العودة: قرار في الـ ViewModel عبر نية `CycleThemeMode` لا صف الشاشة (S2-12 — تذكرة #69) |
 | `language` | ar/en | ثابت (ARABIC)؛ تقود الموارد فعلياً عبر منفذ `AppLocalePort`: أندرويد per-app locales (تذكرة #68) وiOS بقراءة التفضيل مباشرة — افتراض «لغة الجهاز» خارج نطاق المرحلة 1 |
 | `digits` | ARABIC/HINDI | ثابت ARABIC؛ تنسيق عرض الأرقام «خارج نطاق المرحلة 1» بقرار صريح (تذكرة #68) — بلا مستهلك عرض بعد اليوم |
 | `default_tab` | CONTACTS/SERVICES/ARHAM | CONTACTS |
@@ -44,8 +44,8 @@
 | `visible_accounts` | Set<String> | ∅ — «خارج نطاق المرحلة 1» بقرار صريح (تذكرة #68): تدفق «الحسابات المعروضة» غير موجود صفاً وينتمي إلى واجهة الخدمات (تذكرة #70) |
 | `swipe_start` / `swipe_end` | CALL/MESSAGE/NONE | CALL / MESSAGE |
 | `arham_notifications` | Boolean | true |
-| `arham_reminder_time` | LocalTime | 19:00 |
-| `arham_max_per_day` | Int | 1 |
+| `arham_reminder_time` | LocalTime | 19:00 — لفّ الساعة `24→00` (مع تصفير الدقيقة التاريخي) قرار في الـ ViewModel عبر نية `CycleArhamNotificationHour` ويُعيد الجدولة فورياً بنمط تذكرة #71 (S2-12 — تذكرة #69)؛ iOS منتقي عجلة ساعة/دقيقة (تذكرة #70) |
+| `arham_max_per_day` | Int | 1 — حدود الدورة التاريخية 1..5 قرار في الـ ViewModel عبر نية `CycleArhamMaxPerDay` (S2-12 — تذكرة #69) |
 | `quiet_start` / `quiet_end` | LocalTime | 22:00 / 08:00 |
 | `dashboard_period` | WEEK/MONTH | WEEK |
 | `show_confetti` | Boolean | true |
@@ -63,7 +63,7 @@
 | `interest_tags` | Set<String> | ∅ |
 
 ### توافقة الأرحام بين المنصتين (قرار تذكرة #70)
-الموعد وساعات الهدوء والحد اليومي **قابلة للتحرير على المنصتين**: الشاشة المشتركة (Compose) عبر صف الوقت وحوار الساعات الهادئة، وiOS عبر شاشة إعداداتها الأصلية (`SettingsView.swift`) — منتقا ساعة/دقيقة لوقت التذكير ومنتقا بداية/نهاية لساعات الهدوء يرسلان النيتين المشتركتين (`SetArhamNotificationTime`/`SetQuietHours`) وغلاف `SettingsTimeFormatting` مطابق لدلالة Compose. **فارق تفاعلي معلن (شكلي لا دلالي):** أندرويد يُجوب الساعة دورياً ويصفّر الدقيقة (محرّر مبسّط)، وiOS منتقي عجلة مستقلان (ساعة 0–23 + دقيقة 0–59) — الدلالة البيانية واحدة، والمجدولة تُعاد فورياً على المنصتين (تذكرة #71).
+الموعد وساعات الهدوء والحد اليومي **قابلة للتحرير على المنصتين**: الشاشة المشتركة (Compose) عبر صف الوقت وحوار الساعات الهادئة، وiOS عبر شاشة إعداداتها الأصلية (`SettingsView.swift`) — منتقا ساعة/دقيقة لوقت التذكير ومنتقا بداية/نهاية لساعات الهدوء يرسلان النيتين المشتركتين (`SetArhamNotificationTime`/`SetQuietHours`) وغلاف `SettingsTimeFormatting` مطابق لدلالة Compose. **فارق تفاعلي معلن (شكلي لا دلالي):** أندرويد يُجوب الساعة دورياً ويصفّر الدقيقة (محرّر مبسّط)، وiOS منتقي عجلة مستقلان (ساعة 0–23 + دقيقة 0–59) — الدلالة البيانية واحدة، والمجدولة تُعاد فورياً على المنصتين (تذكرة #71). **مكان القرار (S2-12 — تذكرة #69):** دورات أندرويد (السّمة، لفّ الساعة، الحد اليومي 1..5) قرارها في `SettingsViewModel` عبر النى `CycleThemeMode`/`CycleArhamNotificationHour`/`CycleArhamMaxPerDay` بقراءة التفضيل الحي حصراً — صفوف Compose ترسل النية فحسب (شاشة إسناد صرف).
 
 ### معايير القبول
 - [ ] كل تغيير يُطبق فوراً بدون إعادة تشغيل (اللغة: إعادة إنشاء النشاط/المشهد).
