@@ -75,7 +75,30 @@ jobs:
           :androidApp:testDebugUnitTest
           --console=plain
 
+      - name: Prepare release signing from CI secrets (guarded — absent secrets keep the fallback)
+        # ADR-0020: فك ترميز keystore الإنتاج إلى RUNNER_TEMP (خارج المستودع) حصراً حين
+        # يوجد السر — لا مفتاح في المستودع أبداً، وبلا أسرار تبقى الحزم debug-fallback كما هي.
+        # سياق secrets غير متاح في if الخاص بالخطوة (قيود GitHub)، لذا الحرس داخل السكربت:
+        # غياب السر يعني الخروج مبكراً دون كتابة أي متغير إلى GITHUB_ENV.
+        env:
+          SILA_RELEASE_KEYSTORE_BASE64: ${{ secrets.SILA_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SILA_RELEASE_KEYSTORE_BASE64" ]; then
+            echo "SILA release secrets absent — keeping debug-fallback signing (ADR-0020)"
+            exit 0
+          fi
+          KEYSTORE_PATH="$RUNNER_TEMP/sila-release.keystore"
+          echo "$SILA_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          echo "SILA_RELEASE_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+
       - name: Assemble Debug & Release APK (R8 Check) + Release AAB Path + Benchmark Harness
+        # ADR-0020: متغيرات توقيع الإنتاج تُمرَّر للبناء — أسرار غائبة = قيم فارغة =
+        # hasReleaseSigning=false في build.gradle.kts = الوضع الراهن بلا تغيير.
+        env:
+          SILA_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.SILA_RELEASE_KEYSTORE_PASSWORD }}
+          SILA_RELEASE_KEY_ALIAS: ${{ secrets.SILA_RELEASE_KEY_ALIAS }}
+          SILA_RELEASE_KEY_PASSWORD: ${{ secrets.SILA_RELEASE_KEY_PASSWORD }}
         run: ./gradlew :androidApp:assembleDebug :androidApp:assembleRelease :androidApp:bundleRelease :androidApp:assembleBenchmark :benchmark:assembleBenchmark --console=plain
 
   verify-ios:
