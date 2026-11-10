@@ -459,14 +459,115 @@ struct SettingsView: View {
                     in: 1...10
                 )
 
+                // S3-20 (تذكرة #70): سداد فجوة iOS — كان موعد التذكير نصاً للقراءة
+                // فقط (تفاوت منصّي)، بينما أندرويد يعدّله. منتقا ساعة/دقيقة أصليان
+                // يرسلان النية المشتركة نفسها `SetArhamNotificationTime(hour, minute)`
+                // فتعيد بوابة `ArhamReminderSchedulingPort` الجدولة على المنصتين.
+                HStack {
+                    Text(strings.arhamNotificationTime)
+                    Spacer()
+                    hourWheelPicker(
+                        title: strings.arhamNotificationTime,
+                        selection: store.state.preferences.arhamNotificationHour,
+                        onPick: { hour in
+                            store.send(
+                                SettingsIntentSetArhamNotificationTime(
+                                    hour: hour,
+                                    minute: Int32(store.state.preferences.arhamNotificationMinute)
+                                )
+                            )
+                        }
+                    )
+                    Text(":")
+                    minuteWheelPicker(
+                        title: strings.arhamNotificationTime,
+                        selection: store.state.preferences.arhamNotificationMinute,
+                        onPick: { minute in
+                            store.send(
+                                SettingsIntentSetArhamNotificationTime(
+                                    hour: Int32(store.state.preferences.arhamNotificationHour),
+                                    minute: minute
+                                )
+                            )
+                        }
+                    )
+                }
+                .accessibilityLabel(strings.arhamNotificationTime)
+
+                // S3-20 (تذكرة #70): ساعات الهدوء كانت نصاً للقراءة فقط على iOS؛
+                // منتقا بداية/نهاية أصليان يرسلان النية `SetQuietHours(start, end)`
+                // بدلالة الحوار المشترك حرفياً: أي ساعة من 0–23 بلا قيد تحقق في
+                // الواجهة (القرار للمخطط المشترك) — والجدولة تُعاد عند كل تغيير.
                 HStack {
                     Text(strings.quietHours)
                     Spacer()
-                    Text("\(store.state.preferences.quietHoursStartHour):00 - \(store.state.preferences.quietHoursEndHour):00")
-                        .foregroundColor(.secondary)
+                    Text(SettingsTimeFormatting.quietRange(
+                        startHour: Int(store.state.preferences.quietHoursStartHour),
+                        endHour: Int(store.state.preferences.quietHoursEndHour)
+                    ))
+                    .foregroundColor(.secondary)
                 }
+                HStack {
+                    hourWheelPicker(
+                        title: strings.quietHoursStart,
+                        selection: store.state.preferences.quietHoursStartHour,
+                        onPick: { start in
+                            store.send(
+                                SettingsIntentSetQuietHours(
+                                    startHour: start,
+                                    endHour: Int32(store.state.preferences.quietHoursEndHour)
+                                )
+                            )
+                        }
+                    )
+                    hourWheelPicker(
+                        title: strings.quietHoursEnd,
+                        selection: store.state.preferences.quietHoursEndHour,
+                        onPick: { end in
+                            store.send(
+                                SettingsIntentSetQuietHours(
+                                    startHour: Int32(store.state.preferences.quietHoursStartHour),
+                                    endHour: end
+                                )
+                            )
+                        }
+                    )
+                }
+                .accessibilityLabel(strings.quietHours)
             }
         }
+    }
+
+    /// منتقي ساعة أصلي (عجلة 0–23)، التسمية للوصول فقط لأن البند حاملها.
+    private func hourWheelPicker(title: String, selection: Int32, onPick: @escaping (Int32) -> Void) -> some View {
+        Picker(title, selection: Binding(
+            get: { selection },
+            set: { newValue in if newValue != selection { onPick(newValue) } }
+        )) {
+            ForEach(0..<24, id: \.self) { hour in
+                Text(SettingsTimeFormatting.twoDigits(hour)).tag(Int32(hour))
+            }
+        }
+        .pickerStyle(.wheel)
+        .labelsHidden()
+        .frame(maxWidth: 68, maxHeight: 46)
+        .clipped()
+    }
+
+    /// منتقي دقيقة أصلي (عجلة 0–59) لوقت التذكير حصراً — ساعات الهدوء بدقة الساعة فقط.
+    private func minuteWheelPicker(title: String, selection: Int32, onPick: @escaping (Int32) -> Void) -> some View {
+        Picker(title, selection: Binding(
+            get: { selection },
+            set: { newValue in if newValue != selection { onPick(newValue) } }
+        )) {
+            ForEach(0..<60, id: \.self) { minute in
+                Text(SettingsTimeFormatting.twoDigits(minute)).tag(Int32(minute))
+            }
+        }
+        .pickerStyle(.wheel)
+        .labelsHidden()
+        .frame(maxWidth: 68, maxHeight: 46)
+        .clipped()
     }
 
     private var organizationSection: some View {

@@ -6,6 +6,28 @@ import SharedLogic
  * r.lproj/Localizable.strings (الافتراضية) و en.lproj/Localizable.strings
  * حسب لغة الحالة المشتركة؛ لا نص ثابت في كود Swift إطلاقاً (AGENTS.md).
  */
+/**
+ * تنسيق الوقت لشاشة الإعدادات iOS — مرآة صادقة لدلالة Compose الشائعة
+ * (`padStart(2, '0')` على الساعة والدقيقة): «07:05-» إلخ. نقي وقابل للاختبار.
+ */
+enum SettingsTimeFormatting {
+
+    /// رقمان برتبة ثابتة (تطابق `padStart(2, '0')`).
+    static func twoDigits(_ value: Int) -> String {
+        String(format: "%02d", value)
+    }
+
+    /// «ساعة:دقيقة مئولةً» لصف موعد التذكير.
+    static func hourMinute(hour: Int, minute: Int) -> String {
+        "\(twoDigits(hour)):\(twoDigits(minute))"
+    }
+
+    /// «XX:00 - YY:00» لصف ساعات الهدوء (دقة ساعة كما في الحوار المشترك).
+    static func quietRange(startHour: Int, endHour: Int) -> String {
+        "\(twoDigits(startHour)):00 - \(twoDigits(endHour)):00"
+    }
+}
+
 struct SettingsLocalizedStrings {
 
     let language: AppLanguage
@@ -57,6 +79,8 @@ struct SettingsLocalizedStrings {
     var arhamNotificationTime: String { string("settings_arham_notification_time") }
     var arhamMaxPerDay: String { string("settings_arham_max_per_day") }
     var quietHours: String { string("settings_quiet_hours") }
+    var quietHoursStart: String { string("settings_quiet_hours_start") }
+    var quietHoursEnd: String { string("settings_quiet_hours_end") }
 
     var sectionOrganization: String { string("settings_section_organization") }
     var smartFilter: String { string("settings_smart_filter") }

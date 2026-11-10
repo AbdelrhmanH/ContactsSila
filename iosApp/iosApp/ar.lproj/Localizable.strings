@@ -475,6 +475,8 @@
 "settings_arham_notification_time" = "موعد التذكير اليومي";
 "settings_arham_max_per_day" = "الحد الأقصى للتذكيرات اليومية";
 "settings_quiet_hours" = "ساعات الهدوء";
+"settings_quiet_hours_start" = "من الساعة";
+"settings_quiet_hours_end" = "إلى الساعة";
 "settings_section_organization" = "التنظيم والفلترة الذكية";
 "settings_smart_filter" = "الفلترة الذكية التلقائية";
 "settings_duplicate_scan" = "فحص المكررات في الخلفية";
