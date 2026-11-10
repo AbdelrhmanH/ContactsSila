@@ -70,7 +70,7 @@
 
 ### الإصدار وبوابة الإطلاق — (T10 · Issue #31)
 - [x] التحقق المعماري الصارم (0 violations — عبر كافة الموديولات: 20 وقت بوابة T10، ثم 21 بعد موديول القياس `:benchmark` — [ADR-0018](adr/0018-macrobenchmark-device-gate-harness.md))
-- [x] تدقيق الخصوصية وخلو التقارير من أي PII عبر Redactor ومفتاح crashReportsEnabled
+- [x] تدقيق الخصوصية وقرار تقارير الأعطال: التقاط محلي حصراً بملف منقّى عبر `Redactor` ومحكوم fail-closed بمفتاح `crashReportsEnabled` — بلا SDK سحابي ([ADR-0019](adr/0019-local-only-crash-capture.md))
 - [x] الامتثال التام لـ ADR-0006 (لا READ_CALL_LOG ولا مشغل افتراضي)
 - [x] اجتياز جميع اختبارات الوحدة والمحاكي و CI لنظامي Android و iOS
 - [ ] الاختبارات اليدوية على العتاد المادي (Macrobenchmark، Play Internal Testing، TestFlight) — *مؤجلة لحين توفر الأجهزة المادية وفق توجيهات المستخدم*

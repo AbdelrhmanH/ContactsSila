@@ -123,18 +123,19 @@ install(HttpTimeout) {
 
 ### 3.7 دالة التنقية الموحدة (Redactor)
 ```kotlin
-// في core:common — تُستخدم قبل أي Log أو Crashlytics
+// في :core:common — الكود الفعلي (core/common/src/commonMain/kotlin/app/sila/core/common/Redactor.kt)
 object Redactor {
-    fun phone(e164: String): String = e164.take(5) + "***" + e164.takeLast(2)
-    // "+2010***67"
-    fun name(name: String): String = name.take(1) + "***"
-    // "أ***"
-    fun email(email: String): String {
-        val (local, domain) = email.split("@", limit = 2)
-        return local.take(1) + "***@" + domain
+    private val PHONE_PATTERN = Regex("(\\+?\\d[\\d\\s\\-()]{5,}\\d)")
+    private val EMAIL_PATTERN = Regex("[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}")
+
+    fun scrub(message: String): String {
+        if (message.isBlank()) return message
+        val withoutEmails = EMAIL_PATTERN.replace(message, "[REDACTED_EMAIL]")
+        return PHONE_PATTERN.replace(withoutEmails, "[REDACTED_PHONE]")
     }
 }
 ```
+الاستهلاك النافذ: تركيب تقارير الأعطال المحلية (`CrashReportComposer` — §11 أدناه) — تُنقّى أجزاء محتوى العطل غير الموثوق جزئياً عبر `scrub`.
 
 ## 4. منع التلاعب في الدليل
 | التهديد | الحماية |
@@ -268,45 +269,34 @@ class DataCleanupWorker(private val db: SilaDatabase, private val clock: Clock) 
 }
 ```
 
-## 11. Crash Reporting — تنفيذ الحماية
+## 11. Crash Reporting — الالتقاط المحلي وتنفيذ الحماية (ADR-0019)
 
 > [!CAUTION]
-> **الهدف:** صفر بيانات شخصية في Crashlytics — لا أسماء، لا أرقام هواتف، لا عناوين.
+> **الهدف:** صفر بيانات شخصية في أي ملف عطل — لا أسماء، لا أرقام هواتف، لا عناوين.
+> **القرار (2026-11-10 — [ADR-0019](adr/0019-local-only-crash-capture.md)):** التقاط **محلي حصراً** في المرحلة 1 — بلا شبكة ولا SDK سحابي (لا Crashlytics ولا بديل)، مع مشغّل إعادة نظر موثق للخيار السحابي عند الاقتراب من توزيع خارجي.
 
-### الإعداد
+### الإعداد الفعلي (Local-Only Crash Capture)
+معالج استثناءات غير ملتقطة على كل منصة يكتب ملف عطل منقّى في تخزين التطبيق الخاص، محكوماً بمفتاح `crashReportsEnabled` (fail-closed):
 ```kotlin
-// Application.onCreate()
-FirebaseCrashlytics.getInstance().apply {
-    // تعطيل الجمع التلقائي — يُفعّل فقط بموافقة المستخدم
-    setCrashlyticsCollectionEnabled(userPreferences.crashReports)
-    // لا مفاتيح شخصية أبداً
-    setCustomKey("app_locale", currentLocale)
-    setCustomKey("is_guest", isGuest)
-    setCustomKey("contacts_count_range", contactsCountRange()) // "0-100", "100-500", etc.
-    // لا setUserId بمعرّف قابل للربط — استخدم UUID عشوائي
-    setUserId(anonymousInstallId)
+// Android — SilaApplication.installCrashCapture(koin) — أول onCreate بعد بدء Koin
+val capture = koin.get<LocalCrashCapture>()
+val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+    runCatching { capture.capture(System.currentTimeMillis(), thread.name, throwable) }
+    previousHandler?.uncaughtException(thread, throwable) // يفوض دائماً — مسار الانهيار النظامي لا يُعطَّل
 }
+// iOS — IosKoinBootstrap.ensureStarted() عبر جسر IosCrashBridge فوق NSSetUncaughtExceptionHandler
+// (يقتصر على NSException حصراً — انهيارات K/N الخام والإشارات القاتلة خارج الالتقاط؛ الحد موثق في ADR-0019)
 ```
+- **الموقع والاحتفاظ:** أندرويد `<filesDir>/crash/crash-<millis>.txt` و iOS `Application Support/Sila/crash/` — آخر 5 تقارير (الأقدم يُحذف).
+- **البوابة:** `crashReportsEnabled` تُقرأ وقت العطل حصراً بمهلة ثانيتين — فشل القراءة أو المهلة أو إعادتها `false` ⇒ لا كتابة (احترام اختيار المستخدم أولاً).
+- **فشل الالتقاط نفسه** (تركيب أو كتابة) يُبتلع ولا يرمي — لا استثناءات تتصاعد من مسار العطل الطرفي.
 
-### دالة Redactor الموحدة
-```kotlin
-object Redactor {
-    private val PHONE = Regex("""(\+?\d[\d\s\-()]{6,})""")
-    private val EMAIL = Regex("""[\w.+-]+@[\w-]+\.[\w.]+""")
-    private val NAME_AR = Regex("""[\u0600-\u06FF]{3,}(\s[\u0600-\u06FF]{3,})+""")
+### دالة Redactor الموحدة (الكود الفعلي — §3.7 أعلاه)
+`Redactor.scrub` في `:core:common` هو ما يُنقّي محتوى العطل — لا `redact()` ولا `log()` بـ Kermit ولا نمط أسماء عربية `NAME_AR` (قرار موثق في ADR-0019: الإيجاب الزائف على رسائل تشخيصية عربية مرتفع، والضوابط المعوضة هي التخزين المحلي الخاص + البوابة fail-closed + تنقية الهواتف/البريد).
 
-    fun redact(text: String): String = text
-        .replace(PHONE, "[PHONE]")
-        .replace(EMAIL, "[EMAIL]")
-        .replace(NAME_AR, "[NAME]")
-
-    // للاستخدام في Timber/Kermit
-    fun log(tag: String, msg: String) = Kermit.d(tag) { redact(msg) }
-}
-```
-
-### القواعد
-- كل `Log.d/w/e` يمر عبر `Redactor.log()` — Lint rule مخصصة ترفض الاستخدام المباشر.
-- `setCrashlyticsCollectionEnabled(false)` افتراضياً — يُفعّل فقط من إعداد "تقارير الأعطال".
-- لا `setCustomKey` بأي قيمة قد تحتوي بيانات شخصية.
-- اختبار: Unit test يتحقق أن `Redactor.redact()` يُزيل كل الأنماط.
+### القواعد (حدود الثقة في تركيب التقرير)
+- **الترويسة الموثوقة** (سطر العنوان الثابت وطابع `timestamp_epoch_ms`) من إنتاج `CrashReportComposer` لا تُنقّى — الطابع الرقمي البحت يطابق نمط الهاتف فتُفسد لو نُقّي التقرير دفعة واحدة.
+- **محتوى العطل غير الموثوق** (اسم النوع/الرسالة/اسم الخيط/الإطارات) يُنقّى جزئياً عبر `Redactor.scrub`.
+- سلسلة الأسباب بحد عمق 5 (`MAX_CAUSE_DEPTH`) عبر `stackFramesOf` (expect/actual — `stackTrace` خاصة على K/N).
+- اختبار: `CrashCaptureTests` في `:core:common` يتحقق من عقد fail-closed كاملاً والتنقية وحد العمق وحدود الثقة.
