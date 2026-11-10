@@ -20,6 +20,10 @@ dependencies {
     // والمنصة 33+ تطبّقها نظامياً عبر LocaleManager.
     implementation(libs.androidx.appcompat)
 
+    // ADR-0018 (بوابة CI): ProfileInstaller ≥1.3 شرط Macrobenchmark لإعادة تثبيت
+    // ملفات التعريف ومسح كاش الشيدرات بين قياسات الإقلاع على العتاد المرجعي
+    implementation(libs.androidx.profileinstaller)
+
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
 
@@ -61,6 +65,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        // بنية القياس (ADR-0018): نسخة إنتاج بلا تصحيح ومصغّرة كما في release —
+        // لكنها موقعة بمفتاح debug ليمكن تثبيتها وقراءة آثار التتبع أثناء القياس
+        // على العتاد المرجعي حصراً؛ matchingFallbacks يجعلها تستهلك نسخ release
+        // من مكتبات KMP (:sharedUI وغيرها) عند مطابقة البنى.
+        create("benchmark") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

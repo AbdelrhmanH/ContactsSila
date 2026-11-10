@@ -5,6 +5,11 @@
 ## [Unreleased]
 
 ### Added
+- **منصة قياس Macrobenchmark للعتاد المرجعي + مسار AAB في CI (بوابة المرحلة 1 — T10 · ADR-0018 · تذكرة #72):**
+  - موديول `:benchmark` (`com.android.test`) ذاتي الأجهزة يستهدف `:androidApp` — منصة قياس معزولة لا يعتمدها شيء ولا تلمس حدود الخصوصية، لشروط الإغلاق على العتاد المرجعي المسمّى حصراً (الإقلاع البارد ≤1.5 ثانية بـ `StartupTimingMetric`/`COLD`×10/`CompilationMode.None` الآن؛ وقياس الإطارات jank وفحص المكررات مؤجلان لجلسات T7/T10 لاشتراطهما `testTags` مُتحقق منها على جهاز) — بلا تنفيذ على CI ولا محاكي (أرقام المحاكي مستبعدة منهجياً في T8 §2).
+  - بنية `benchmark` في `:androidApp` (`initWith(release)` + توقيع debug + `matchingFallbacks`) ووسم `<profileable>` و`ProfileInstaller 1.4.1` (شرط Macrobenchmark ≥1.3) — المقيس بناء إنتاج مصغّر بلا تصحيح، لا يُرفع إلى Play.
+  - CI (Ubuntu): `:androidApp:bundleRelease` — مسار AAB (توقيع debug الافتراضي للحزم — بلا مفاتيح إنتاج، شرط إغلاق بوابة) — و`:androidApp:assembleBenchmark` و`:benchmark:assembleBenchmark` ضمانَ ترجمة سلسلة القياس كاملة بلا تنفيذ، ورفع سقف المهلة إلى 40 دقيقة.
+  - توسيع خطوة اختبارات المضيف لتشمل كل موديول به اختبارات فعلياً — كانت تُغفل أربعة: `:feature:arham:domain` و`:feature:arham:presentation` و`:feature:contacts:presentation` و`:sharedUI` — فصار اسم الخطوة «Run All» صادقاً حرفياً.
 - **حوكمة محرك التشفير الاحتياطي اليدوي — متجهات KAT + ADR-0017 (Issue #64 — S2-9):**
   - توثيق قرار `AesGcmCrypto` (المحرك المشترك للتصدير المشفر منذ T9) في [ADR-0017](docs/adr/0017-hand-rolled-backup-crypto-engine.md): لماذا محرك يدوي كومن-النقي بدل JCA/CryptoKit — التوافق بايت-بالبايت وغياب `javax.crypto` على iOS — مع مقايضاته الصريحة.
   - حُقنت متجهات اختبار معروفة-النتيجة في `AesGcmCryptoKatTest` (`commonTest`): FIPS-197 C.3 لدور كتلة AES-256، NIST GCM (النظامان 13/14 من نظام McGrew-Viega + متجه L-60 جزئي البايت معُثبَت المعايرة بمقارنة مزوّدين مستقلين JDK وBouncyCastle)، RFC 7914 §11.1 ل PBKDF2-HMAC-SHA256، أمثلة SHA-256 المنشورة، ورفض العلامة المفسدة بفحص ثابت الزمن.
