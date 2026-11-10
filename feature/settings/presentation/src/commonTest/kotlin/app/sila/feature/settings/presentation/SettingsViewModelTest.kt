@@ -477,6 +477,40 @@ class SettingsViewModelTest {
         assertTrue(effects.any { it is SettingsEffect.BackupRestored })
     }
 
+    /**
+     * تذكرة #61 (S1-5): عدّاد النزاعات من الحمولة يصل حالة المعاينة في الـ VM —
+     * نهاية مسار القراءة (Room → تصدير/معاينة → `UiState`) بلا أي قائمة مدوّنة.
+     */
+    @Test
+    fun backupPreviewCarriesDisputeCountIntoState() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val crypto = TestCryptoEngine()
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = crypto,
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        val disputesJson = "[{" +
+            "\"serviceCloudId\":\"srv_1\",\"description\":\"t_delayed\",\"status\":\"OPEN\"}," +
+            "{\"serviceCloudId\":\"srv_2\",\"description\":\"t_resolved\",\"status\":\"RESOLVED\"}]"
+        val json = """{"version":1,"exportedAt":"now","appVersion":"1.0.0","disputes":$disputesJson}"""
+        val cipher = crypto.encrypt(json.encodeToByteArray(), "SecretPassword123")
+
+        vm.onIntent(SettingsIntent.PreviewBackupFile(cipher, "SecretPassword123"))
+        settle()
+
+        assertTrue(vm.state.value.showRestorePreviewDialog)
+        assertEquals(
+            2,
+            vm.state.value.backupPreview?.disputesCount,
+            "عدّاد النزاعات يُقرأ من الحمولة ويصل `UiState` حصراً — لا قائمة كلية تُعرض"
+        )
+    }
+
     @Test
     fun restoreWithUnmatchedEntries_opensResultDialog_andManualLinkRemovesEntry() = runTest(testDispatcher) {
         val repo = TestSettingsRepository()

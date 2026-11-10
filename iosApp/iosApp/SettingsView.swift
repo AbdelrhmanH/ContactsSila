@@ -356,12 +356,14 @@ struct SettingsView: View {
     }
 
     private func previewSummaryText(_ preview: BackupPreview) -> String {
+        // تذكرة #61 (S1-5): صف سجل النزاعات من الحمولة المفكوكة من Room (SSOT).
         String(
             format: strings.previewCountsFormat,
             Int(preview.categoriesCount),
             Int(preview.arhamCount),
             Int(preview.tagsCount),
-            Int(preview.categoryRingtonesCount)
+            Int(preview.categoryRingtonesCount),
+            Int(preview.disputesCount)
         )
     }
 

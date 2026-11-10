@@ -5,7 +5,9 @@ import app.sila.core.database.dao.ClassificationRestoreOutcome
 import app.sila.core.database.dao.ClassificationRestorePlan
 import app.sila.core.database.dao.ClassificationRestoreRunner
 import app.sila.core.database.dao.ContactDao
+import app.sila.core.database.dao.DisputeLogEntityDao
 import app.sila.core.database.dao.LastContactedUpdate
+import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.datastore.SilaPreferencesDataSource
 import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
@@ -17,6 +19,7 @@ import app.sila.core.model.Category
 import app.sila.core.model.Contact
 import app.sila.core.model.ContactName
 import app.sila.core.model.DefaultTab
+import app.sila.core.model.DisputeStatus
 import app.sila.core.model.ImportantDate
 import app.sila.core.model.NameOrder
 import app.sila.core.model.RecentInteraction
@@ -116,6 +119,55 @@ class SettingsRepositoryImplTest {
     }
 
     /**
+     * DAO نزاعات زائف (تذكرة #61 — S1-5): يخزن الصفوف بمخزن حي ويعيدها عبر النية
+     * القارئة — لاختبار أن التصدير يقرأ Room حصراً بدل القائمة المدوّنة الفارغة.
+     */
+    private class FakeDisputeLogEntityDao(
+        initialRows: List<DisputeLogEntity> = emptyList()
+    ) : DisputeLogEntityDao {
+        val rows = initialRows.toMutableList()
+        private val flow = MutableStateFlow(rows.toList())
+
+        private fun syncFlow() {
+            flow.value = rows.toList()
+        }
+
+        override suspend fun insert(dispute: DisputeLogEntity): Long {
+            val nextId = (rows.maxOfOrNull { it.id } ?: 0L) + 1
+            rows += dispute.copy(id = nextId)
+            syncFlow()
+            return nextId
+        }
+
+        // دلالة upsert البسيط للاختبار: الاستبدال بالمعرّف ثم الحفظ بترتيب المعرفات.
+        override suspend fun upsertAll(disputes: List<DisputeLogEntity>) {
+            val byId = rows.associateBy({ it.id }, { it }).toMutableMap()
+            for (row in disputes) byId[row.id] = row
+            rows.clear()
+            rows += byId.toSortedMap().values
+            syncFlow()
+        }
+
+        override suspend fun countResolvedOlderThan(cutoff: Long): Int =
+            rows.count { it.status == DisputeStatus.RESOLVED && (it.resolvedAt ?: Long.MAX_VALUE) < cutoff }
+
+        override suspend fun archiveResolvedOlderThan(cutoff: Long, nowMillis: Long): Int {
+            var archived = 0
+            for (index in rows.indices) {
+                val row = rows[index]
+                if (row.status == DisputeStatus.RESOLVED && (row.resolvedAt ?: Long.MAX_VALUE) < cutoff) {
+                    rows[index] = row.copy(status = DisputeStatus.ARCHIVED, updatedAt = nowMillis)
+                    archived++
+                }
+            }
+            syncFlow()
+            return archived
+        }
+
+        override fun observeDisputeLogsOrdered(): Flow<List<DisputeLogEntity>> = flow.asStateFlow()
+    }
+
+    /**
      * ممرّ الاستعادة الزائف (تذكرة #60 · ADR-0015): يطبّق الخطة بكامل ترتيبها كما
      * يفعل المعامل الحقيقي — شطف REPLACE أولاً ثم النسخ الموحّدة بتحقق وجود
      * داخل المعاملة، ويعيد الناتج درجياً. [deleteBeforeRewrites] يحاكي غياباً/قبراً
@@ -211,7 +263,8 @@ class SettingsRepositoryImplTest {
         val repository = SettingsRepositoryImpl(
             dataSource = dataSource,
             contactDao = fakeContactDao,
-            arhamDao = fakeArhamDao
+            arhamDao = fakeArhamDao,
+            disputeLogDao = FakeDisputeLogEntityDao()
         )
 
         val payload = repository.getBackupData()
@@ -221,6 +274,65 @@ class SettingsRepositoryImplTest {
         assertEquals(1, payload.arham.size)
         assertEquals(2, payload.tags.size)
         assertEquals(AppThemeMode.DARK, payload.preferences?.themeMode)
+    }
+
+    /**
+     * تذكرة #61 (S1-5): قراءة النزاعات للتصدير SSOT حصراً — وغياب DAO القراءة
+     * يرفع فشلاً فورياً بدل قائمة كلية فارغة (السيناريوهان في اختبار واحد
+     * حفاظاً على سقف دوال الفئة في detekt).
+     */
+    @Test
+    fun getBackupDataReadsDisputeLogsFromRoomOrFailFastOnMissingDao() = runTest {
+        val fakeDisputeDao = FakeDisputeLogEntityDao(
+            listOf(
+                DisputeLogEntity(
+                    id = 1L,
+                    serviceCloudId = "srv_1",
+                    description = "تأخر في الموعد",
+                    status = DisputeStatus.OPEN,
+                    createdAt = 1_000L,
+                    updatedAt = 2_000L
+                ),
+                DisputeLogEntity(
+                    id = 2L,
+                    serviceCloudId = "srv_2",
+                    description = "حُلّت بالاتفاق",
+                    status = DisputeStatus.RESOLVED,
+                    createdAt = 1_100L,
+                    updatedAt = 1_500L,
+                    resolvedAt = 1_400L
+                )
+            )
+        )
+        val wired = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = FakeContactDao(
+                listOf(createContact(id = 1, lookupKey = "lookup_1", displayName = "أحمد"))
+            ),
+            disputeLogDao = fakeDisputeDao
+        )
+
+        val payload = wired.getBackupData()
+
+        assertEquals(2, payload.disputes.size, "الحمولة تقرأ النزاعات من Room حصراً لا من قائمة مدوّنة")
+        assertEquals(setOf("srv_1", "srv_2"), payload.disputes.map { it.serviceCloudId }.toSet())
+        assertEquals(
+            setOf(DisputeStatus.OPEN, DisputeStatus.RESOLVED),
+            payload.disputes.map { it.status }.toSet()
+        )
+        assertEquals(
+            "تأخر في الموعد",
+            payload.disputes.first { it.serviceCloudId == "srv_1" }.description
+        )
+
+        val unwired = SettingsRepositoryImpl(
+            dataSource = SilaPreferencesDataSource(),
+            contactDao = FakeContactDao(
+                listOf(createContact(id = 1, lookupKey = "lookup_1", displayName = "سعاد"))
+            )
+        )
+        val failure = runCatching { unwired.getBackupData() }
+        assertTrue(failure.isFailure, "التصدير بلا DAO نزاعات يتوقف فوراً — لا بيانات كلية مُبهتة")
     }
 
     @Test

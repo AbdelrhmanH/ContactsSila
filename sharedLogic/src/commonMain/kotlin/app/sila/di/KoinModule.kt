@@ -10,6 +10,7 @@ import app.sila.core.database.dao.ClassificationRestoreRunner
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.ContactsSyncDao
 import app.sila.core.database.dao.DataRetentionCleanupDao
+import app.sila.core.database.dao.DisputeLogEntityDao
 import app.sila.core.database.dao.EmergencySessionDao
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.dao.ServiceDao
@@ -188,6 +189,11 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     single<ServiceDao> { get<LocalSilaDatabase>() }
     single<DataRetentionCleanupDao> { get<LocalSilaDatabase>() }
     single<ContactsSyncDao> { get<LocalSilaDatabase>() }
+    // تذكرة #61 (S1-5): قراءة سجل النزاعات لمسار التصدير — الـ DAO واجهة Room
+    // لا تنفّذها [LocalSilaDatabase] مباشرة (ليست من نمط PR B)؛ يُتاح عبر
+    // السطر الصريح `room.disputeLogEntityDao()` بنمط [<LocalSilaDatabase>.room].
+    // استعلام قراءة مستقل عن مسار الكتابة.
+    single<DisputeLogEntityDao> { get<LocalSilaDatabase>().room.disputeLogEntityDao() }
     // T8-10 (D4 v3): واجهة جلسات الطوارئ — تنفّذها [LocalSilaDatabase] مباشرة (نمط PR B).
     single<EmergencySessionDao> { get<LocalSilaDatabase>() }
     // T8-15 (F-1): واجهة تجسيد «أهم 5» — تنفّذها [LocalSilaDatabase] مباشرة (نمط PR B نفسه).
@@ -482,6 +488,7 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             contactDao = get(),
             arhamDao = get(),
             classificationRestoreRunner = get(),
+            disputeLogDao = get(),
         )
     }
     // بوابات نطاق ضيقة فوق حالات استخدام الإعدادات (تذكرة #66 · ADR-0014) — الواجهة الوحيدة
