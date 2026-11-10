@@ -346,6 +346,86 @@ class SettingsViewModelTest {
         assertTrue(events.isEmpty(), "تفضيلات لا تمس موعد التذكير لا تُشغّل جدولة إطلاقاً")
     }
 
+    /** S2-12 (تذكرة #69): دورة السمة قرار في الـ VM بترتيب SYSTEM→LIGHT→DARK→SYSTEM كاملاً. */
+    @Test
+    fun cycleThemeModeStepsThroughAllModesAndBackToSystem() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val vm = SettingsViewModel(
+            repository = repo,
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.CycleThemeMode)
+        settle()
+        assertEquals(AppThemeMode.LIGHT, repo.prefsFlow.value.themeMode)
+
+        vm.onIntent(SettingsIntent.CycleThemeMode)
+        settle()
+        assertEquals(AppThemeMode.DARK, repo.prefsFlow.value.themeMode)
+
+        vm.onIntent(SettingsIntent.CycleThemeMode)
+        settle()
+        assertEquals(
+            AppThemeMode.SYSTEM,
+            repo.prefsFlow.value.themeMode,
+            "الدورة الثلاثية تعود إلى نقطة البداية عبر قراءة التفضيل الحي لا نفس الشاشة",
+        )
+    }
+
+    /** S2-12 (تذكرة #69): لفّ الساعة 24→00 بتصفير الدقيقة السلوك التاريخي + ترتيب الجدولة (تذكرة #71). */
+    @Test
+    fun cycleArhamNotificationHourWrapsMinuteResetAndReschedulesInOrder() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = TestSettingsRepository(events)
+        val vm = SettingsViewModel(
+            repository = repo,
+            reminderSchedulingPort = RecordingReminderSchedulingPort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.SetArhamNotificationTime(23, 45))
+        settle()
+        vm.onIntent(SettingsIntent.CycleArhamNotificationHour)
+        settle()
+
+        assertEquals(0, repo.prefsFlow.value.arhamNotificationHour, "لفّ الساعة 23 إلى 00")
+        assertEquals(0, repo.prefsFlow.value.arhamNotificationMinute, "السلوك التاريخي: الدقيقة تُصفَّر مع كل دورة")
+        assertEquals(
+            listOf("notificationTime:23:45", "reschedule", "notificationTime:0:0", "reschedule"),
+            events,
+            "اللفّ كتابة ثم جدولة فورية بترتيب الحدوث ذاته كما في تذكرة #71",
+        )
+    }
+
+    /** S2-12 (تذكرة #69): حدود الحد اليومي التاريخية 1..5 محفوظة — عند السقف تعود إلى 1. */
+    @Test
+    fun cycleArhamMaxPerDayWrapsAtHistoricalBoundary() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val vm = SettingsViewModel(
+            repository = repo,
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        vm.onIntent(SettingsIntent.SetArhamMaxPerDay(5))
+        settle()
+        vm.onIntent(SettingsIntent.CycleArhamMaxPerDay)
+        settle()
+        assertEquals(1, repo.prefsFlow.value.arhamMaxPerDay, "عند السقف التاريخي 5 تعود الدورة إلى 1")
+
+        vm.onIntent(SettingsIntent.CycleArhamMaxPerDay)
+        settle()
+        assertEquals(2, repo.prefsFlow.value.arhamMaxPerDay, "قبيل السقف تتقدم الدورة واحداً")
+    }
+
     @Test
     fun backupExportAndRestore_flowEmitsEffectsAndUpdatesState() = runTest(testDispatcher) {
         val repo = TestSettingsRepository()

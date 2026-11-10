@@ -38,9 +38,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/**
+ * سقف دورة الحد اليومي التاريخي للواجهة (S2-12 — تذكرة #69): 1..5 — عند السقف
+ * تعود الدورة إلى 1. القرار في الـ ViewModel منذ هذه التذكرة، والقيمة محفوظة
+ * حرفاً كما كانت محسوبة سابقاً داخل صف Compose.
+ */
+private const val ARHAM_MAX_PER_DAY_CYCLE_BOUNDARY = 5
 
 @Immutable
 data class SettingsUiState(
@@ -98,6 +106,16 @@ sealed interface SettingsIntent {
     data class SetInterestTags(val tags: Set<String>) : SettingsIntent
     data class SetSwipeActions(val start: ContactSwipeAction, val end: ContactSwipeAction) : SettingsIntent
     data class SetCategoryRingtone(val category: Category, val uri: String?) : SettingsIntent
+
+    /**
+     * نوايا الدوران (S2-12 — تذكرة #69): قرار «القيمة التالية» داخل دورات التفضيلات
+     * يعيش في [onIntent] عبر قراءة التفضيل الحي من البوابة حصراً — لا حساب دورة داخل
+     * Composables (الشاشة إسناد صرف: تعرض `UiState` وترسل `Intent` فقط). iOS على
+     * حالها بنواياها المباشرة `Set*` فلا تغيير لها.
+     */
+    data object CycleThemeMode : SettingsIntent
+    data object CycleArhamNotificationHour : SettingsIntent
+    data object CycleArhamMaxPerDay : SettingsIntent
 
     // حوارات وإجراءات النسخ الاحتياطي
     data object ShowExportDialog : SettingsIntent
@@ -209,6 +227,16 @@ class SettingsViewModel(
     override fun onIntent(intent: SettingsIntent) {
         when (intent) {
             is SettingsIntent.SetThemeMode -> viewModelScope.launch { preferencesPort.setThemeMode(intent.mode) }
+            is SettingsIntent.CycleThemeMode -> viewModelScope.launch {
+                // S2-12 (تذكرة #69): دورة السمة تُقرأ من التفضيل الحي عبر البوابة أولاً
+                // ثم تُكتب التالية — لا معرفة القيمة التالية في العرض أصلاً.
+                val next = when (preferencesPort.observe().first().themeMode) {
+                    AppThemeMode.SYSTEM -> AppThemeMode.LIGHT
+                    AppThemeMode.LIGHT -> AppThemeMode.DARK
+                    AppThemeMode.DARK -> AppThemeMode.SYSTEM
+                }
+                preferencesPort.setThemeMode(next)
+            }
             is SettingsIntent.SetLanguage -> viewModelScope.launch {
                 preferencesPort.setLanguage(intent.language)
                 // S2-14 (تذكرة #68): تفضيل اللغة تُقيَّد أولاً — وتطبيقه على موارد
@@ -232,7 +260,22 @@ class SettingsViewModel(
                 // S2-13: الوقت المفضل يشكل الموعد القادم حتماً — جدولة فورية (تذكرة #71).
                 reminderSchedulingPort?.rescheduleFromNow()
             }
+            is SettingsIntent.CycleArhamNotificationHour -> viewModelScope.launch {
+                // S2-12 (تذكرة #69): لفّ الساعة قرار في الـ VM بقراءة التفضيل الحي —
+                // والسلوك التاريخي محفوظ: الدقيقة تُصفَّر إلى 0 مع كل دورة.
+                val hour = preferencesPort.observe().first().arhamNotificationHour
+                preferencesPort.setArhamNotificationTime((hour + 1) % 24, 0)
+                // S2-13 (تذكرة #71): النية تغيّر موعد التذكير — جدولة فورية بعد نجاح الكتابة.
+                reminderSchedulingPort?.rescheduleFromNow()
+            }
             is SettingsIntent.SetArhamMaxPerDay -> viewModelScope.launch { preferencesPort.setArhamMaxPerDay(intent.max) }
+            is SettingsIntent.CycleArhamMaxPerDay -> viewModelScope.launch {
+                // S2-12 (تذكرة #69): حدود الدورة التاريخية (1..5) محفوظة — القرار
+                // داخل الـ VM عبر التفضيل الحي لا الشاشة.
+                val max = preferencesPort.observe().first().arhamMaxPerDay
+                val nextMax = if (max >= ARHAM_MAX_PER_DAY_CYCLE_BOUNDARY) 1 else max + 1
+                preferencesPort.setArhamMaxPerDay(nextMax)
+            }
             is SettingsIntent.SetQuietHours -> viewModelScope.launch {
                 preferencesPort.setQuietHours(intent.startHour, intent.endHour)
                 // S2-13: ساعات الهدوء تدفع الموعد (أو عبر منتصف الليل) — جدولة فورية (تذكرة #71).
