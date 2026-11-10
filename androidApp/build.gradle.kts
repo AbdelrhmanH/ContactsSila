@@ -42,6 +42,24 @@ val computedVersionCode =
         versionParts.getOrElse(1) { 0 } * 100 +
         versionParts.getOrElse(2) { 0 }
 
+/**
+ * مسار التوقيع المحروس عبر أسرار CI (ADR-0020 — قرار المالك 2026-11-10): يُقرأ من
+ * متغيرات البيئة حصراً — **لا أي سر في المستودع**. حين تتوفر المتغيرات الأربعة
+ * (محلياً عبر shell أو على CI عبر أسرار المستودع) تُوقَّع `release` بمفتاح الإنتاج؛
+ * وغبوها يُبقي الوضع الراهن حرفاً: بلا `signingConfig` (fallback AGP — مفتاح debug
+ * الافتراضي للحزم)، وبنية `benchmark` تبقى debug-signed بالتصميم (ADR-0018) أياً
+ * كان توفر الأسرار.
+ */
+val releaseKeystorePath: String? = System.getenv("SILA_RELEASE_KEYSTORE_PATH")
+val releaseKeystorePassword: String? = System.getenv("SILA_RELEASE_KEYSTORE_PASSWORD")
+val releaseKeyAlias: String? = System.getenv("SILA_RELEASE_KEY_ALIAS")
+val releaseKeyPassword: String? = System.getenv("SILA_RELEASE_KEY_PASSWORD")
+val hasReleaseSigning: Boolean =
+    !releaseKeystorePath.isNullOrBlank() &&
+        !releaseKeystorePassword.isNullOrBlank() &&
+        !releaseKeyAlias.isNullOrBlank() &&
+        !releaseKeyPassword.isNullOrBlank()
+
 android {
     namespace = "app.sila"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -58,6 +76,18 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    // ADR-0020: تكوين توقيع الإنتاج يُبنى حصراً حين تتوفر متغيرات البيئة الأربعة —
+    // الحارس fail-safe: أي متغير غائب/فارغ يعني لا تكوين ولا توقيع إنتاجي.
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(requireNotNull(releaseKeystorePath))
+                storePassword = requireNotNull(releaseKeystorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -65,6 +95,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // ADR-0020: توقيع الإنتاج محروس — لا مفتاح في المستودع أبداً؛ بلا أسرار
+            // يبقى fallback AGP (debug keystore الافتراضي للحزم) كما هو.
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         // بنية القياس (ADR-0018): نسخة إنتاج بلا تصحيح ومصغّرة كما في release —
         // لكنها موقعة بمفتاح debug ليمكن تثبيتها وقراءة آثار التتبع أثناء القياس
