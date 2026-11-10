@@ -475,6 +475,8 @@
 "settings_arham_notification_time" = "Daily Reminder Time";
 "settings_arham_max_per_day" = "Max Reminders Per Day";
 "settings_quiet_hours" = "Quiet Hours";
+"settings_quiet_hours_start" = "From";
+"settings_quiet_hours_end" = "Until";
 "settings_section_organization" = "Organization & Smart Filter";
 "settings_smart_filter" = "Automatic Smart Filter";
 "settings_duplicate_scan" = "Background Duplicate Scan";
