@@ -5,6 +5,7 @@ import androidx.room3.Insert
 import androidx.room3.Query
 import androidx.room3.Upsert
 import app.sila.core.database.entity.DisputeLogEntity
+import app.sila.core.model.DisputeStatus
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -34,7 +35,19 @@ interface DisputeLogEntityDao {
      * الذي بقي خارج المرحلة 1 («توثيق نزاع» — المرحلة 2). يستهلكه مسار التصدير في
      * `SettingsRepositoryImpl` بدل القائمة المدوّنة الفارغة، ولائحة «نزاعاتي»
      * على المنصتين ستستهلكه لاحقاً عند جهوز الكاتب.
+     *
+     * إسقاط ضيق بثلاثة أعمدة (بعد `SELECT *` — §6.3·تذكرة #72): مسار التصدير يستهلك
+     * `serviceCloudId/description/status` حصراً، فلا تُقرأ بقية أعمدة الصف من القاعدة
+     * إطلاقاً؛ عند احتياج لائحة «نزاعاتي» كاملة لاحقاً يُضاف استعلام كيان موازٍ
+     * بغرضه، ولا يُعوَّض هذا التوقيع.
      */
-    @Query("SELECT * FROM dispute_logs ORDER BY updatedAt DESC, createdAt DESC")
-    fun observeDisputeLogsOrdered(): Flow<List<DisputeLogEntity>>
+    @Query("SELECT serviceCloudId, description, status FROM dispute_logs ORDER BY updatedAt DESC, createdAt DESC")
+    fun observeDisputeLogsOrdered(): Flow<List<DisputeLogExportRow>>
 }
+
+/** صف التصدير الضيق من سجل النزاعات — الحقول الثلاثة التي يستهلكها `BackupDisputeEntry` حصراً (بلا دلالات عرض). */
+data class DisputeLogExportRow(
+    val serviceCloudId: String,
+    val description: String,
+    val status: DisputeStatus
+)

@@ -1,6 +1,7 @@
 package app.sila.core.database
 
 import app.sila.core.common.AppDispatchers
+import app.sila.core.database.dao.DisputeLogExportRow
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.model.DisputeStatus
@@ -24,33 +25,47 @@ class DisputeLogDaoTest {
     }
 
     @Test
-    fun observeDisputeLogsOrderedReadsRowsFromRoomNewestFirst() = runTest {
+    fun observeDisputeLogsOrderedReadsThreeFieldRowsNewestFirstByUpdatedAt() = runTest {
         val baseMillis = 1_700_000_000_000L
-        val older = DisputeLogEntity(
-            id = 1L,
+        // حسم الترتيب بـ `updatedAt` حصراً (§6.3): الصف الأحدث تحديثاً يتصدر رغم أن
+        // `id` و`createdAt` يعكسان ذلك — تُستبعد الضوابط الترتيبية الأخرى صراحةً هنا.
+        val olderUpdated = DisputeLogEntity(
+            id = 9L,
             serviceCloudId = "srv_old",
             description = "نزاع قديم اكتمل",
             status = DisputeStatus.RESOLVED,
-            createdAt = baseMillis,
+            createdAt = baseMillis + 9_000L,
             updatedAt = baseMillis + 1_000L,
             resolvedAt = baseMillis + 900L
         )
-        val newest = DisputeLogEntity(
-            id = 2L,
+        val newerUpdated = DisputeLogEntity(
+            id = 1L,
             serviceCloudId = "srv_new",
             description = "نزاع مفتوح أحدث",
             status = DisputeStatus.OPEN,
-            createdAt = baseMillis + 2_000L,
+            createdAt = baseMillis,
             updatedAt = baseMillis + 5_000L
         )
         val db = LocalSilaDatabase(dispatchers = testDispatchers)
         try {
-            db.seedDisputesForTest(listOf(newest, older))
+            db.seedDisputesForTest(listOf(olderUpdated, newerUpdated))
             val rows = db.room.disputeLogEntityDao().observeDisputeLogsOrdered().first()
 
             assertEquals(2, rows.size, "الاستعلام يقرأ الصفوف من Room حصراً — القراءة لا تُصنع من الفراغ")
-            assertEquals(listOf(2L, 1L), rows.map { it.id }, "الأحدث وفق `updatedAt` يتصدر الاستعلام المرتّب")
-            assertEquals("srv_new", rows.first().serviceCloudId)
+            assertEquals(
+                listOf("srv_new", "srv_old"),
+                rows.map { it.serviceCloudId },
+                "الأحدث وفق `updatedAt` يتصدر حتى لو عكسه `id` و`createdAt`"
+            )
+            assertEquals(
+                DisputeLogExportRow(
+                    serviceCloudId = "srv_old",
+                    description = "نزاع قديم اكتمل",
+                    status = DisputeStatus.RESOLVED
+                ),
+                rows.last(),
+                "الإسقاط الضيق يحمل الحقول الثلاثة المستهلكة حصراً في مسار التصدير (§6.3)"
+            )
         } finally {
             db.closeConnection()
         }
