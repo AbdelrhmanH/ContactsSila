@@ -1,6 +1,7 @@
 package app.sila.core.database
 
 import app.sila.core.common.AppDispatchers
+import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.model.DisputeStatus
 import kotlinx.coroutines.Dispatchers
