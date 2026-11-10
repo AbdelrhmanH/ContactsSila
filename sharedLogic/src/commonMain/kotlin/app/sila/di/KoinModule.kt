@@ -171,6 +171,13 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
     // BackupCryptoEngine + PlatformRingtoneSource.
     includes(platformSettingsModule)
 
+    // التقاط الأعطال المحلي (ADR-0019 — قرار المالك 2026-11-10): المنطق المشترك
+    // (بوابة `crashReportsEnabled` fail-closed + تركيب منقّى بـ Redactor) في
+    // :core:common، ومنفذ الكتابة المنصوي عبر actuals — محلي حصراً: لا شبكة
+    // ولا SDK سحابي في المرحلة 1.
+    includes(crashCaptureModule)
+    includes(platformCrashModule)
+
     // قاعدة Room KMP الوحيدة (PR B · ADR-0011): [LocalSilaDatabase] هي واجهة الوصول
     // الموحّدة — تنفّذ واجهات DAO الخمس مباشرة (كتابات مركّبة بـ SQL خام داخل معاملات
     // Room، وقراءات عبر DAOs الكيانات المولَّدة)، و[SilaRoomDatabase] صاحبة المخطط.
