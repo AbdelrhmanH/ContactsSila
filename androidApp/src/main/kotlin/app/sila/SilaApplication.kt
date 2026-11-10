@@ -8,6 +8,7 @@ import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.arham.widget.GlanceWidgetRefresher
 import app.sila.core.database.dao.ArhamDataChangeListener
 import app.sila.core.database.dao.LocalSilaDatabase
+import app.sila.core.common.crash.LocalCrashCapture
 import app.sila.di.ensureKoinStarted
 import app.sila.feature.arham.domain.ReconcileInterruptedSessionUseCase
 import app.sila.feature.contacts.data.ContactsSyncEngine
@@ -48,11 +49,18 @@ class SilaApplication : Application() {
     /** T8-15 (F-1): علم تجسيد واحد لـ«أهم 5» لكل عملية (idempotent — مرآة الأعلام أعلاه). */
     private var materializationLaunched = false
 
+    /** ADR-0019: علم تثبيت واحد لالتقاط الأعطال المحلي لكل عملية (مرآة الأعلام أعلاه). */
+    private var crashCaptureInstalled = false
+
     override fun onCreate() {
         super.onCreate()
         val koin = ensureKoinStarted(storageDirPath = filesDir.absolutePath) {
             androidContext(this@SilaApplication)
         }
+        // ADR-0019 — أول ما يبدأ Koin قبل أي تهيئة أخرى: التقاط الأعطال المحلي
+        // (ملف منقّى بـ Redactor محكوم بـ crashReportsEnabled — لا شبكة ولا SDK)
+        // يحمي حتى أعطال التهيئة التالية نفسها.
+        installCrashCapture(koin)
         ArhamNotificationChannel.ensure(this)
         EmergencyNotificationChannel.ensure(this)
         startContactsSync(koin)
@@ -62,6 +70,30 @@ class SilaApplication : Application() {
         startCallStateObserver(koin)
         registerWidgetRefreshBridge(koin)
         reconcileInterruptedEmergencySessions(koin)
+    }
+
+    /**
+     * ADR-0019: تثبيت معالج الاستثناءات غير الملتقطة المحلي — يكتب ملف العطل
+     * المنقّى (fail-closed عبر [LocalCrashCapture]) ثم **يفوض دائماً** للمعالج
+     * السابق: مسار الانهيار النظامي (نافذة الأعطال/قتل العملية) لا يُعطَّل أبداً،
+     * والفشل داخل المعالج نفسه لا يتصاعد (runCatching على الالتقاط — التقاط
+     * يحمي نفسه داخلياً كذلك).
+     */
+    private fun installCrashCapture(koin: Koin) {
+        if (crashCaptureInstalled) return
+        crashCaptureInstalled = true
+        val capture = koin.get<LocalCrashCapture>()
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching {
+                capture.capture(
+                    timestampMillis = System.currentTimeMillis(),
+                    threadName = thread.name,
+                    throwable = throwable,
+                )
+            }
+            previousHandler?.uncaughtException(thread, throwable)
+        }
     }
 
     /** تشغيل محرك المزامنة مرة واحدة (idempotent — onCreate قد يُستدعى على عملية جديدة فقط). */

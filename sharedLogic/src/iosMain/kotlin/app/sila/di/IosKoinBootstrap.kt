@@ -6,6 +6,7 @@ import app.sila.arham.notification.IosArhamReminderDispatch
 import app.sila.arham.notification.iosNotificationCenterIfPresent
 import app.sila.arham.observer.ArhamCallStateObserver
 import app.sila.arham.widget.IosArhamWidgetSnapshotPublisher
+import app.sila.core.common.crash.LocalCrashCapture
 import app.sila.core.database.dao.ArhamDataChangeListener
 import app.sila.core.database.dao.LocalSilaDatabase
 import app.sila.core.datastore.SilaPreferencesDataSource
@@ -99,6 +100,10 @@ object IosKoinBootstrap {
     /** T8-15 (F-1): علم تجسيد واحد لـ«أهم 5» لكل عملية (مرآة أندرويد، idempotent). */
     @Volatile
     private var materializationLaunched = false
+
+    /** ADR-0019: علم تثبيت واحد لالتقاط الأعطال المحلي لكل عملية (مرآة أندرويد). */
+    @Volatile
+    private var crashCaptureInstalled = false
 
     /**
      * المحرك الذي أطلقه [ensureStarted] على الحاوية الحالية — يُلتقط هنا كي يصرفه
@@ -418,6 +423,20 @@ object IosKoinBootstrap {
     }
 
     /**
+     * ADR-0019: تثبيت جسر التقاط الأعطال المحلي (`IosCrashBridge` فوق
+     * `NSSetUncaughtExceptionHandler`) — **أفضل جهد لا يُعطِّل الإقلاع أبداً**:
+     * فشل التركيب يُسجَّل بنوعه حصراً (بلا PII) ويُكمل الإقلاع كاملاً. الحد
+     * الصادق: `NSException` حصراً — انهيارات K/N الخام والإشارات خارج الالتقاط
+     * (موثق في ADR-0019 ولا يُخفى).
+     */
+    private fun installCrashCapture(koin: Koin) {
+        if (crashCaptureInstalled) return
+        crashCaptureInstalled = true
+        runCatching { IosCrashBridge.install(capture = koin.get<LocalCrashCapture>()) }
+            .onFailure { println("LocalCrashCapture install failed: ${it::class.simpleName}") }
+    }
+
+    /**
      * يحسم المسار المطلق لمجلد `Application Support/Sila` وينشئه على القرص إن لم يكن موجوداً.
      * يرمي [IllegalStateException] فوراً إذا تعذر الوصول للمجلد أو إنشاؤه (Fail-Fast).
      */
@@ -474,6 +493,7 @@ object IosKoinBootstrap {
             val existingPrefs = existingKoin.get<UserPreferencesDataSource>() as? SilaPreferencesDataSource
             if (existingDb.dbFilePath == expectedDbPath && existingPrefs?.storageFilePath == expectedPrefsPath) {
                 // start() idempotent — إعادة التشغيل على حاوية قائمة لا تكرر المراقبة.
+                installCrashCapture(existingKoin)
                 val engine = existingKoin.get<ContactsSyncEngine>()
                 engine.start(engineScope)
                 activeEngine = engine
@@ -504,6 +524,7 @@ object IosKoinBootstrap {
             "IosKoinBootstrap persistence check failed: expected DataStore path '$expectedPrefsPath', but got '${prefs?.storageFilePath}'."
         }
 
+        installCrashCapture(koin)
         val engine = koin.get<ContactsSyncEngine>()
         engine.start(engineScope)
         activeEngine = engine
