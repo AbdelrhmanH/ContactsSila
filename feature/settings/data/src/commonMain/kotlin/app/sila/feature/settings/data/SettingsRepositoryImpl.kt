@@ -4,6 +4,7 @@ import app.sila.core.database.dao.ArhamDao
 import app.sila.core.database.dao.ClassificationRestorePlan
 import app.sila.core.database.dao.ClassificationRestoreRunner
 import app.sila.core.database.dao.ContactDao
+import app.sila.core.database.dao.DisputeLogEntityDao
 import app.sila.core.datastore.UserPreferencesDataSource
 import app.sila.core.model.AppDigits
 import app.sila.core.model.AppLanguage
@@ -19,6 +20,7 @@ import app.sila.core.model.NameOrder
 import app.sila.core.model.UserPreferences
 import app.sila.feature.settings.domain.BackupArhamEntry
 import app.sila.feature.settings.domain.BackupCategoryEntry
+import app.sila.feature.settings.domain.BackupDisputeEntry
 import app.sila.feature.settings.domain.BackupPayload
 import app.sila.feature.settings.domain.BackupPreferencesEntry
 import app.sila.feature.settings.domain.BackupTagEntry
@@ -46,7 +48,13 @@ class SettingsRepositoryImpl(
      * `restoreBackupData` ترفع فشلاً فورياً (نمط حراسة DAO هنا نفسها) فلا
      * استعادة جزئية صامتة أبداً.
      */
-    private val classificationRestoreRunner: ClassificationRestoreRunner? = null
+    private val classificationRestoreRunner: ClassificationRestoreRunner? = null,
+    /**
+     * قراءة سجل النزاعات (S1-5 — تذكرة #61): التصدير يقرأ صفوف `dispute_logs`
+     * من Room حصراً (SSOT) بدل القائمة المدوّنة الفارغة — استعلام مستقل عن مسار
+     * الكتابة الذي بقي خارج المرحلة 1 («توثيق نزاع» — المرحلة 2).
+     */
+    private val disputeLogDao: DisputeLogEntityDao? = null
 ) : SettingsRepository {
 
     private fun requireContactsDao(): ContactDao =
@@ -58,6 +66,11 @@ class SettingsRepositoryImpl(
     private fun requireRestoreRunner(): ClassificationRestoreRunner =
         requireNotNull(classificationRestoreRunner) {
             "Backup restore requires ClassificationRestoreRunner wiring (atomic all-or-nothing passage)"
+        }
+
+    private fun requireDisputeLogDao(): DisputeLogEntityDao =
+        requireNotNull(disputeLogDao) {
+            "Backup export requires DisputeLogEntityDao wiring (SSOT: dispute rows are read, never baked)"
         }
 
     override val preferences: Flow<UserPreferences> get() = dataSource.preferences
@@ -129,6 +142,17 @@ class SettingsRepositoryImpl(
             )
         }
 
+        // سجل النزاعات يُقرأ من Room حصراً (S1-5 — تذكرة #61): لا قائمة مدوّنة
+        // فارغة عند التصدير — والقراءة مستقلة عن مسار الكتابة («توثيق نزاع»
+        // مرحلة-2)؛ ما دُوِّن عبر التبنّي القديم أو الكاتب المقبل يُصدَّر هنا.
+        val disputeEntries = requireDisputeLogDao().observeDisputeLogsOrdered().first().map { row ->
+            BackupDisputeEntry(
+                serviceCloudId = row.serviceCloudId,
+                description = row.description,
+                status = row.status
+            )
+        }
+
         val prefsEntry = BackupPreferencesEntry(
             themeMode = currentPrefs.themeMode,
             language = currentPrefs.language,
@@ -170,7 +194,7 @@ class SettingsRepositoryImpl(
             preferences = prefsEntry,
             categoryRingtones = currentPrefs.categoryRingtones,
             automations = emptyList(),
-            disputes = emptyList()
+            disputes = disputeEntries
         )
     }
 

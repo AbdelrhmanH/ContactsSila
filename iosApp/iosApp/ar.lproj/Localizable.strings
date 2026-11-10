@@ -498,7 +498,7 @@
 "settings_restore_desc" = "اختر ملف النسخة الاحتياطية ثم أدخل كلمة المرور لمعاينة وفك التشفير:";
 "settings_preview_title" = "معاينة النسخة الاحتياطية";
 "settings_preview_button" = "معاينة النسخة";
-"settings_preview_counts" = "عدد التصنيفات: %ld\nبيانات أرحام: %ld\nالوسوم: %ld\nنغمات التصنيفات: %ld";
+"settings_preview_counts" = "عدد التصنيفات: %ld\nبيانات أرحام: %ld\nالوسوم: %ld\nنغمات التصنيفات: %ld\nسجل النزاعات: %ld";
 "settings_restore_mode_title" = "وضع الاستعادة";
 "settings_restore_mode_merge_desc" = "تحديث التصنيفات وصلة الرحم والوسوم دون حذف الموجود";
 "settings_restore_mode_replace_desc" = "إعادة تعيين التصنيفات والوسوم القديمة وتطبيق محتوى النسخة";

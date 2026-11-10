@@ -318,7 +318,6 @@ private fun RestorePreviewDialog(
             RestorePreviewBody(
                 preview = preview,
                 strings = strings,
-                isArabic = isArabic,
                 restoreMode = restoreMode,
                 onRestoreModeChange = onRestoreModeChange,
                 restorePreferences = restorePreferences,
@@ -341,12 +340,15 @@ private fun RestorePreviewDialog(
     )
 }
 
-/** جسد معاينة الاستعادة: فقرة التحقق الناجحة واختيار الوضع وخيار استعادة التفضيلات. */
+/**
+ * جسد معاينة الاستعادة: فقرة التحقق الناجحة واختيار الوضع وخيار استعادة التفضيلات.
+ * السطور كلها من [SettingsStrings] — لا نص مضمن (S1-5 — تذكرة #61: صف سجل
+ * النزاعات أُضيف بترجمة، والمضمنات السابقة على الملف نفسه انزاحت إلى المفاتيح).
+ */
 @Composable
 private fun RestorePreviewBody(
     preview: BackupPreview,
     strings: SettingsStrings,
-    isArabic: Boolean,
     restoreMode: RestoreMode,
     onRestoreModeChange: (RestoreMode) -> Unit,
     restorePreferences: Boolean,
@@ -354,14 +356,14 @@ private fun RestorePreviewBody(
 ) {
     Column {
         Text(
-            text = if (isArabic)
-                "تم التحقق وفك التشفير بنجاح!\n• عدد التصنيفات: ${preview.categoriesCount}\n" +
-                    "• بيانات أرحام: ${preview.arhamCount}\n• الوسوم: ${preview.tagsCount}\n" +
-                    "• نغمات التصنيفات: ${preview.categoryRingtonesCount}"
-            else
-                "Decryption verified successfully!\n• Categories: ${preview.categoriesCount}\n" +
-                    "• Kinship ties: ${preview.arhamCount}\n• Tags: ${preview.tagsCount}\n" +
-                    "• Ringtones: ${preview.categoryRingtonesCount}"
+            text = listOf(
+                strings.previewVerifiedHeader,
+                "${strings.previewRowCategories} ${preview.categoriesCount}",
+                "${strings.previewRowArham} ${preview.arhamCount}",
+                "${strings.previewRowTags} ${preview.tagsCount}",
+                "${strings.previewRowRingtones} ${preview.categoryRingtonesCount}",
+                "${strings.previewRowDisputes} ${preview.disputesCount}"
+            ).joinToString("\n")
         )
         Spacer(modifier = Modifier.height(SilaDimens.Space12))
         HorizontalDivider()

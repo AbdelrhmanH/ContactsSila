@@ -498,7 +498,7 @@
 "settings_restore_desc" = "Choose your backup file, then enter its password to preview and decrypt:";
 "settings_preview_title" = "Backup Preview";
 "settings_preview_button" = "Preview Backup";
-"settings_preview_counts" = "Categories: %ld\nKinship ties: %ld\nTags: %ld\nCategory ringtones: %ld";
+"settings_preview_counts" = "Categories: %ld\nKinship ties: %ld\nTags: %ld\nCategory ringtones: %ld\nDisputes log: %ld";
 "settings_restore_mode_title" = "Restore Mode";
 "settings_restore_mode_merge_desc" = "Update categories, kinship and tags without deleting existing data";
 "settings_restore_mode_replace_desc" = "Reset old categories and tags and apply the backup content";
