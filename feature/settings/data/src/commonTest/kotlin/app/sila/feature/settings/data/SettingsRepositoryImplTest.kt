@@ -6,6 +6,7 @@ import app.sila.core.database.dao.ClassificationRestorePlan
 import app.sila.core.database.dao.ClassificationRestoreRunner
 import app.sila.core.database.dao.ContactDao
 import app.sila.core.database.dao.DisputeLogEntityDao
+import app.sila.core.database.dao.DisputeLogExportRow
 import app.sila.core.database.dao.LastContactedUpdate
 import app.sila.core.database.entity.DisputeLogEntity
 import app.sila.core.datastore.SilaPreferencesDataSource
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -164,7 +166,19 @@ class SettingsRepositoryImplTest {
             return archived
         }
 
-        override fun observeDisputeLogsOrdered(): Flow<List<DisputeLogEntity>> = flow.asStateFlow()
+        // يؤيد الـ fake عقد الاستعلام الحقيقي (`ORDER BY updatedAt DESC`) ليلتزم مسار التصدير
+        // بالترتيب نفسه — وحدة الترتيب على مستوى الـ DAO جاءت قيد الاختبار في `DisputeLogDaoTest`.
+        override fun observeDisputeLogsOrdered(): Flow<List<DisputeLogExportRow>> =
+            flow.asStateFlow().map { rows ->
+                rows.sortedWith(compareByDescending<DisputeLogEntity> { it.updatedAt }.thenByDescending { it.createdAt })
+                    .map { row ->
+                    DisputeLogExportRow(
+                        serviceCloudId = row.serviceCloudId,
+                        description = row.description,
+                        status = row.status
+                    )
+                }
+            }
     }
 
     /**
@@ -291,7 +305,7 @@ class SettingsRepositoryImplTest {
                     description = "تأخر في الموعد",
                     status = DisputeStatus.OPEN,
                     createdAt = 1_000L,
-                    updatedAt = 2_000L
+                    updatedAt = 1_500L
                 ),
                 DisputeLogEntity(
                     id = 2L,
@@ -299,7 +313,7 @@ class SettingsRepositoryImplTest {
                     description = "حُلّت بالاتفاق",
                     status = DisputeStatus.RESOLVED,
                     createdAt = 1_100L,
-                    updatedAt = 1_500L,
+                    updatedAt = 2_000L,
                     resolvedAt = 1_400L
                 )
             )
@@ -315,7 +329,16 @@ class SettingsRepositoryImplTest {
         val payload = wired.getBackupData()
 
         assertEquals(2, payload.disputes.size, "الحمولة تقرأ النزاعات من Room حصراً لا من قائمة مدوّنة")
-        assertEquals(setOf("srv_1", "srv_2"), payload.disputes.map { it.serviceCloudId }.toSet())
+        assertEquals(
+            listOf("srv_2", "srv_1"),
+            payload.disputes.map { it.serviceCloudId },
+            "التصدير يلتزم ترتيب الاستعلام المرتّب وفق `updatedAt` — والبذرة معاكسة لترتيب الإدراج لتفنيد المطابقة الصدفة"
+        )
+        assertEquals(
+            listOf("حُلّت بالاتفاق", "تأخر في الموعد"),
+            payload.disputes.map { it.description },
+            "الحقول الثلاثة تُصدَّر بمحتواها كاملاً وفق الترتيب نفسه"
+        )
         assertEquals(
             setOf(DisputeStatus.OPEN, DisputeStatus.RESOLVED),
             payload.disputes.map { it.status }.toSet()
