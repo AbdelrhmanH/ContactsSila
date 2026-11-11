@@ -19,7 +19,7 @@
 
 ## 2. الحارس الآلي — فشل إعداد فوري (TDD أحمر ← أخضر)
 
-كتلة `androidComponents.onVariants` في `androidApp/build.gradle.kts` تمنع أي عودة صامتة للاصطدام، بحارس متناظر `require(namespace != "app.sila")` في `benchmark/build.gradle.kts`:
+كتلة `androidComponents.onVariants` في `androidApp/build.gradle.kts` تمنع أي عودة صامتة للاصطدام، بحارس متناظر `check(namespace == "app.sila.benchmark")` في `benchmark/build.gradle.kts`:
 
 1. بنية `benchmark` بمعرف الإنتاج `app.sila` ← **فشل إعداد**.
 2. بنية `benchmark` بمعرف حزمة الأجهزة `app.sila.benchmark` ← **فشل إعداد**.
@@ -32,9 +32,11 @@
 FAILURE: Build failed with an exception.
 * What went wrong:
 A problem occurred configuring project ':androidApp'.
-> java.lang.IllegalStateException: بنية القياس تحمل معرّف التطبيق الحقيقي `app.sila` (تذكرة #95) — أضف `applicationIdSuffix` معزولاً لبنية `benchmark` في `:androidApp`.
+> java.lang.IllegalStateException: بنية القياس `benchmark` تحمل معرّف التطبيق الحقيقي `app.sila` (تذكرة #95) — أضف `applicationIdSuffix` معزولاً لبنية `benchmark` في `:androidApp`.
 BUILD FAILED in 1m 34s
 ```
+
+> **إعادة إثبات على رأس التكامل (2026-11-11):** أُزيلت اللاحقة مؤقتاً من شجرة `integration/phase1-finalization-local` وأُعيد تنفيذ `:androidApp:help` ففشل الإعداد بالرسالة ذاتها حرفاً — الحارس قائم على الالتزام المدموج وليس على فرع `#95` وحده.
 
 **إثبات الأخضر** — بعد `applicationIdSuffix = ".bench"` (`.\gradlew :androidApp:help :benchmark:help`): `BUILD SUCCESSFUL` (الموديولان معاً).
 
@@ -95,7 +97,7 @@ E: instrumentation (line=9)
 
 الدورة أُعيدت ثانية كاملة بعد التفكيك الأول (تثبيت ← تفكيك ← فحص الشاهد) بنفس النتيجة. أي أن سيناريو جلسة 2026-11-10 (زوال `app.sila` عند الـ teardown) **مستحيل الآن بنيوياً**: التفكيك يزيل `app.sila.bench`/`app.sila.benchmark` فقط.
 
-بعد الاختبار: أُزيل حارس الإنتاج من المحاكي (`uninstall app.sila` → `Success`) وأُوقف المحاكي — لا أثر باقٍ.
+بعد الاختبار: أُزيل حارس الإنتاج من المحاكي (`uninstall app.sila` → `Success`) وأُوقف المحاكي — لا تثبيتات باقية على المحاكي، وتبقى صور الـ AVD المستهلكة على القرص خارج المستودع (`F:\Temp\avd-wt95`) للجولات التالية.
 
 ### 4.1 الجولة الدخانية الميكانيكية عبر `connectedBenchmarkAndroidTest` — المحاكي المستهلك
 
@@ -117,7 +119,7 @@ E: instrumentation (line=9)
 
 **قراءة النتيجة (4) بأمانة:** الفشل عند هذه النقطة ليس عيباً بل هو **سياسة مكتبة القياس ذاتها** تُنفَّذ: `androidx.benchmark` يرفض إنتاج أي قياس على محاكٍ ما لم يُكبَت الخطأ صراحة (`testInstrumentationRunnerArguments["androidx.benchmark.suppressErrors"] = "EMULATOR"`) — وهذا الكبت **غير موجود عمداً** في هذا المستودع (منهجية T8 §2 المحمية). أي أن المنصة تمنع بنيوياً حتى ولو «أرقام محاكي تُنتَج ثم تُهمَل» — لا يوجد ما يُهمَل أصلاً. أما الحدود المطلوبة من هذه الشريحة (تثبيت زوج القياس/تفكيكه دون أي مساس بالإنتاج) فقد ثبتت عبر **المسار الحقيقي** (AGP بدل `pm` اليدوي في §4).
 
-التنظيف النهائي بعد الجولة: `uninstall app.sila` → `Success`، ثم `emu kill` — لا أثر باقٍ على المحاكي المستهلك.
+التنظيف النهائي بعد الجولة: `uninstall app.sila` → `Success`، ثم `emu kill` — لا تثبيتات باقية على المحاكي المستهلك؛ صور الـ AVD تبقى على القرص خارج المستودع لإعادة الاستخدام.
 
 ## 5. القيود المتبقية (بلا تجميل)
 
