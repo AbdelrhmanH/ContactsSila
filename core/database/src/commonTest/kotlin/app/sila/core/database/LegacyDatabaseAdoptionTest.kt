@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.minutes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -673,9 +674,10 @@ class LegacyDatabaseAdoptionTest {
     }
 
     @Test
-    fun sr02_classificationMatrix_casesAtoL_andStrictMetadataAndIndexValidation_zeroMutationOnUnknown() = runTest {
-        // Case A: Exact L0 -> L0
-        val pathA = PlatformFileOps.tempTestDbPath("tmp_test_sr02_caseA_${Random.nextLong(100_000, 999_999)}.db")
+    fun sr02_classificationMatrix_casesAtoL_andStrictMetadataAndIndexValidation_zeroMutationOnUnknown() =
+        runTest(timeout = SR02_WALL_CLOCK_TIMEOUT) {
+            // Case A: Exact L0 -> L0
+            val pathA = PlatformFileOps.tempTestDbPath("tmp_test_sr02_caseA_${Random.nextLong(100_000, 999_999)}.db")
         LegacySchemaFixtures.createLegacyDatabase(pathA, LegacyFixtureLevel.L0)
         val snapA = readSnapshotOf(pathA)
         assertEquals(LegacySchemaLevel.L0, LegacySchemaFingerprint.classify(snapA))
@@ -1154,5 +1156,23 @@ class LegacyDatabaseAdoptionTest {
             PlatformFileOps.fileExists(invalidSchemaBackupPath),
             "النسخة الواقية تبقى محفوظة عند فشل تحقق مخطط Room",
         )
+    }
+
+    /**
+     * مهلة جدارية موجّهة لـ sr02 حصراً (تصنيف 2026-11-11 — ENVIRONMENTAL CAUSE
+     * PROVEN، أربع أدلة): جسم الحالة عمل SQLite متزامن عبر JNI بلا أي كوروتين
+     * هارب (لا Room، لا dispatchers، لا flows — تدقيق بالتفكيك) — ~200 فتح ملف
+     * + 21 `VACUUM INTO` + 21 `integrity_check` تتراوح جدارياً 60–130s حسب
+     * ضغط المضيف (مثبَت: 62.03s ثم 128.9s على مضيف ويندوز بطيء، أشقاؤها
+     * 4.6–7.8s، وCI أخضر على الالتزام ذاته). مهلة `runTest` الافتراضية (1m)
+     * تضرب الجسم قبل اكتماله فترفع `UncompletedCoroutinesError` زائفاً برسالة
+     * «the test body did not run to completion» (مسار wall-clock في
+     * `TestBuilders.kt`، لا مسار كوروتينات نشطة). الرفع موجّه لهذه الحالة
+     * حصراً بأربعة أضعاف المهلة القديمة هامشاً — **رفع المهلة العالمية خطأ**
+     * لأنه يخفي أي تعليق كوروتين حقيقي مستقبلاً؛ وتقليل عمل المصفوفة (مشاركة
+     * fixtures/تفكيكها) مرشّح تذكرة متابعة مستقلة لا يمس هذا الالتزام.
+     */
+    private companion object {
+        private val SR02_WALL_CLOCK_TIMEOUT = 4.minutes
     }
 }
