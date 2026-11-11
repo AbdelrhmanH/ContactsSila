@@ -7,6 +7,14 @@ plugins {
 
 android {
     namespace = "app.sila.benchmark"
+    // تذكرة #95 (تعديل ADR-0018): حارس متناظر لحارس `:androidApp` — تأكيد إيجابي
+    // يقفل معرف حزمة الأجهزة الاختبارية بالاتجاهين: لا هوية إنتاج `app.sila`،
+    // ولا اصطدام بمعرف المقيَّس `app.sila.bench`. أي تغيير مقصود للمعرف يُلزم
+    // بتحديث ثابت `benchmarkInstrumentationId` في حارس `:androidApp` تبعاً.
+    check(namespace == "app.sila.benchmark") {
+        "حزمة الأجهزة الاختبارية لموديول `:benchmark` هي `$namespace` والمتوقع " +
+            "`app.sila.benchmark` — هوية الأجهزة عقد مقفل (تذكرة #95)."
+    }
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {

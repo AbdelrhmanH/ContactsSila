@@ -109,6 +109,11 @@ android {
             initWith(getByName("release"))
             matchingFallbacks += listOf("release")
             signingConfig = signingConfigs.getByName("debug")
+            // تذكرة #95 (تعديل ADR-0018 بتاريخ 2026-11-11): معرّف معزول فريد لنسخة
+            // القياس `app.sila.bench` — لا يستبدل التطبيق الحقيقي `app.sila` على
+            // الجهاز ولا يزيله عند الـ teardown، ولا يصطدم بحزمة الأجهزة الاختبارية
+            // `app.sila.benchmark` لموديول `:benchmark` (الحارس أدناه يقفل الثلاثية).
+            applicationIdSuffix = ".bench"
         }
     }
     compileOptions {
@@ -117,5 +122,42 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+}
+
+// ============================================================================
+// حارس هوية الحزم (تذكرة #95 · تعديل ADR-0018 بتاريخ 2026-11-11): فشل إعداد فوري
+// (configuration failure) على كل بناء وCI عند أي خلط بين هوية التطبيق الحقيقي
+// وهوية نسخة القياس. الجلسة الميدانية 2026-11-10 أثبتت الخطر: بنية `benchmark`
+// ورثت `app.sila` من defaultConfig فاستبدلت التطبيق الحقيقي على الجهاز ثم أزالته
+// عند الـ teardown. القاعدة الثلاثية المقفلة هنا:
+//   1) إنتاج/debug = `app.sila` حصراً — هوية المتجر لا تنحرف أبداً.
+//   2) بنية القياس = معرّف معزول فريد ≠ `app.sila` و≠ `app.sila.benchmark`
+//      (حزمة الأجهزة الاختبارية لموديول `:benchmark`) — عزل ثلاثي كامل.
+//   3) بقية البنى تمر عبر (1) — فيفشل الحارس عند الإعداد لا عند التشغيل فقط.
+// ============================================================================
+val productionApplicationId = "app.sila"
+// ثابت التزامن مع الحارس الإيجابي في benchmark/build.gradle.kts (namespace == هذا الثابت
+// حصراً) — تغيير أحدهما يُلزم بتحديث الآخر وفحص TARGET_PACKAGE في StartupBenchmark.kt.
+val benchmarkInstrumentationId = "app.sila.benchmark"
+
+androidComponents {
+    onVariants { variant ->
+        val variantId = variant.applicationId.get()
+        if (variant.buildType == "benchmark") {
+            check(variantId != productionApplicationId) {
+                "بنية القياس `${variant.name}` تحمل معرّف التطبيق الحقيقي `$variantId` (تذكرة #95) — " +
+                    "أضف `applicationIdSuffix` معزولاً لبنية `benchmark` في `:androidApp`."
+            }
+            check(variantId != benchmarkInstrumentationId) {
+                "بنية القياس `${variant.name}` (`$variantId`) تصطدم بحزمة الأجهزة الاختبارية " +
+                    "لموديول `:benchmark` — اختر لاحقة لا تُنتج `$benchmarkInstrumentationId`."
+            }
+        } else {
+            check(variantId == productionApplicationId) {
+                "هوية البنية `${variant.name}` هي `$variantId` والمتوقع `$productionApplicationId` — " +
+                    "هوية المتجر لا تنحرف أبداً (تذكرة #95)."
+            }
+        }
     }
 }
