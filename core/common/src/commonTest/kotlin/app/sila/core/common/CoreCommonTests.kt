@@ -50,6 +50,23 @@ class CoreCommonTests {
     }
 
     @Test
+    fun redactorScrubsEveryPhoneDigitSet() {
+        // ASCII محلي (مصر) ودولي.
+        assertFalse(Redactor.scrub("call 01012345678 now").contains("01012345678"))
+        assertFalse(Redactor.scrub("call +201012345678 now").contains("201012345678"))
+        // عربية-هندية.
+        assertFalse(Redactor.scrub("اتصل ٠١٠١٢٣٤٥٦٧٨ الآن").contains("٠١٠١٢٣٤٥٦٧٨"))
+        // شرقية/فارسية بفواصل.
+        assertFalse(Redactor.scrub("call ۰۹۱۲-۳۴۵-۶۷۸۹ now").contains("۰۹۱۲"))
+        // مختلطة من مجموعات مختلفة في الرقم ذاته.
+        assertFalse(Redactor.scrub("mixed 01٠1234-567٨ digits").contains("01٠1234-567٨"))
+        // كلها تعود بديلاً موحداً.
+        assertTrue(Redactor.scrub("٠١٠١٢٣٤٥٦٧٨").contains("[REDACTED_PHONE]"))
+        // الطوابع الرقمية الطويلة وحدها تُنقّى عند مرورها (الترويسة الموثوقة لا تمر هنا أصلاً).
+        assertTrue(Redactor.scrub("1700000000000").contains("[REDACTED_PHONE]"))
+    }
+
+    @Test
     fun appResult_mapsSuccessAndPreservesError() {
         val success: AppResult<Int> = AppResult.Success(10)
         val mapped = success.map { it * 2 }

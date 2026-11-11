@@ -6,82 +6,64 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * اختبارات التقاط الأعطال المحلي (ADR-0019): عقد fail-closed كاملاً — البوابة
- * المغلقة/الفاشلة لا تكتب، وفشل Sink لا يرمي، والتنقية (Redactor) تسبق الكتابة.
+ * اختبارات منظّم التقاط الأعطال المحلي (ADR-0019 — تنسيق v2 الصارم):
+ *
+ * 1. عقد fail-closed كاملاً — البوابة المغلقة/الفاشلة لا تكتب، وفشل المُركِّب
+ *    أو Sink لا يرمي ولا يقطع مسار العطل النظامي.
+ * 2. فحص **التقرير المُخلَّد كاملاً** (معيار #31): بحث كل سر اصطناعي (أسماء
+ *    لاتينية وعربية، رسائل، أرقام كل المجموعات، بريد) في الملف المكتوب فلا سر
+ *    ينجو من أي حقل مسموح — لا فحص دوال مساعدة منفردة فحسب.
+ * 3. سقف الاحتفاظ (5 تقارير) عبر الخوارزمية النقية المشتركة.
  */
 class CrashCaptureTests {
 
     // ============================================================
-    // CrashReportComposer — التركيب والتنقية وسلسلة الأسباب
+    // LocalCrashCapture — عقد fail-closed + فحص التقرير المُخلَّد كاملاً
     // ============================================================
 
     @Test
-    fun composeRedactsPhoneAndEmailFromMessageAndStack() {
+    fun capturePersistsNoSyntheticPiiAnywhereInFullReport() {
+        val sink = RecordingSink(writeResult = true)
+        val secretLatinName = "ZedQuixley"
+        val secretArabicName = "أحمد عبد الرحمن"
+        val secretPhone = "01012345678"
+        val secretArabicPhone = "٠١٠١٢٣٤٥٦٧٨"
+        val secretPersianPhone = "۰۹۱۲۳۴۵۶۷۸۹"
+        val secretInternationalPhone = "+201001234567"
+        val secretEmail = "zed.quixley@example.com"
         val throwable = IllegalStateException(
-            "failed to sync contact user@example.com at +20 100 123 4567",
+            "contact $secretLatinName / $secretArabicName failed — $secretPhone",
+            RuntimeException(
+                "cause: $secretEmail — $secretArabicPhone / $secretPersianPhone / $secretInternationalPhone",
+            ),
         )
 
-        val report = CrashReportComposer.compose(
-            timestampMillis = 1_700_000_000_000L,
-            threadName = "main",
-            throwable = throwable,
-        )
+        val written = LocalCrashCapture(
+            isCaptureEnabled = { true },
+            sink = sink,
+        ).capture(timestampMillis = 42L, threadName = "main", throwable = throwable)
 
-        assertFalse(report.contains("user@example.com"))
-        assertFalse(report.contains("+20 100 123 4567"))
-        assertTrue(report.contains("[REDACTED_EMAIL]"))
-        assertTrue(report.contains("[REDACTED_PHONE]"))
-    }
-
-    @Test
-    fun composeIncludesHeaderTimestampThreadAndType() {
-        val report = CrashReportComposer.compose(
-            timestampMillis = 1_700_000_000_000L,
-            threadName = "arham-dispatch",
-            throwable = IllegalArgumentException("boom"),
-        )
-
-        assertTrue(report.startsWith("SILA LOCAL CRASH REPORT"))
-        assertTrue(report.contains("timestamp_epoch_ms: 1700000000000"))
-        assertTrue(report.contains("thread: arham-dispatch"))
-        // بلا بادئة المنصة (java./kotlin. تختلف بين JVM وK/N).
-        assertTrue(report.contains("IllegalArgumentException"))
-        assertTrue(report.contains("message: boom"))
-        assertTrue(report.contains("stack:"))
-        assertTrue(report.contains("\tat "))
-    }
-
-    @Test
-    fun composeWalksCauseChainUpToMaxDepth() {
-        var throwable: Throwable = IllegalStateException("root-cause")
-        repeat(times = 8) { index ->
-            throwable = RuntimeException("wrapper-$index", throwable)
+        assertTrue(written)
+        assertEquals(1, sink.calls.size)
+        val content = sink.calls.single().second
+        // فحص التقرير الكامل: لا سر اصطناعي ينجو من أي حقل مسموح.
+        listOf(
+            secretLatinName,
+            secretArabicName,
+            secretPhone,
+            secretArabicPhone,
+            secretPersianPhone,
+            secretInternationalPhone,
+            secretEmail,
+            "message:",
+        ).forEach { secret ->
+            assertFalse(content.contains(secret), "PII leaked into persisted report: $secret")
         }
-
-        val report = CrashReportComposer.compose(0L, "main", throwable)
-
-        // 8 غلافين فوق الجذر (9 عقد) ⇒ السلسلة تُقتطع عند MAX_CAUSE_DEPTH: تُطبع
-        // العقد حتى wrapper-2، وأعمق من ذلك (wrapper-1/wrapper-0/root) يُقتطع حصراً.
-        val causeMarkers = report.split("caused by:").size - 1
-        assertEquals(CrashReportComposer.MAX_CAUSE_DEPTH, causeMarkers)
-        assertTrue(report.contains("wrapper-4"))
-        assertFalse(report.contains("root-cause"))
-        assertFalse(report.contains("wrapper-0"))
+        // والحقول البنيوية التشخيصية باقية.
+        assertTrue(content.contains("format: 2"))
+        assertTrue(content.contains("timestamp_epoch_ms: 42"))
+        assertTrue(content.contains("thread: main"))
     }
-
-    @Test
-    fun composeRedactsSelfReferencingCauseSafely() {
-        val throwable = IllegalStateException("self-loop")
-        // Kotlin Throwable.cause يعيد null عند cause === this — التأكد من عدم الدوران.
-        val report = CrashReportComposer.compose(0L, "main", throwable)
-
-        assertTrue(report.contains("self-loop"))
-        assertEquals(0, report.split("caused by:").size - 1)
-    }
-
-    // ============================================================
-    // LocalCrashCapture — عقد fail-closed
-    // ============================================================
 
     @Test
     fun closedGateWritesNothing() {
@@ -130,51 +112,48 @@ class CrashCaptureTests {
     }
 
     @Test
-    fun openGateWritesScrubbedContent() {
-        val sink = RecordingSink(writeResult = true)
-
-        val written = LocalCrashCapture(
-            isCaptureEnabled = { true },
-            sink = sink,
-        ).capture(
-            timestampMillis = 42L,
-            threadName = "main",
-            throwable = IllegalStateException("email user@example.com leaked"),
-        )
-
-        assertTrue(written)
-        assertEquals(1, sink.calls.size)
-        val (timestamp, content) = sink.calls.single()
-        assertEquals(42L, timestamp)
-        assertTrue(content.contains("[REDACTED_EMAIL]"))
-        assertFalse(content.contains("user@example.com"))
-    }
-
-    @Test
     fun composerThrowingIsFailClosed() {
         val sink = RecordingSink(writeResult = true)
 
         val written = LocalCrashCapture(
             isCaptureEnabled = { true },
             sink = sink,
-        ).capture(0L, "main", ThrowingMessageThrowable())
+        ).capture(0L, "main", ThrowingCauseThrowable())
 
         assertFalse(written)
         assertEquals(0, sink.calls.size)
     }
 
-    /** Throwable ترفع message — لإثبات أن فشل التركيب نفسه fail-closed لا رامي. */
-    private class ThrowingMessageThrowable : Throwable() {
-        override val message: String? get() = error("broken message machinery")
+    // ============================================================
+    // الاحتفاظ — الخوارزمية النقية المشتركة (سقف 5 تقاريراً)
+    // ============================================================
+
+    @Test
+    fun retentionKeepsAtMostMaxReportsDroppingOldest() {
+        val seven = (1..7).map { index -> "crash-$index.txt" }
+
+        assertEquals(
+            listOf("crash-2.txt", "crash-1.txt"),
+            staleReportNames(names = seven, max = 5),
+            "الأقدم معجمياً (أصغر millis) هو الذي يُحذف — بالإرجاع التنازلي كما يستهلكه المستدعي",
+        )
+        assertEquals(emptyList<String>(), staleReportNames(names = (1..5).map { "crash-$it.txt" }, max = 5))
+        assertEquals(emptyList<String>(), staleReportNames(names = listOf("crash-1.txt"), max = 5))
+        assertEquals(emptyList<String>(), staleReportNames(names = emptyList(), max = 5))
     }
+}
 
-    /** Sink تسجيلي يلتقط الاستدعاءات للتحقق من المحتوى والعدد. */
-    private class RecordingSink(private val writeResult: Boolean) : CrashSink {
-        val calls = mutableListOf<Pair<Long, String>>()
+/** Throwable ترفع من cause — لإثبات أن فشل التركيب نفسه fail-closed لا رامي. */
+private open class ThrowingCauseThrowable : Throwable() {
+    override val cause: Throwable? get() = error("broken cause machinery")
+}
 
-        override fun write(timestampMillis: Long, content: String): Boolean {
-            calls += timestampMillis to content
-            return writeResult
-        }
+/** Sink تسجيلي يلتقط الاستدعاءات للتحقق من المحتوى والعدد. */
+private class RecordingSink(private val writeResult: Boolean) : CrashSink {
+    val calls = mutableListOf<Pair<Long, String>>()
+
+    override fun write(timestampMillis: Long, content: String): Boolean {
+        calls += timestampMillis to content
+        return writeResult
     }
 }

@@ -1,8 +1,10 @@
 package app.sila.di
 
 import app.sila.arham.widget.IosArhamWidgetSnapshotPublisher
+import app.sila.core.common.crash.CrashCategoryHint
 import app.sila.core.common.crash.CrashSink
 import app.sila.core.common.crash.LocalCrashCapture
+import app.sila.core.common.crash.staleReportNames
 import kotlin.concurrent.Volatile
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.staticCFunction
@@ -53,26 +55,30 @@ internal class IosCrashFileSink : CrashSink {
         return written
     }
 
-    /** حذف التقارير الأقدم من السقف — الترتيب معجمي على `crash-<millis>` ثابت الزمن. */
+    /** حذف التقارير الأقدم من السقف — الخوارزمية النقية المشتركة [staleReportNames]. */
     private fun pruneOldReports(fileManager: NSFileManager, dir: String) {
         val names = (fileManager.contentsOfDirectoryAtPath(path = dir, error = null) ?: emptyList<Any>())
             .map { "$it" }
-        if (names.size <= MAX_RETAINED_REPORTS) return
-        names.sortedDescending().drop(n = MAX_RETAINED_REPORTS).forEach { stale ->
+            // مرشّح البادئة نفسه كنظير Android: ملفات غريبة في المجلد لا تُحسب
+            // ضمن سقف الاحتفاظ ولا تُحذف (تصحيح مراجعة 2026-11-11).
+            .filter { candidate -> candidate.startsWith(PREFIX) }
+        staleReportNames(names = names, max = MAX_RETAINED_REPORTS).forEach { stale ->
             fileManager.removeItemAtPath(path = "$dir/$stale", error = null)
         }
     }
 
     private companion object {
         const val CRASH_DIRECTORY = "crash"
+        const val PREFIX = "crash-"
         const val MAX_RETAINED_REPORTS = 5
     }
 }
 
 /**
- * NSException كـ Throwable ليمرّ عبر منظم [LocalCrashCapture] المشترك — الرسالة
- * تحمل اسم الاستثناء وسببه ورموز المكدس (المنقّاة لاحقاً في التركيب)، لأن
- * stackTraceToString على K/N لا يحمل المكدس الرمزي للنظام.
+ * NSException كـ Throwable ليمرّ عبر منظم [LocalCrashCapture] المشترك — اسم
+ * الاستثناء المستقر يُمرر عبر [CrashCategoryHint] ليظهر في التقرير كفئة آمنة
+ * محققة البنية (تنسيق v2)، بينما الرسالة (السبب الحر ورموز المكدس) **لا تدخل
+ * التقرير إطلاقاً** — النص الحر محذوف حذفاً كلياً بقرار التنسيق الصارم.
  */
 internal class IosUncaughtException(
     exceptionName: String,
@@ -88,7 +94,11 @@ internal class IosUncaughtException(
             callStackSymbols.forEach { appendLine(it) }
         }
     },
-)
+),
+    CrashCategoryHint {
+
+    override val crashCategory: String = exceptionName
+}
 
 /**
  * جسر الالتقاط بين مؤشر الدالة C لـ `NSSetUncaughtExceptionHandler` ومنطق
