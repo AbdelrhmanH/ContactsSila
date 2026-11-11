@@ -527,7 +527,8 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
             getArhamPriorityList = get(),
             getArhamStats = get(),
             settingsRepository = get(),
-            clock = get()
+            clock = get(),
+            appLocalePort = get()
         )
     }
 }

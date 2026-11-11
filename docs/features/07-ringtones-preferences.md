@@ -37,7 +37,7 @@
 | المفتاح | النوع | الافتراضي |
 |---|---|---|
 | `theme_mode` | SYSTEM/LIGHT/DARK | SYSTEM — الدورة SYSTEM→LIGHT→DARK ثم العودة: قرار في الـ ViewModel عبر نية `CycleThemeMode` لا صف الشاشة (S2-12 — تذكرة #69) |
-| `language` | ar/en | ثابت (ARABIC)؛ تقود الموارد فعلياً عبر منفذ `AppLocalePort`: أندرويد per-app locales (تذكرة #68) وiOS بقراءة التفضيل مباشرة — افتراض «لغة الجهاز» خارج نطاق المرحلة 1 |
+| `language` | ar/en | ثابت (ARABIC)؛ تقود الموارد فعلياً عبر منفذ `AppLocalePort` الحصري — منبعان للنية يمران بالمنفذ الواحد فور نجاح كتابة التفضيل: `SetLanguage` من الإعدادات و`ToggleLanguage` من قلب الشاشة الرئيسية (تذكرتا #68 و#97)؛ أندرويد per-app locales وiOS بقراءة التفضيل مباشرة — افتراض «لغة الجهاز» خارج نطاق المرحلة 1 |
 | `digits` | ARABIC/HINDI | ثابت ARABIC؛ تنسيق عرض الأرقام «خارج نطاق المرحلة 1» بقرار صريح (تذكرة #68) — بلا مستهلك عرض بعد اليوم |
 | `default_tab` | CONTACTS/SERVICES/ARHAM | CONTACTS |
 | `name_order` | FIRST_LAST/LAST_FIRST | FIRST_LAST |

@@ -18,6 +18,8 @@ import app.sila.feature.arham.domain.RecordDialAttemptUseCase
 import app.sila.feature.contacts.data.ContactsRepositoryImpl
 import app.sila.feature.services.data.ServicesRepositoryImpl
 import app.sila.feature.settings.data.SettingsRepositoryImpl
+import app.sila.feature.settings.domain.AppLocalePort
+import app.sila.feature.settings.domain.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -60,6 +62,26 @@ class MainViewModelTest {
 
     private fun recordDialAttempt(db: LocalSilaDatabase): RecordDialAttemptUseCase =
         RecordDialAttemptUseCase(ingest = IngestCallEventUseCase(ArhamCallEventRepositoryImpl(db)))
+
+    /** تذكرة #97: مستودع يفوّض التخزين الحقيقي ويسجّل كتابة اللغة في سجل الأحداث المشترك لتثبيت الترتيب. */
+    private class LanguageRecordingSettingsRepository(
+        private val delegate: SettingsRepository,
+        private val events: MutableList<String>
+    ) : SettingsRepository by delegate {
+        override suspend fun setLanguage(language: AppLanguage) {
+            delegate.setLanguage(language)
+            events += "language:${language.code}"
+        }
+    }
+
+    /** تذكرة #97: منفذ تطبيق لغة المنصة يسجّل استدعاءه والقيمة الممررة في سجل الأحداث نفسه. */
+    private class RecordingAppLocalePort(
+        private val events: MutableList<String>
+    ) : AppLocalePort {
+        override suspend fun applyApplicationLocale(language: AppLanguage) {
+            events += "applyLocale:${language.code}"
+        }
+    }
 
     @Test
     fun getArhamPriorityList_ordersOverdueFirst() = runTest {
@@ -205,6 +227,60 @@ class MainViewModelTest {
             assertTrue(vm.state.value.contacts.all { it.category == Category.FAMILY })
 
             vm.onIntent(MainIntent.ToggleLanguage)
+            assertEquals(AppLanguage.ENGLISH, vm.state.value.preferences.language)
+        } finally {
+            // نطاق الـ VM ملك له: يُلغى قبل إغلاق القاعدة (نمط ContactsViewModelKoinTest)
+            // — جامعات Room الحية لا تلمس قاعدة مغلقة (تكامل دورة حياة الموارد).
+            vm?.let { currentVm ->
+                runBlocking {
+                    withTimeout(5_000) {
+                        runCatching {
+                            requireNotNull(currentVm.viewModelScope.coroutineContext[Job]).cancelAndJoin()
+                        }
+                    }
+                }
+            }
+            db.closeConnection()
+        }
+    }
+
+    @Test
+    fun toggleLanguageWritesPreferenceThenAppliesApplicationLocale() = runTest {
+        // تذكرة #97 (عيب D1 من جلسة 2026-11-10): التبديل من قلب الشاشة الرئيسية يسلك
+        // المنفذ الوحيد ذاته الذي تسلكه نية `SetLanguage` في الإعدادات — كتابة التفضيل
+        // أولاً ثم تطبيق لغة المنصة فور نجاح الكتابة (نمط ADR-0016) بالترتيب ذاته لا
+        // معكوسه، فلا واجهة مختلطة اللغة حتى إعادة تشغيل التطبيق.
+        val events = mutableListOf<String>()
+        val db = LocalSilaDatabase(dispatchers = unconfinedDispatchers, seedDemoData = true)
+        var vm: MainViewModel? = null
+        try {
+            vm = MainViewModel(
+                contactsRepository = ContactsRepositoryImpl(db),
+                recordDialAttempt = recordDialAttempt(db),
+                servicesRepository = ServicesRepositoryImpl(db),
+                getArhamPriorityList = GetArhamPriorityListUseCase(ArhamRepositoryImpl(db), fixedClock, unconfinedDispatchers),
+                getArhamStats = GetArhamDashboardStatsUseCase(
+                    arhamRepository = ArhamRepositoryImpl(db),
+                    callEventRepository = ArhamCallEventRepositoryImpl(db),
+                    clock = fixedClock,
+                    dispatchers = unconfinedDispatchers,
+                ),
+                settingsRepository = LanguageRecordingSettingsRepository(
+                    delegate = SettingsRepositoryImpl(SilaPreferencesDataSource()),
+                    events = events
+                ),
+                clock = fixedClock,
+                appLocalePort = RecordingAppLocalePort(events)
+            )
+
+            vm.onIntent(MainIntent.ToggleLanguage)
+
+            // الكتابة أولاً والتطبيق بعدها حصراً — وبالقيمة الممررة نفسها (en بعد الافتراضي ar).
+            assertEquals(
+                listOf("language:en", "applyLocale:en"),
+                events,
+                "تبديل اللغة من الشاشة الرئيسية يكتب التفضيل ثم يطبّق لغة المنصة عبر المنفذ بالترتيب",
+            )
             assertEquals(AppLanguage.ENGLISH, vm.state.value.preferences.language)
         } finally {
             // نطاق الـ VM ملك له: يُلغى قبل إغلاق القاعدة (نمط ContactsViewModelKoinTest)

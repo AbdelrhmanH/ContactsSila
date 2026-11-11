@@ -18,6 +18,7 @@ import app.sila.feature.arham.domain.GetArhamPriorityListUseCase
 import app.sila.feature.arham.domain.RecordDialAttemptUseCase
 import app.sila.feature.contacts.domain.ContactsRepository
 import app.sila.feature.services.domain.ServicesRepository
+import app.sila.feature.settings.domain.AppLocalePort
 import app.sila.feature.settings.domain.SettingsRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,6 +77,15 @@ class MainViewModel(
     private val getArhamPriorityList: GetArhamPriorityListUseCase,
     private val getArhamStats: GetArhamDashboardStatsUseCase,
     private val settingsRepository: SettingsRepository,
+    /**
+     * منفذ تطبيق لغة المنصة (تذكرة #97 — عيب D1): نية `ToggleLanguage` من قلب الشاشة
+     * الرئيسية يعقبها تطبيق لغة المنصة فور نجاح كتابة التفضيل — المسار الواحد ذاته
+     * الذي تسلكه نية `SetLanguage` في `SettingsViewModel`، فلا مصدرَ لنية لغة خارج
+     * المنفذ. اختياري بالحقن بنمط منافذ الإعدادات (تذكرة #68): كومة التركيب الحقيقية
+     * (Koin) تربطه دائماً، والبناء المريح (الاختبارات) يُغني عنه حين لا يفحص المسار؛
+     * وiOS تنفيذه كائن سلبي.
+     */
+    private val appLocalePort: AppLocalePort? = null,
     private val clock: AppClock
 ) : BaseMviViewModel<MainUiState, MainIntent, MainEffect>(MainUiState()) {
 
@@ -171,6 +181,11 @@ class MainViewModel(
                         AppLanguage.ARABIC
                     }
                     settingsRepository.setLanguage(nextLang)
+                    // تذكرة #97 (عيب D1): التبديل من قلب الشاشة الرئيسية يسلك المنفذ الوحيد
+                    // ذاته الذي تسلكه نية `SetLanguage` في `SettingsViewModel` — تطبيق لغة
+                    // المنصة فور نجاح الكتابة (نمط ADR-0016 «فور نجاح الكتابة»)، فتمر كل
+                    // نية لغة بمصدر واحد ولا واجهة مختلطة حتى إعادة تشغيل التطبيق.
+                    appLocalePort?.applyApplicationLocale(nextLang)
                 }
             }
             is MainIntent.ChangeThemeMode -> {
