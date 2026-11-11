@@ -398,6 +398,15 @@ class SettingsViewModel(
                         )
                     }
                     sendEffect(SettingsEffect.BackupRestored(result))
+                    // متابعة `#97` (مسار الاسترجاع): لغة الاسترجاع تُطبَّق عبر المنفذ
+                    // الواحد **بعد نجاح الاسترجاع اكتمالاً** حصراً (نمط ADR-0016 «فور
+                    // نجاح الكتابة») — لا أثناء معاملة قاعدة البيانات، ولا عند غياب
+                    // التفضيل من الحمولة أو عدم اختياره (`restoredLanguage == null`).
+                    // إعادة إنشاء الواجهة المحتملة من تغيير per-app locales تحدث
+                    // بعد اكتمال تحديث الحالة وبث التأثير (المنفذ يرسل لحلقة main).
+                    result.restoredLanguage?.let { language ->
+                        appLocalePort?.applyApplicationLocale(language)
+                    }
                 } catch (err: Exception) {
                     if (err is CancellationException) throw err
                     _uiState.update { it.copy(isImportingBackup = false, backupErrorKind = err.asBackupErrorKind()) }
