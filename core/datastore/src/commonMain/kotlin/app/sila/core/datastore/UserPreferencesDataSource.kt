@@ -103,7 +103,15 @@ class SilaPreferencesDataSource(
     private val initialPreferences: UserPreferences = UserPreferences(),
     val storageFilePath: String? = null,
     /** مُمرَّر من Koin (AppDispatchers.default) — يملك نطاق التدفق الحار أدناه (نطاق مملوك للنطاق المشترك، بلا نطاق عام عالمي). */
-    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    /**
+     * منبع رمز لغة المنصة التي ستحسم ضدها موارد الواجهة فعلياً (per-app locale إن
+     * وُجد وإلا لغة النظام — expect/actual في `sharedLogic`). يُستشار حصراً حين
+     * يكون مفتاح اللغة غائباً أو تالفاً (تثبيت جديد — إصلاح عيب DEF-02، تذكرة
+     * #97) حتى يتبع حسم الشريط والسمة حسمَ الموارد من الإطار الأول. الافتراضي
+     * (`null`) يحسم إلى الافتراضي الابتدائي كشبكة أمان لمسار الذاكرة الاختباري.
+     */
+    private val resourceLanguageCodeProvider: () -> String? = { null }
 ) : UserPreferencesDataSource {
 
     private val dataStore: DataStore<Preferences>? = storageFilePath?.let { path ->
@@ -151,6 +159,7 @@ class SilaPreferencesDataSource(
         themeMode = prefs[KEY_THEME_MODE]?.let { runCatching { AppThemeMode.valueOf(it) }.getOrNull() }
             ?: initialPreferences.themeMode,
         language = prefs[KEY_LANGUAGE]?.let { runCatching { AppLanguage.valueOf(it) }.getOrNull() }
+            ?: resourceLanguageCodeProvider()?.let(::resolveResourceLanguage)
             ?: initialPreferences.language,
         digits = prefs[KEY_DIGITS]?.let { runCatching { AppDigits.valueOf(it) }.getOrNull() }
             ?: initialPreferences.digits,
