@@ -49,6 +49,26 @@ import app.sila.feature.settings.domain.UnmatchedBackupEntry
  */
 
 /**
+ * قرار بايتات الاستعادة الموحّد (DEF-04 · مسار SAF):
+ *
+ * دالة نقّي تُستدعى حرفياً في الموضعين المتطابقين — «البيانات المحمّلة» التي يعرضها
+ * حوار الاستيراد، و«البايتات المُرسَلة» إلى [SettingsIntent.ConfirmRestore] عند
+ * التأكيد — فلا يمكن أن تُستعاد نسخة غير التي عاينها المستخدم. الأولوية لأحدث
+ * اختيار للمستخدم: بايتات ملف الجهاز المختارة عبر SAF ([SettingsUiState.importBackupBytes]
+ * عبر نية `SetImportBackupBytes`) أولاً، ثم ذاكرة جلسة التصدير [restoreBytesBuffer]،
+ * ثم آخر نسخة مُصدَّرة [lastExportedBytes].
+ *
+ * العطل المصحَّح: `restoreReady` و`onRestore` كانا يأخذان المصدرين الأخيرين فقط،
+ * فمسار «اختيار ملف من الجهاز» يموت عند المعاينة (زر التأكيد معطّل دائماً)، ولو
+ * مُكِّن لَما أرسل البايتات المعاينة نفسها عند تعايش المصادر.
+ */
+internal fun resolvedRestoreBytes(
+    state: SettingsUiState,
+    restoreBytesBuffer: ByteArray?,
+    lastExportedBytes: ByteArray?,
+): ByteArray? = state.importBackupBytes ?: restoreBytesBuffer ?: lastExportedBytes
+
+/**
  * مضيف حوارات كلمة السر: التصدير والاستيراد ومعاينة الاستعادة. يملك مسودات الإدخال
  * الثلاثة ووضع الاستعادة وخيار استعادة التفضيلات، فيمرّرهما للحوارات الفردية
  * بمعاملاتها الحرفية نفسها.
@@ -85,7 +105,7 @@ internal fun SettingsRestorePasswordDialogs(
             state = state,
             strings = strings,
             isArabic = isArabic,
-            loadedBytes = state.importBackupBytes ?: restoreBytesBuffer ?: lastExportedBytes,
+            loadedBytes = resolvedRestoreBytes(state, restoreBytesBuffer, lastExportedBytes),
             password = restorePasswordInput,
             onPasswordChange = { restorePasswordInput = it },
             onPickBackupFile = onPickBackupFile,
@@ -96,6 +116,10 @@ internal fun SettingsRestorePasswordDialogs(
     // حوار معاينة النسخة الاحتياطية وتأكيد الاستعادة
     state.backupPreview?.let { preview ->
         if (state.showRestorePreviewDialog) {
+            // DEF-04: زر التأكيد يُحكَم بالبايتات المعاينة نفسها (القرار الموحّد) —
+            // مصدر SAF كان أعمى عنه `restoreReady` سلفاً فيموت مسار الاستعادة الملفي
+            // عند المعاينة، وكان `onRestore` قد يرسل بايتات غير المُعاينة عند تعايش المصادر.
+            val previewedBytes = resolvedRestoreBytes(state, restoreBytesBuffer, lastExportedBytes)
             RestorePreviewDialog(
                 preview = preview,
                 strings = strings,
@@ -104,13 +128,12 @@ internal fun SettingsRestorePasswordDialogs(
                 onRestoreModeChange = { restoreMode = it },
                 restorePreferences = restorePreferencesCheckbox,
                 onRestorePreferencesChange = { restorePreferencesCheckbox = it },
-                restoreReady = (restoreBytesBuffer != null || lastExportedBytes != null) && !state.isImportingBackup,
+                restoreReady = previewedBytes != null && !state.isImportingBackup,
                 onRestore = {
-                    val cipherBytes = restoreBytesBuffer ?: lastExportedBytes
-                    if (cipherBytes != null) {
+                    if (previewedBytes != null) {
                         onIntent(
                             SettingsIntent.ConfirmRestore(
-                                cipherBytes = cipherBytes,
+                                cipherBytes = previewedBytes,
                                 password = restorePasswordInput,
                                 mode = restoreMode,
                                 restorePreferences = restorePreferencesCheckbox
