@@ -58,6 +58,7 @@ jobs:
           ./gradlew
           :core:common:testAndroidHostTest
           :core:model:testAndroidHostTest
+          :core:designsystem:testAndroidHostTest
           :core:database:testAndroidHostTest
           :core:datastore:testAndroidHostTest
           :feature:contacts:domain:testAndroidHostTest
