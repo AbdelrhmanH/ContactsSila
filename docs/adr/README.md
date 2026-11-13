@@ -19,6 +19,10 @@
 | [0015](0015-atomic-restore-transaction-passage.md) | استعادة النسخ الاحتياطي ذرّياً: ممرّ معاملة Room واحدة فوق `LocalSilaDatabase` | مقترح |
 | [0016](0016-immediate-reminder-rescheduling-port.md) | إعادة جدولة تذكير أرحام من مسار الإعدادات: منفذ منصّي ضيق لا قرار مكرر | مقترح |
 | [0017](0017-hand-rolled-backup-crypto-engine.md) | محرك التشفير الاحتياطي اليدوي: توثيق القابلية المشتركة وقفله بمتجهات KAT | مقترح |
+| [0018](0018-macrobenchmark-device-gate-harness.md) | منصة قياس Macrobenchmark للعتاد المرجعي — موديول `:benchmark` وبنية `benchmark` | مقبول |
+| [0019](0019-local-only-crash-capture.md) | التقاط الأعطال محلياً حصراً — بلا SDK سحابي في المرحلة 1 | مقبول |
+| [0020](0020-guarded-release-signing.md) | مسار توقيع الإنتاج المحروس عبر أسرار CI — بلا مفاتيح في المستودع | مقبول |
+| [0022](0022-full-reconcile-checkpoint-gate.md) | سلامة بوابة المصالحة الكاملة — لا ختم بلا استيراد يطابق الكتالوج | مقبول |
 
 ## القالب
 ```markdown
