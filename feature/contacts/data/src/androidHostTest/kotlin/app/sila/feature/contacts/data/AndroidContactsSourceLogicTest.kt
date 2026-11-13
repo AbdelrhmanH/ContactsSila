@@ -1,9 +1,12 @@
 package app.sila.feature.contacts.data
 
+import app.sila.core.model.ContactName
 import app.sila.feature.contacts.domain.AndroidRawContactState
 import app.sila.feature.contacts.domain.ContactsSnapshot
+import app.sila.feature.contacts.domain.PlatformContact
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -521,6 +524,119 @@ class AndroidContactsSourceLogicTest {
         assertEquals("PERSONAL", mapAndroidEmailType(3, null))
         assertEquals("مخصص", mapAndroidEmailType(3, "مخصص"))
         assertEquals("PERSONAL", mapAndroidEmailType(null, null))
+    }
+
+    // ---------------------------------------------------- isFullReadIncomplete
+
+    @Test
+    fun catalogAggregatesMissingFromPagedReadReportFullReadIncomplete() {
+        // FINDING-SYNC-1 (ADR-0022): مسح `RawContacts` غير فارغ مع قراءة `Contacts` فارغة
+        // (المؤشر العابر/تأخر التجميع) — العطل المرصود: لقطة 5000 سجل + ختم مصالحة بينما
+        // `contacts = 0` في Room لأكثر من 13 دقيقة.
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L),
+            RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 101L)
+        )
+        assertTrue(isFullReadIncomplete(scanRows = scan, pagedAggregateContactIds = emptySet()))
+    }
+
+    @Test
+    fun fullCoverageOfCatalogAggregatesReportsReadComplete() {
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L),
+            RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 101L),
+            // شقيقان لتجمّعة واحدة: التجمّعة تُطالَب تغطيتها مرة واحدة لا كل سجل خام.
+            RawContactScanRow(rawContactId = "12", version = 1L, deleted = false, aggregateContactId = 101L)
+        )
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                pagedAggregateContactIds = setOf(100L, 101L)
+            )
+        )
+    }
+
+    @Test
+    fun partialPagingTruncationReportsReadIncomplete() {
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L),
+            RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 101L)
+        )
+        assertTrue(isFullReadIncomplete(scanRows = scan, pagedAggregateContactIds = setOf(100L)))
+    }
+
+    @Test
+    fun emptyCatalogWithNoUpsertsIsLegitimateEmptyBook() {
+        assertFalse(isFullReadIncomplete(scanRows = emptyList(), pagedAggregateContactIds = emptySet()))
+    }
+
+    @Test
+    fun deletedAndUnaggregatedRawRowsAreExemptFromCoverage() {
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 1L, deleted = true, aggregateContactId = 100L),
+            RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = null)
+        )
+        assertFalse(isFullReadIncomplete(scanRows = scan, pagedAggregateContactIds = emptySet()))
+    }
+
+    @Test
+    fun unaggregatedSentinelAggregateIdZeroIsExemptFromCoverage() {
+        // القيمة المرسلة `CONTACT_ID = 0` (قبل إسناد تجمّعة عند بعض مزودات البائعين)
+        // لا يمكن أن تظهر معرّفاً في جدول `Contacts` (_ID يبدأ من 1) — إعفاؤها يمنع
+        // حلقة فشل دائمة على مزوّد كهذا؛ الحارس الثاني في المحرك يحمي صفر الاستيراد.
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 0L),
+            RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 101L)
+        )
+        assertFalse(
+            isFullReadIncomplete(scanRows = scan, pagedAggregateContactIds = setOf(101L))
+        )
+    }
+
+    // ------------------------------------------------------- buildFullResyncDelta
+
+    @Test
+    fun fullResyncDeltaDecisionScanWithoutPagedCoverageYieldsNullSnapshot() {
+        // FINDING-SYNC-1 (ADR-0022): تثبيت طبقة التوصيل نفسها — مسح غير فارغ + قراءة
+        // تجمّعية فارغة (المؤشر العابر) ← بلا لقطة إطلاقاً مهما كانت upserts والمفاتيح.
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L)
+        )
+        val delta = buildFullResyncDelta(
+            scanRows = scan,
+            pagedAggregateIds = emptySet(),
+            resolvedLookupKeys = mapOf("10" to "lookup-10"),
+            upserted = emptyList(),
+            previousSnapshot = null
+        )
+        assertNull(delta.newSnapshot)
+        assertTrue(delta.isFullResync)
+        assertTrue(delta.deletedSystemContactIds.isEmpty())
+    }
+
+    @Test
+    fun fullResyncDeltaDecisionCompleteCoverageBuildsT0Snapshot() {
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 4L, deleted = false, aggregateContactId = 100L)
+        )
+        val delta = buildFullResyncDelta(
+            scanRows = scan,
+            pagedAggregateIds = setOf(100L),
+            resolvedLookupKeys = mapOf("10" to "lookup-10"),
+            upserted = listOf(
+                PlatformContact(
+                    systemContactId = "lookup-10",
+                    lookupKey = "lookup-10",
+                    name = ContactName(displayName = "عينة التغطية")
+                )
+            ),
+            previousSnapshot = null
+        )
+        val snapshot = assertNotNull(delta.newSnapshot)
+        assertEquals(ContactsSnapshot.PLATFORM_ANDROID, snapshot.platformMarker)
+        assertEquals(4L, snapshot.androidRawContacts.getValue("10").version)
+        assertEquals("lookup-10", snapshot.androidRawContacts.getValue("10").lookupKey)
+        assertTrue(delta.isFullResync)
     }
 
     // ---------------------------------------------------------------- fixtures

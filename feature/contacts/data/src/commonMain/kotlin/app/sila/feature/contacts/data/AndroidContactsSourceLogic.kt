@@ -5,6 +5,7 @@ import app.sila.core.model.Email
 import app.sila.core.model.Organization
 import app.sila.core.model.Phone
 import app.sila.feature.contacts.domain.AndroidRawContactState
+import app.sila.feature.contacts.domain.ContactsDelta
 import app.sila.feature.contacts.domain.ContactsSnapshot
 import app.sila.feature.contacts.domain.PlatformContact
 
@@ -229,6 +230,67 @@ internal fun buildNextAndroidSnapshot(
                     aggregateContactId = row.aggregateContactId
                 )
             }
+    )
+}
+
+/**
+ * حكم تغطية القراءة الكاملة (FINDING-SYNC-1 · ADR-0022):
+ *
+ * القراءة الكاملة «ناقصة» إذا خلت صفوف `Contacts` المقروءة للتصدير عن أي مجمّعة تعلنها
+ * السجلات الخام الحيّة — المصدران جدولان مختلفان (سجلات خام مقابل مجمّعة) وقد يختلفان
+ * لحظياً (تأخر تجميع أو مؤشر فارغ عابر أثناء بذر جماعي). تقديم لقطة كاملة مع صفر
+ * استيراد في هذه الحالة يختم بوابة المصالحة على دفتر فارغ ويجمّد إصدارات السجلات
+ * الخام دون استيرادها، فيغيب أصحابها عن الدلتا التزايدية إلى المصالحة التالية
+ * (العطل المرصود: لقطة 5000 سجل + ختم بينما `contacts = 0` في Room لأكثر من 13 دقيقة).
+ *
+ * نطاق الحكم تغطية **المعرفات المجمّعة** حصراً:
+ * - الصفوف `DELETED=1` والسجلات بلا تجمّعة بعد (بما فيها القيمة المرسلة `CONTACT_ID = 0`
+ *   عند بعض مزودات البائعين قبل إسناد تجمّعة) لا تُطالَب تغطية.
+ * - كتالوج فارغ (لا سجلات حيّة ذات تجمّعة) مع صفر upserts = دفتر فارغ شرعي يتقدم بوابته.
+ * - الإسقاط في التحويل النهائي (صف بلا اسم وبلا مفتاح) خارج نطاق هذا الحكم — سلوك
+ *   سابق مستقل عن العطل المرصود (يُوثَّق كمخاطرة متبقية في ADR-0022).
+ */
+internal fun isFullReadIncomplete(
+    scanRows: List<RawContactScanRow>,
+    pagedAggregateContactIds: Set<Long>,
+): Boolean {
+    val expectedAggregateIds = scanRows.asSequence()
+        .filterNot { it.deleted }
+        .mapNotNull { it.aggregateContactId?.takeIf { id -> id > 0L } }
+        .toSet()
+    if (expectedAggregateIds.isEmpty()) return false
+    return !pagedAggregateContactIds.containsAll(expectedAggregateIds)
+}
+
+/**
+ * قرار دلتا إعادة المزامنة الكاملة لنقطة التفتيش (FINDING-SYNC-1 · ADR-0022):
+ *
+ * دمج حكم التغطية [isFullReadIncomplete] مع بناء اللقطة في قرار واحد نقي قابل
+ * للاختبار على JVM بلا `ContentResolver` — «مسح غير فارغ + قراءة تجمّعية بلا تغطية»
+ * يُعاد [ContactsDelta.newSnapshot] = `null` فلا يقدَّم شيء (ADR-0010 §8)، وإلا
+ * تُبنى اللقطة بلحظة T0 عبر [buildNextAndroidSnapshot] وتُختم بعد اكتمال الاستيراد.
+ * القراءة الكاملة لا تحذف أبداً — الحذف يبقى مصالحة كاملة دورية (ADR-0010 §3).
+ */
+internal fun buildFullResyncDelta(
+    scanRows: List<RawContactScanRow>,
+    pagedAggregateIds: Set<Long>,
+    resolvedLookupKeys: Map<String, String>,
+    upserted: List<PlatformContact>,
+    previousSnapshot: ContactsSnapshot?,
+): ContactsDelta {
+    if (isFullReadIncomplete(scanRows = scanRows, pagedAggregateContactIds = pagedAggregateIds)) {
+        return ContactsDelta(
+            upserted = upserted,
+            deletedSystemContactIds = emptyList(),
+            newSnapshot = null,
+            isFullResync = true
+        )
+    }
+    return ContactsDelta(
+        upserted = upserted,
+        deletedSystemContactIds = emptyList(),
+        newSnapshot = buildNextAndroidSnapshot(scanRows, resolvedLookupKeys, previousSnapshot),
+        isFullResync = true
     )
 }
 

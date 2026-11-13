@@ -158,11 +158,13 @@ class AndroidContactsPlatformSource(
         // فيفقِد التعديلات المتزامنة إلى الأبد.
         val scanRows = scanRawContacts()
         val resolvedLookupKeys = resolveLookupKeysForRecentScan(scanRows)
+        val pagedAggregateIds = mutableSetOf<Long>()
         val upserted = buildList {
             var offset = 0
             while (true) {
                 val contactRows = queryContactRowsByPage(offset = offset, limit = DEFAULT_PAGE_LIMIT)
                 if (contactRows.isEmpty()) break
+                pagedAggregateIds.addAll(contactRows.map(AndroidContactRow::aggregateContactId))
                 addAll(
                     mapAndroidContactRows(
                         contactRows = contactRows,
@@ -172,12 +174,14 @@ class AndroidContactsPlatformSource(
                 offset += contactRows.size
             }
         }
-        return ContactsDelta(
+        // FINDING-SYNC-1 (ADR-0022): قرار الدلتا نقّي مُختبر — «مسح غير فارغ بلا تغطية
+        // استيراد» يُعاد بلا لقطة فيفشل المحرك (§8) ويُعاد على الإشارة/المصالحة/الإقلاع التالية.
+        return buildFullResyncDelta(
+            scanRows = scanRows,
+            pagedAggregateIds = pagedAggregateIds,
+            resolvedLookupKeys = resolvedLookupKeys,
             upserted = upserted,
-            // القراءة الكاملة لا تحذف أبداً — الحذف يبقى مصالحة كاملة دورية (ADR-0010 §3).
-            deletedSystemContactIds = emptyList(),
-            newSnapshot = buildNextAndroidSnapshot(scanRows, resolvedLookupKeys, previousSnapshot),
-            isFullResync = true
+            previousSnapshot = previousSnapshot
         )
     }
 
