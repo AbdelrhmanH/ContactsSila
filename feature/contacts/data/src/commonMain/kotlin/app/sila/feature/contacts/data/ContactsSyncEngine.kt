@@ -297,6 +297,17 @@ class ContactsSyncEngine(
         val newSnapshot = requireDeltaCommitted(delta)
         val nowMillis = clock.nowEpochMillis()
         val upserts = delta.upserted.map { it.toDomainContact(nowMillis) }
+        // FINDING-SYNC-1 (ADR-0022) — طبقة حماية ثانية مستقلة عن المنصة: مصالحة كاملة
+        // تعيد كتالوج أندرويد غير فارغ بصفر جهات مجسَّدة = قراءة ناقصة لا يجوز ختمها
+        // (بوابة المصالحة تتقدم عند الاكتمال المطابق للكتالوج حصراً). الدفتر الفارغ
+        // الشرعي (كتالوج فارغ) يتجاوز الحارس طبيعياً، ولقطات iOS (بلا كتالوج أندرويد)
+        // حِملية هنا. الفشل يُعلن صادقاً ويُعاد على الإشارة/المصالحة/الإقلاع التالية (§8).
+        if (upserts.isEmpty() && newSnapshot.androidRawContacts.isNotEmpty()) {
+            throw IllegalStateException(
+                "Full resync returned zero contacts for a non-empty Android catalog; " +
+                    "refusing snapshot + reconcile stamp (ADR-0022)."
+            )
+        }
         val platformIds = delta.upserted.mapTo(mutableSetOf()) { it.systemContactId }
         val snapshotJson = ContactsSnapshotCodec.encode(newSnapshot)
         val batches = upserts.chunked(batchLimit)
