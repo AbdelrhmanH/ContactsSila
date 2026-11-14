@@ -233,7 +233,10 @@ fun createSilaSharedModule(storageDirPath: String? = null): Module = module {
         val prefsPath = storageDirPath?.let { "$it/${SilaPreferencesDataSource.DATASTORE_FILE_NAME}" }
         SilaPreferencesDataSource(
             storageFilePath = prefsPath,
-            defaultDispatcher = get<AppDispatchers>().default
+            defaultDispatcher = get<AppDispatchers>().default,
+            // إصلاح عيب DEF-02 (تذكرة #97): حسم اللغة غير المحفوظة من لغة الموارد
+            // الفعلية حتى لا تنطلق واجهة مختلطة من الإطار الأول على تثبيت جديد.
+            resourceLanguageCodeProvider = ::platformResourceLanguageCode
         )
     }
 
