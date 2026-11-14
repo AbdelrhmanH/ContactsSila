@@ -1,6 +1,7 @@
 package app.sila.arham.notification
 
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.Log
@@ -80,7 +81,8 @@ internal object ArhamNotificationPoster {
         }
     }
 
-    /** بناء الإشعار: نقرة المحتوى تفتح التطبيق، والفعلان يرسلان للمستقبِل بلا extras. */
+    /** بناء الإشعار: نقرة المحتوى وزر «اتصل الآن» يطلقان النشاط مباشرةً، و«ذكّرني غداً»
+     *  بثّ للمستقبِل — بلا extras في أي Intent (لا PII). */
     private fun build(context: Context, title: String, text: String) =
         NotificationCompat.Builder(context, ArhamNotificationChannel.CHANNEL_ID)
             .setSmallIcon(app.sila.sharedLogic.R.drawable.ic_arham_reminder)
@@ -89,11 +91,15 @@ internal object ArhamNotificationPoster {
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-            .setContentIntent(openAppIntent(context))
+            .setContentIntent(openActivityIntent(context = context, requestCode = 2004))
             .addAction(
                 /* icon = */ app.sila.sharedLogic.R.drawable.ic_action_call,
                 /* title = */ context.getString(app.sila.sharedLogic.R.string.arham_action_call_now),
-                /* intent = */ actionIntent(context = context, action = ACTION_CALL_NOW, requestCode = 2002),
+                // A-N08: النظام يُطلق النشاط مباشرةً عند النقر — نمط نقرة المحتوى المثبت
+                // (A-N07). البثّ عبر المستقبِل ثم `startActivity` من مكوّنٍ خلفي تُجهاضه
+                // سياسة بدء-الخلفية دائماً حتى بحالة التطبيق الطازجة: `-91` على المحاكي
+                // و`ActivityNotFoundException` على MIUI (جلسة 2026-11-14).
+                /* intent = */ openActivityIntent(context = context, requestCode = 2002),
             )
             .addAction(
                 /* icon = */ app.sila.sharedLogic.R.drawable.ic_action_snooze,
@@ -102,16 +108,43 @@ internal object ArhamNotificationPoster {
             )
             .build()
 
-    /** نقرة المحتوى: فتح التطبيق عبر MAIN/LAUNCHER على الحزمة صراحةً — بلا extras. */
-    private fun openAppIntent(context: Context): PendingIntent = PendingIntent.getActivity(
-        context,
-        2004,
-        Intent(Intent.ACTION_MAIN)
+    /**
+     * نية فتح التطبيق بمكوّنٍ صريح (`ComponentName`): تحلّ `MainActivity` عبر
+     * `getLaunchIntentForPackage` (بلا قيد `CATEGORY_DEFAULT`) وتُثبت احتياطياً
+     * باسم النشاط القياسي.
+     *
+     * **لماذا الصراحة ضرورية رغم وجود `<intent-filter>`؟**
+     * `ActivityTaskSupervisor.resolveIntent` يُدخل `PackageManager.MATCH_DEFAULT_ONLY`
+     * في كل `startActivity` و`PendingIntent.getActivity` (بينما `cmd package resolve-activity`
+     * يمرّر flags=0 فتنجح نية shell). لأن `<intent-filter>` لـ `MainActivity`
+     * يحمل `MAIN/LAUNCHER` بلا `CATEGORY_DEFAULT` — تفشل النية الضمنية دائماً
+     * بـ `aInfo is null` (Android 12/MIUI) وبـ `result code=-91` (Android 16) متى ما
+     * لم يكن التطبيق مفتوحاً بالصدفة في المقدمة. بلا extras (لا PII) ولا `tel:`.
+     */
+    internal fun createLaunchAppIntent(context: Context): Intent {
+        val resolvedComponent = context.packageManager
+            ?.getLaunchIntentForPackage(context.packageName)
+            ?.component
+            ?: ComponentName(context.packageName, MAIN_ACTIVITY_CLASS_NAME)
+        return Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setPackage(context.packageName)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
+            .setComponent(resolvedComponent)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    /**
+     * إطلاق النشاط مباشرةً بواسطة النظام (نقرة المحتوى وزر «اتصل الآن»): النظام هو
+     * المطلق عند النقر فمركزه مرئي — يبدأ النشاط بمكوّنه الصريح دون إجهاض
+     * بدء-الخلفية أو فشل `MATCH_DEFAULT_ONLY`.
+     */
+    private fun openActivityIntent(context: Context, requestCode: Int): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            requestCode,
+            createLaunchAppIntent(context),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
     /** فعل زر: Intent صريح المكوّن للفعل فقط — بلا extras إطلاقاً (لا PII). */
     private fun actionIntent(context: Context, action: String, requestCode: Int): PendingIntent =
@@ -121,6 +154,9 @@ internal object ArhamNotificationPoster {
             Intent(context, ArhamNotificationActionReceiver::class.java).setAction(action),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+
+    /** اسم فئة النشاط الرئيسي داخل الحزمة الفعلية (`app.sila` أو `app.sila.test`). */
+    internal const val MAIN_ACTIVITY_CLASS_NAME = "app.sila.MainActivity"
 
     /** نوع التاريخ كما في `ArhamOccasion.type` — مرآة قيم النموذج (لا نص واجهة). */
     private const val DATE_TYPE_BIRTHDAY = "BIRTHDAY"
