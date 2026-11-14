@@ -2,6 +2,7 @@ package app.sila
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,8 +44,8 @@ import app.sila.core.designsystem.SilaActionSheet
 import app.sila.core.designsystem.SilaColors
 import app.sila.core.designsystem.SilaDimens
 import app.sila.core.designsystem.SilaTheme
+import app.sila.core.designsystem.resolvesSilaDarkTheme
 import app.sila.core.model.AppLanguage
-import app.sila.core.model.AppThemeMode
 import app.sila.core.model.DefaultTab
 import app.sila.di.ensureKoinStarted
 import app.sila.feature.arham.presentation.ArhamPlatformEffect
@@ -102,7 +103,11 @@ fun App(
     val onboardingViewModel = remember(koin) { koin.get<OnboardingViewModel>() }
 
     val state by mainViewModel.state.collectAsState()
-    val isDark = state.preferences.themeMode == AppThemeMode.DARK
+    // DEF-03: وضع «حسب النظام» يتبع المنصة فعلياً — لا «فاتح دائماً» (PRD §12).
+    val isDark = resolvesSilaDarkTheme(
+        themeMode = state.preferences.themeMode,
+        systemInDarkTheme = isSystemInDarkTheme()
+    )
     val isRtl = state.preferences.language.isRtl
     val isAr = state.preferences.language == AppLanguage.ARABIC
     val onboardingStrings = rememberOnboardingStrings()

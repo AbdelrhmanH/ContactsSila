@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -35,8 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.sila.core.designsystem.SilaTheme
+import app.sila.core.designsystem.resolvesSilaDarkTheme
 import app.sila.core.model.AppLanguage
-import app.sila.core.model.AppThemeMode
 import app.sila.core.model.ContactSwipeAction
 import app.sila.arham.screening.ScreeningRoleController
 import app.sila.di.ensureKoinStarted
@@ -322,8 +323,12 @@ fun SilaAndroidApp() {
     numberPicker?.let { picker ->
         // داخل SilaTheme (مراجعة PR #36 — F5): الحوار يتألف خارج [App]، فلكي يرث
         // الوضع الداكن واتجاه RTL من تفضيلات المستخدم نفسها نلفه بنفس سمات السمة.
+        // DEF-03: «حسب النظام» يتبع المنصة فعلياً بنفس قرار القشرة — لا فاتح دائماً.
         SilaTheme(
-            darkTheme = mainState.preferences.themeMode == AppThemeMode.DARK,
+            darkTheme = resolvesSilaDarkTheme(
+                themeMode = mainState.preferences.themeMode,
+                systemInDarkTheme = isSystemInDarkTheme()
+            ),
             isRtl = mainState.preferences.language.isRtl
         ) {
             AlertDialog(

@@ -17,7 +17,28 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.sila.core.model.ArhamStatus
+import app.sila.core.model.AppThemeMode
 import app.sila.core.model.Category
+
+/**
+ * قرار الوضع الداكن الفعّال من تفضيل المستخدم وحالة النظام (DEF-03 · PRD §12
+ * «فاتح / داكن / حسب النظام»):
+ *
+ * كان قرار الواجهة `themeMode == AppThemeMode.DARK` حصراً فيموت وضع «حسب النظام»
+ * — وهو افتراضي [app.sila.core.model.UserPreferences.themeMode] — فيُعرض التطبيق
+ * فاتحاً دائماً حتى مع نظام داكن. القرار الصحيح: `DARK`/`LIGHT` يفرضان قيمتهما
+ * صراحة، و`SYSTEM` يتبع حالة المنصة. نقية وقابلة للاختبار على JVM؛ موضعا القرار
+ * (قشرة التطبيق في `sharedUI` وحوار اختيار الرقم في `androidApp`) يستدعيانها
+ * بالتعبير نفسه فلا يفترقا أبداً.
+ */
+fun resolvesSilaDarkTheme(
+    themeMode: AppThemeMode,
+    systemInDarkTheme: Boolean,
+): Boolean = when (themeMode) {
+    AppThemeMode.DARK -> true
+    AppThemeMode.LIGHT -> false
+    AppThemeMode.SYSTEM -> systemInDarkTheme
+}
 
 /**
  * نظام ألوان صِلَة المعتمد (DESIGN_SYSTEM.md §1).
