@@ -1,9 +1,11 @@
 package app.sila
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import app.sila.arham.notification.ArhamReminderDispatch
 import app.sila.di.ensureKoinStarted
 
 /**
@@ -19,8 +21,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         ensureKoinStarted(storageDirPath = filesDir.absolutePath)
+        ArhamReminderDispatch.onLaunchIntentHandled(context = this, intent = intent)
         setContent {
             SilaAndroidApp()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ArhamReminderDispatch.onLaunchIntentHandled(context = this, intent = intent)
     }
 }

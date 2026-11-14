@@ -1,6 +1,7 @@
 package app.sila.arham.notification
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import app.sila.core.datastore.UserPreferencesDataSource
@@ -86,6 +87,14 @@ object ArhamReminderDispatch {
         val plan = planner.plan(prefs)
         scheduler.scheduleAt(plan.fireAtMillis)
     }
+
+    /**
+     * خطاف دورة حياة النشاط (`MainActivity.onCreate` / `onNewIntent`) لمعالجة نية الإطلاق:
+     * إذا وصل النشاط عبر زر «اتصل الآن» (`ACTION_CALL_NOW` — A-N08)، يُزال إشعار 2001
+     * ويُستهلك الوسم حتى لا يتكرر التنظيف عند تدوير الشاشة.
+     */
+    fun onLaunchIntentHandled(context: Context, intent: Intent?): Boolean =
+        ArhamNotificationPoster.consumeCallNowIntent(context = context, intent = intent)
 }
 
 /**
