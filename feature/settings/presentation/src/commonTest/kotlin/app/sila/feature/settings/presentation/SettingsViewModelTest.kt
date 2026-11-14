@@ -286,6 +286,29 @@ class SettingsViewModelTest {
         }
     }
 
+    /** مراجعة DEF-04 الخصومية: مستودع يلتقط حمولة الاسترجاع لإثبات هوية البايتات المستعادة. */
+    private class PayloadRecordingRepository(
+        private val recorded: MutableList<BackupPayload>
+    ) : TestSettingsRepository() {
+        override suspend fun restoreBackupData(
+            payload: BackupPayload,
+            mode: RestoreMode,
+            restorePreferences: Boolean
+        ): RestoreResult {
+            recorded += payload
+            return super.restoreBackupData(payload, mode, restorePreferences)
+        }
+    }
+
+    // حمولات اختبارات مراجعة DEF-04 الخصومية — محتوى متمايز (Y: تصنيف "Ali"؛ Z: تصنيف "Zayn")
+    // لإثبات هوية البايتات المستاعدة عبر التقاط الحمولة في المستودع.
+    private val def04YPayloadJson =
+        "{\"version\":1,\"exportedAt\":\"now\",\"appVersion\":\"1.0.0\"," +
+            "\"categories\":[{\"lookupKey\":\"k1\",\"displayName\":\"Ali\",\"category\":\"FAMILY\"}]}"
+    private val def04ZPayloadJson =
+        "{\"version\":1,\"exportedAt\":\"now\",\"appVersion\":\"1.0.0\"," +
+            "\"categories\":[{\"lookupKey\":\"k2\",\"displayName\":\"Zayn\",\"category\":\"WORK\"}]}"
+
     @Test
     fun reminderPreferenceIntents_rescheduleImmediatelyAfterWrite() = runTest(testDispatcher) {
         val events = mutableListOf<String>()
@@ -917,6 +940,116 @@ class SettingsViewModelTest {
         vm.onIntent(SettingsIntent.SetImportBackupBytes(byteArrayOf()))
         settle()
         assertEquals(null, vm.state.value.importBackupBytes)
+    }
+
+    @Test
+    fun setImportBackupBytesAfterSuccessfulPreviewInvalidatesStalePreview() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val crypto = TestCryptoEngine()
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = crypto,
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        // معاينة ناجحة لمصدر Y تفتح حوار المعاينة بملخصها
+        val cipherY = crypto.encrypt(def04YPayloadJson.encodeToByteArray(), "pw")
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(cipherY))
+        settle()
+        vm.onIntent(SettingsIntent.PreviewBackupFile(cipherBytes = cipherY, password = "pw"))
+        settle()
+        assertTrue(vm.state.value.showRestorePreviewDialog)
+        assertNotNull(vm.state.value.backupPreview)
+
+        // اعتماد بايتات مصدر أحدث (Z) يُبطل معاينة المصدر القديم ببابها وملخصها
+        // (مراجعة DEF-04 الخصومية) — فلا تُستعاد بايتات قديمة عبر معاينة حية،
+        // ويُعاد المعاين للمصدر الجديد قبل أي استعادة.
+        val cipherZ = crypto.encrypt("""{"version":1,"exportedAt":"now"}""".encodeToByteArray(), "pw")
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(cipherZ))
+        settle()
+
+        assertEquals(null, vm.state.value.backupPreview, "اعتماد مصدر جديد يُبطل معاينة المصدر القديم")
+        assertFalse(vm.state.value.showRestorePreviewDialog, "حوار المعاينة القديم يُغلق عند اعتماد مصدر جديد")
+    }
+
+    @Test
+    fun previewBackupFileSuccessFreezesRequestedBytesEvenWhenNewerSourceAdoptedMidFlight() = runTest(testDispatcher) {
+        val repo = TestSettingsRepository()
+        val crypto = TestCryptoEngine()
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = crypto,
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        // سباق T1 (مراجعة DEF-04 الخصومية): اعتماد مصدر أحدث (Z) أثناء طيران معاينة
+        // مصدر سابق (Y). نجاح المعاينة يجمد حمولتها Y لا البايتات المعتمدة Z —
+        // فالملخص المعروض والبايتات المستعادة يعودان لما عاينه المستخدم بنيوياً.
+        val cipherY = crypto.encrypt(def04YPayloadJson.encodeToByteArray(), "pw")
+        val cipherZ = crypto.encrypt(def04ZPayloadJson.encodeToByteArray(), "pw")
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(cipherY))
+        settle()
+        vm.onIntent(SettingsIntent.PreviewBackupFile(cipherBytes = cipherY, password = "pw"))
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(cipherZ))
+        settle()
+
+        assertTrue(vm.state.value.showRestorePreviewDialog, "معاينة Y الناجحة تفتح الحوار رغم تبني Z أثناء طيرانها")
+        assertEquals(1, vm.state.value.backupPreview?.categoriesCount, "الملخص المعروض من حمولة Y المعاينة")
+        assertContentEquals(cipherY, vm.state.value.previewedCipherBytes, "التجميد يعيد بايتات المعاينة Y لا المعتمدة Z")
+        assertContentEquals(cipherZ, vm.state.value.importBackupBytes, "المصدر المعتمد الأحدث Z كما هو — منفصل عن بايتات المعاينة المجمّدة")
+    }
+
+    @Test
+    fun confirmRestoreRestoresFrozenPreviewedBytesEvenForStaleReResolvedIntent() = runTest(testDispatcher) {
+        val recorded = mutableListOf<BackupPayload>()
+        val repo = PayloadRecordingRepository(recorded)
+        val crypto = TestCryptoEngine()
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = crypto,
+            platformRingtoneSource = TestPlatformRingtoneSource(),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        val cipherY = crypto.encrypt(def04YPayloadJson.encodeToByteArray(), "pw")
+        val cipherZ = crypto.encrypt(def04ZPayloadJson.encodeToByteArray(), "pw")
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(cipherY))
+        settle()
+        vm.onIntent(SettingsIntent.PreviewBackupFile(cipherBytes = cipherY, password = "pw"))
+        vm.onIntent(SettingsIntent.SetImportBackupBytes(cipherZ))
+        settle()
+
+        // نية على شكل الحل الحي القديم (Z) — كما كان التأكيد يرسله قبل الإصلاح.
+        // طبقة الحماية الثانية في الـ ViewModel: الاستعادة تستهلك المجمّد Y حصراً،
+        // فلا يمكن لأي مُرسِل متأخر بحلّ حي أن يحرف «المستعاد = المعاين».
+        vm.onIntent(
+            SettingsIntent.ConfirmRestore(
+                cipherBytes = cipherZ,
+                password = "pw",
+                mode = RestoreMode.MERGE,
+                restorePreferences = false
+            )
+        )
+        settle()
+
+        assertNotNull(vm.state.value.restoreResult, "الاستعادة تمت من البايتات المجمّدة رغم نية متأخرة بحل قديم")
+        assertEquals(1, recorded.size)
+        assertEquals(
+            "Ali",
+            recorded.single().categories.single().displayName,
+            "البايتات المستعادة هي المعاينة Y حصراً — لا المصدر المعتمد الأحدث Z"
+        )
     }
 
     @Test
