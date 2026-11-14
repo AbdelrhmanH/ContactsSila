@@ -49,6 +49,33 @@ import app.sila.feature.settings.domain.UnmatchedBackupEntry
  */
 
 /**
+ * قرار بايتات العرض الموحّد (DEF-04 · مسار SAF):
+ *
+ * دالة نقّي تُغذّي «البيانات المحمّلة» التي يعرضها حوار الاستيراد — موضع العرض
+ * الوحيد المتبقي بعد مراجعة DEF-04 الخصومية؛ أما بايتات التأكيد في حوار المعاينة
+ * فتُستهلك منذئذٍ من الحالة المجمّدة [SettingsUiState.previewedCipherBytes]
+ * حصراً (تجميد لحظة نجاح المعاينة بحمولتها، وإبطال عند اعتماد مصدر جديد) فلا
+ * حلّ حيّ لاحق يمكن أن يُرسل بايتات غير المُعاينة.
+ *
+ * الأولوية: بايتات ملف الجهاز المختارة عبر SAF ([SettingsUiState.importBackupBytes]
+ * عبر نية `SetImportBackupBytes`) أولاً ما دامت معتمدة، ثم ذاكرة جلسة التصدير
+ * [restoreBytesBuffer]، ثم آخر نسخة مُصدَّرة [lastExportedBytes]. «الأحدث اختياراً
+ * يفوز» يتحقق عبر مسح المصدر الأقدم عند إغلاق حواراته (`DismissImportDialog`
+ * و`DismissRestorePreviewDialog` يمسحان بايتات SAF) لا بترتيب مطلق في السلسلة
+ * ذاتها — فإعادة صياغة مستقبلية تُبقي بايتات SAF بعد الإغلاق تكسر هذا الافتراض.
+ *
+ * العطل المصحَّح: `restoreReady` و`onRestore` كانا يأخذان المصدرين الأخيرين فقط،
+ * فمسار «اختيار ملف من الجهاز» يموت عند المعاينة (زر التأكيد معطّل دائماً).
+ * العقد: بايتات SAF المتبناة غير فارغة وضمن السقف 16MB (النية والمضيف يفحصان
+ * قبل الاعتماد) — سلوك الدالة مع مصادر أخرى يبقى كما هو.
+ */
+internal fun resolvedRestoreBytes(
+    state: SettingsUiState,
+    restoreBytesBuffer: ByteArray?,
+    lastExportedBytes: ByteArray?,
+): ByteArray? = state.importBackupBytes ?: restoreBytesBuffer ?: lastExportedBytes
+
+/**
  * مضيف حوارات كلمة السر: التصدير والاستيراد ومعاينة الاستعادة. يملك مسودات الإدخال
  * الثلاثة ووضع الاستعادة وخيار استعادة التفضيلات، فيمرّرهما للحوارات الفردية
  * بمعاملاتها الحرفية نفسها.
@@ -85,7 +112,7 @@ internal fun SettingsRestorePasswordDialogs(
             state = state,
             strings = strings,
             isArabic = isArabic,
-            loadedBytes = state.importBackupBytes ?: restoreBytesBuffer ?: lastExportedBytes,
+            loadedBytes = resolvedRestoreBytes(state, restoreBytesBuffer, lastExportedBytes),
             password = restorePasswordInput,
             onPasswordChange = { restorePasswordInput = it },
             onPickBackupFile = onPickBackupFile,
@@ -96,6 +123,13 @@ internal fun SettingsRestorePasswordDialogs(
     // حوار معاينة النسخة الاحتياطية وتأكيد الاستعادة
     state.backupPreview?.let { preview ->
         if (state.showRestorePreviewDialog) {
+            // DEF-04: زر التأكيد يُحكَم بالبايتات المجمّدة من نجاح المعاينة نفسها —
+            // مصدر SAF كان أعمى عنه `restoreReady` سلفاً فيموت مسار الاستعادة الملفي
+            // عند المعاينة، والحل الحي عند التأكيد كان قد يُرسل بايتات غير المُعاينة
+            // إذا تبنّى المضيف مصدراً أحدث أثناء المعاينة أو بعدها (مراجعة DEF-04
+            // الخصومية) — فالتجميد يجعل «المستعاد = المعاين» بنيوياً، والاعتماد
+            // الجديد في الـ ViewModel يُبطل المعاينة كاملة فيُعاد المعاين.
+            val previewedBytes = state.previewedCipherBytes
             RestorePreviewDialog(
                 preview = preview,
                 strings = strings,
@@ -104,13 +138,12 @@ internal fun SettingsRestorePasswordDialogs(
                 onRestoreModeChange = { restoreMode = it },
                 restorePreferences = restorePreferencesCheckbox,
                 onRestorePreferencesChange = { restorePreferencesCheckbox = it },
-                restoreReady = (restoreBytesBuffer != null || lastExportedBytes != null) && !state.isImportingBackup,
+                restoreReady = previewedBytes != null && !state.isImportingBackup,
                 onRestore = {
-                    val cipherBytes = restoreBytesBuffer ?: lastExportedBytes
-                    if (cipherBytes != null) {
+                    if (previewedBytes != null) {
                         onIntent(
                             SettingsIntent.ConfirmRestore(
-                                cipherBytes = cipherBytes,
+                                cipherBytes = previewedBytes,
                                 password = restorePasswordInput,
                                 mode = restoreMode,
                                 restorePreferences = restorePreferencesCheckbox

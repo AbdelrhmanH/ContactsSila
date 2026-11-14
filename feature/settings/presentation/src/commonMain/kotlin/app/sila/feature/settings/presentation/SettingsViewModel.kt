@@ -65,6 +65,14 @@ data class SettingsUiState(
     val backupErrorKind: BackupErrorKind? = null,
     /** بايتات نسخة مختارة من ملف الجهاز (SAF/مضيف Android) عبر نية SetImportBackupBytes — يُتبنّى ضمن سقف 16MB ويُمسح عند إغلاق أو إتمام مسار الاستعادة. */
     val importBackupBytes: ByteArray? = null,
+    /**
+     * DEF-04 (مراجعة الاستعادة الخصومية): بايتات النسخة التي نجحت معاينتها، مجمّدة
+     * لحظة نجاح [SettingsIntent.PreviewBackupFile] بحمولتها ذاتها — مصدر الاستعادة
+     * في مسار الحوار (بوابة التأكيد والحمولة معاً) فلا يُحلّ حلٌّ حيٌّ لاحق. تُمسح
+     * عند اعتماد بايتات جديدة (إبطال معاينة مصدر آخر) وعند إغلاق حوار المعاينة
+     * وعند نجاح الاستعادة.
+     */
+    val previewedCipherBytes: ByteArray? = null,
     // حالات الحوارات
     val showExportPasswordDialog: Boolean = false,
     val showImportPasswordDialog: Boolean = false,
@@ -355,7 +363,16 @@ class SettingsViewModel(
                 if (bytes == null || bytes.isEmpty() || bytes.size > MAX_IMPORT_BACKUP_BYTES) {
                     it.copy(importBackupBytes = null)
                 } else {
-                    it.copy(importBackupBytes = bytes, backupErrorKind = null)
+                    // DEF-04 (إبطال عند الاعتماد): مصدر جديد يعتمد ⇒ أي معاينة سابقة
+                    // لمصدر آخر تُبطَل ببابها وملخصها وبايتاتها المجمّدة — فلا تُستعاد
+                    // بايتات قديمة عبر معاينة حية، ويُعاد المعاين للمصدر الجديد.
+                    it.copy(
+                        importBackupBytes = bytes,
+                        backupErrorKind = null,
+                        backupPreview = null,
+                        showRestorePreviewDialog = false,
+                        previewedCipherBytes = null
+                    )
                 }
             }
             is SettingsIntent.PreviewBackupFile -> viewModelScope.launch {
@@ -367,7 +384,12 @@ class SettingsViewModel(
                             isImportingBackup = false,
                             showImportPasswordDialog = false,
                             showRestorePreviewDialog = true,
-                            backupPreview = preview
+                            backupPreview = preview,
+                            // DEF-04: تجميد بايتات المعاينة الناجحة بحمولتها ذاتها —
+                            // حتى لو تبنّى المضيف مصدراً أحدث أثناء طيران المعاينة
+                            // أو بعدها، يبقى ما يُستعاد هو ما عاينه المستخدم حصراً
+                            // (نجاح المعاينة يعيد التجميد بحمولتها لا بالمعتمد الأحدث).
+                            previewedCipherBytes = intent.cipherBytes
                         )
                     }
                 } catch (err: Exception) {
@@ -376,10 +398,16 @@ class SettingsViewModel(
                 }
             }
             is SettingsIntent.ConfirmRestore -> viewModelScope.launch {
+                // مراجعة DEF-04 الخصومية: بايتات المعاينة الناجحة المجمّدة هي المصدر
+                // الحاكم عند وجودها (نية الحوار المُصلَح تحملها نفسها)، وطبقة حماية
+                // ثانية: حتى نية متأخرة بحلّ حيّ قديم لا تحرف «المستعاد = المعاين».
+                // غياب التجميد — نداء مباشر بلا مسار حوار، كاختبارات مسار `#97` —
+                // يحافظ على دلالة النية الحرفية فلا انكسار للمتصلين القائمين.
+                val restoreCipherBytes = _uiState.value.previewedCipherBytes ?: intent.cipherBytes
                 _uiState.update { it.copy(isImportingBackup = true, backupErrorKind = null) }
                 try {
                     val result = backupPort.restoreBackup(
-                        cipherBytes = intent.cipherBytes,
+                        cipherBytes = restoreCipherBytes,
                         password = intent.password,
                         mode = intent.mode,
                         restorePreferences = intent.restorePreferences
@@ -390,6 +418,7 @@ class SettingsViewModel(
                             showRestorePreviewDialog = false,
                             restoreResult = result,
                             importBackupBytes = null,
+                            previewedCipherBytes = null,
                             // S1-15 (تذكرة #62): سجلات غير مطابقة تُبرز فوراً بعد الاستعادة
                             // للربط اليدوي بدل بقاءها رقماً صامتاً في الإشعار فقط.
                             unmatchedRemaining = result.unmatchedEntries,
@@ -413,7 +442,12 @@ class SettingsViewModel(
                 }
             }
             is SettingsIntent.DismissRestorePreviewDialog -> _uiState.update {
-                it.copy(showRestorePreviewDialog = false, backupPreview = null, importBackupBytes = null)
+                it.copy(
+                    showRestorePreviewDialog = false,
+                    backupPreview = null,
+                    importBackupBytes = null,
+                    previewedCipherBytes = null
+                )
             }
             // نتائج الاستعادة والربط اليدوي (S1-15 — تذكرة #62)
             is SettingsIntent.DismissRestoreResultDialog -> _uiState.update {
