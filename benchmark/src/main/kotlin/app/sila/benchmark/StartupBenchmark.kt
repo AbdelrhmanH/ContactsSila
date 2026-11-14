@@ -47,8 +47,10 @@ class StartupBenchmark {
         }
 
     private companion object {
-        /** معرف التطبيق المقيس (:androidApp — applicationId في build.gradle.kts). */
-        const val TARGET_PACKAGE = "app.sila"
+        /** معرف التطبيق المقيس — بنية القياس المعزولة في `:androidApp`
+         *  (`applicationIdSuffix = ".bench"` — تذكرة #95/تعديل ADR-0018): لا يمس
+         *  هوية الإنتاج `app.sila` ولا حزمة الأجهزة `app.sila.benchmark`. */
+        const val TARGET_PACKAGE = "app.sila.bench"
 
         /** العدد الموثق للتكرارات في قياس إقلاع مستقر على العتاد المرجعي. */
         const val ITERATIONS = 10

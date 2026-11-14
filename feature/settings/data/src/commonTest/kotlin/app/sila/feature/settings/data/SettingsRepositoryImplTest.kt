@@ -232,25 +232,6 @@ class SettingsRepositoryImplTest {
         }
     }
 
-    private fun createContact(
-        id: Long,
-        lookupKey: String,
-        displayName: String,
-        category: Category = Category.UNCATEGORIZED,
-        tags: List<String> = emptyList(),
-        arham: ArhamInfo? = null,
-        dates: List<ImportantDate> = emptyList()
-    ): Contact = Contact(
-        id = id,
-        systemContactId = lookupKey,
-        lookupKey = lookupKey,
-        name = ContactName(displayName = displayName),
-        category = category,
-        tags = tags,
-        arham = arham,
-        dates = dates
-    )
-
     @Test
     fun getBackupData_collectsCategoriesArhamTagsAndPreferences() = runTest {
         val contact1 = createContact(
@@ -549,6 +530,9 @@ class SettingsRepositoryImplTest {
         val result = repository.restoreBackupData(payload, mode = RestoreMode.MERGE, restorePreferences = true)
 
         assertTrue(result.restoredPreferences)
+        // متابعة `#97` (مسار الاسترجاع): النتيجة تحمل اللغة المسترجعة ليطبقها
+        // ViewModel عبر منفذ AppLocalePort بعد النجاح — والتفضيل مقيد في DataStore.
+        assertEquals(AppLanguage.ENGLISH, result.restoredLanguage)
         val restoredPrefs = dataSource.preferences.first()
         assertEquals(AppThemeMode.DARK, restoredPrefs.themeMode)
         assertEquals(AppLanguage.ENGLISH, restoredPrefs.language)
@@ -563,6 +547,54 @@ class SettingsRepositoryImplTest {
         val plan = checkNotNull(fakeRunner.lastPlan)
         assertEquals(false, plan.replaceBeforeApply)
         assertEquals(0, plan.contactRewrites.size)
+    }
+
+    @Test
+    fun restoreBackupDataCarriesRestoredLanguageOnlyWhenPreferenceRestoredFromPayload() = runTest {
+        val fakeContactDao = FakeContactDao()
+        val fakeArhamDao = FakeArhamDao()
+        val fakeRunner = FakeClassificationRestoreRunner(fakeContactDao)
+        val dataSource = SilaPreferencesDataSource()
+
+        val repository = SettingsRepositoryImpl(
+            dataSource = dataSource,
+            contactDao = fakeContactDao,
+            arhamDao = fakeArhamDao,
+            classificationRestoreRunner = fakeRunner
+        )
+
+        val payloadWithPreferences = BackupPayload(
+            version = 1,
+            exportedAt = "2026-11-08T12:00:00Z",
+            appVersion = "1.0.0",
+            categories = emptyList(),
+            arham = emptyList(),
+            tags = emptyList(),
+            preferences = BackupPreferencesEntry(language = AppLanguage.ARABIC),
+            categoryRingtones = emptyMap(),
+            automations = emptyList(),
+            disputes = emptyList()
+        )
+
+        // بلا اختيار استعادة التفضيلات: اللغة لا تُستعاد ولا تُحمل في النتيجة —
+        // فلا تطبيق لغة زائف في ViewModel (متابعة `#97` — مسار الاسترجاع).
+        val flagOff = repository.restoreBackupData(payloadWithPreferences, mode = RestoreMode.MERGE, restorePreferences = false)
+
+        assertFalse(flagOff.restoredPreferences)
+        assertEquals(null, flagOff.restoredLanguage)
+        assertEquals(AppLanguage.ARABIC, dataSource.preferences.first().language, "الافتراضي بلا مساس")
+
+        // حمولة بلا تفضيلات أصلاً مع اختيار الاستعادة: restoredLanguage = null
+        // (متابعة `#97` — مسار الاسترجاع) والتفضيل القائم بلا مساس.
+        val noPrefs = repository.restoreBackupData(
+            payloadWithPreferences.copy(preferences = null),
+            mode = RestoreMode.MERGE,
+            restorePreferences = true
+        )
+
+        assertTrue(noPrefs.restoredPreferences)
+        assertEquals(null, noPrefs.restoredLanguage)
+        assertEquals(AppLanguage.ARABIC, dataSource.preferences.first().language, "الافتراضي بلا مساس")
     }
 
     @Test
@@ -770,3 +802,23 @@ class SettingsRepositoryImplTest {
         assertTrue(fakeArhamDao.arhamMap.isEmpty())
     }
 }
+
+/** مُساعد بناء جهة اتصال للاختبار — على مستوى الملف إبقاءً على صنف الاختبار تحت سقف `TooManyFunctions`. */
+private fun createContact(
+    id: Long,
+    lookupKey: String,
+    displayName: String,
+    category: Category = Category.UNCATEGORIZED,
+    tags: List<String> = emptyList(),
+    arham: ArhamInfo? = null,
+    dates: List<ImportantDate> = emptyList()
+): Contact = Contact(
+    id = id,
+    systemContactId = lookupKey,
+    lookupKey = lookupKey,
+    name = ContactName(displayName = displayName),
+    category = category,
+    tags = tags,
+    arham = arham,
+    dates = dates
+)

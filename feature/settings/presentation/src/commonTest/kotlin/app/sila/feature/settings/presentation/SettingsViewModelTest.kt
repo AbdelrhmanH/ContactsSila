@@ -125,7 +125,10 @@ class SettingsViewModelTest {
             matchedArham = 2,
             unmatchedArham = 0,
             restoredPreferences = restorePreferences,
-            unmatchedEntries = emptyList()
+            unmatchedEntries = emptyList(),
+            // متابعة `#97` (مسار الاسترجاع): الفاك يحسبها من الحمولة كما يفعل
+            // المستودع الحقيقي — لغة التفضيل المسترجع عند اختياره فقط.
+            restoredLanguage = if (restorePreferences) payload.preferences?.language else null
         )
 
         // S1-15 (تذكرة #62): مسارات الربط اليدوي قابلة للتهيئة لكل اختبار
@@ -265,6 +268,24 @@ class SettingsViewModelTest {
         }
     }
 
+    /**
+     * متابعة `#97` (مسار الاسترجاع): مستودع يسجّل اكتمال الاسترجاع في نفس سجل
+     * الأحداث — لإثبات أن تطبيق اللغة يتبع نجاح الاسترجاع بالترتيب.
+     */
+    private class RestoreRecordingRepository(
+        events: MutableList<String>
+    ) : TestSettingsRepository(events) {
+        override suspend fun restoreBackupData(
+            payload: BackupPayload,
+            mode: RestoreMode,
+            restorePreferences: Boolean
+        ): RestoreResult {
+            val result = super.restoreBackupData(payload, mode, restorePreferences)
+            events += "restore:$restorePreferences"
+            return result
+        }
+    }
+
     @Test
     fun reminderPreferenceIntents_rescheduleImmediatelyAfterWrite() = runTest(testDispatcher) {
         val events = mutableListOf<String>()
@@ -324,6 +345,192 @@ class SettingsViewModelTest {
             repo.prefsFlow.value.language,
             "التفضيل ذاته قُيّد باللغة الجديدة",
         )
+    }
+
+    // ============================================================
+    // متابعة `#97` — مسار استرجاع النسخة الاحتياطية (اتساق اللغة)
+    // ============================================================
+
+    @Test
+    fun confirmRestoreAppliesRestoredArabicLocaleAfterSuccess() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = RestoreRecordingRepository(events)
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = TestCryptoEngine(),
+            appLocalePort = RecordingAppLocalePort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        val cipher = TestCryptoEngine().encrypt(
+            """{"version":1,"exportedAt":"now","preferences":{"language":"ARABIC"}}""".encodeToByteArray(),
+            "pw",
+        )
+        vm.onIntent(
+            SettingsIntent.ConfirmRestore(
+                cipherBytes = cipher,
+                password = "pw",
+                mode = RestoreMode.MERGE,
+                restorePreferences = true
+            )
+        )
+        settle()
+
+        // تطبيق اللغة عبر المنفذ الواحد يتبع نجاح الاسترجاع حصراً — بالترتيب
+        // وبالقيمة المسترجعة ذاتها (نمط ADR-0016 «فور نجاح الكتابة»).
+        assertEquals(
+            listOf("restore:true", "applyLocale:ar"),
+            events,
+            "لغة الاسترجاع تُطبَّق بعد اكتمال الاسترجاع عبر المنفذ الواحد",
+        )
+        assertTrue(vm.state.value.restoreResult != null, "نتيجة الاسترجاع وصلت الحالة")
+    }
+
+    @Test
+    fun confirmRestoreAppliesEnglishLocaleWithRestoredValue() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = RestoreRecordingRepository(events)
+        repo.restoreResultOverride = RestoreResult(
+            matchedCategories = 3,
+            unmatchedCategories = 0,
+            matchedArham = 2,
+            unmatchedArham = 0,
+            restoredPreferences = true,
+            unmatchedEntries = emptyList(),
+            restoredLanguage = AppLanguage.ENGLISH
+        )
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = TestCryptoEngine(),
+            appLocalePort = RecordingAppLocalePort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        val cipher = TestCryptoEngine().encrypt("""{"version":1,"exportedAt":"now"}""".encodeToByteArray(), "pw")
+        vm.onIntent(
+            SettingsIntent.ConfirmRestore(
+                cipherBytes = cipher,
+                password = "pw",
+                mode = RestoreMode.MERGE,
+                restorePreferences = true
+            )
+        )
+        settle()
+
+        assertEquals(
+            listOf("restore:true", "applyLocale:en"),
+            events,
+            "اللغة الإنجليزية المسترجعة تُطبَّق عبر المنفذ ذاته",
+        )
+    }
+
+    @Test
+    fun confirmRestoreWithoutPreferencesFlagDoesNotApplyLocale() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = RestoreRecordingRepository(events)
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = TestCryptoEngine(),
+            appLocalePort = RecordingAppLocalePort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        val cipher = TestCryptoEngine().encrypt(
+            """{"version":1,"exportedAt":"now","preferences":{"language":"ARABIC"}}""".encodeToByteArray(),
+            "pw",
+        )
+        vm.onIntent(
+            SettingsIntent.ConfirmRestore(
+                cipherBytes = cipher,
+                password = "pw",
+                mode = RestoreMode.MERGE,
+                restorePreferences = false
+            )
+        )
+        settle()
+
+        // لم يختر المستخدم استعادة التفضيلات ⇒ لا تطبيق لغة إطلاقاً.
+        assertEquals(
+            listOf("restore:false"),
+            events,
+            "بلا اختيار استعادة التفضيلات لا تطابق لغة زائف عبر المنفذ",
+        )
+    }
+
+    @Test
+    fun confirmRestoreWithoutLanguagePreferenceDoesNotApplyLocale() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = RestoreRecordingRepository(events)
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = TestCryptoEngine(),
+            appLocalePort = RecordingAppLocalePort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        // حمولة بلا تفضيلات أصلاً (preferences = null) مع اختيار استعادة التفضيلات.
+        val cipher = TestCryptoEngine().encrypt("""{"version":1,"exportedAt":"now"}""".encodeToByteArray(), "pw")
+        vm.onIntent(
+            SettingsIntent.ConfirmRestore(
+                cipherBytes = cipher,
+                password = "pw",
+                mode = RestoreMode.MERGE,
+                restorePreferences = true
+            )
+        )
+        settle()
+
+        assertEquals(
+            listOf("restore:true"),
+            events,
+            "الحمولة بلا تفضيل لغة ⇒ لا تطبيق لغة زائف (restoredLanguage == null)",
+        )
+    }
+
+    @Test
+    fun confirmRestoreFailedRestoreDoesNotApplyLocale() = runTest(testDispatcher) {
+        val events = mutableListOf<String>()
+        val repo = RestoreRecordingRepository(events)
+        val vm = SettingsViewModel(
+            repository = repo,
+            cryptoEngine = FailingCryptoEngine(),
+            appLocalePort = RecordingAppLocalePort(events),
+            dispatchers = testDispatchers
+        )
+
+        backgroundScope.launch { vm.state.collect {} }
+        settle()
+
+        val cipher = FailingCryptoEngine().encrypt("""{"version":1,"exportedAt":"now"}""".encodeToByteArray(), "pw")
+        vm.onIntent(
+            SettingsIntent.ConfirmRestore(
+                cipherBytes = cipher,
+                password = "pw",
+                mode = RestoreMode.MERGE,
+                restorePreferences = true
+            )
+        )
+        settle()
+
+        // فشل الاسترجاع (فك تشفير) ⇒ مسار الخطأ بلا استرجاع ولا تطبيق لغة.
+        assertEquals(
+            emptyList<String>(),
+            events,
+            "فشل الاسترجاع لا يغير لغة المنصة ولا يكتب تفضيلاً",
+        )
+        assertTrue(vm.state.value.backupErrorKind != null, "الخطأ وصل الحالة للعرض")
     }
 
     @Test

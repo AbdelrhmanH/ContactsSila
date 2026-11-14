@@ -135,7 +135,15 @@ data class RestoreResult(
     val matchedArham: Int,
     val unmatchedArham: Int,
     val restoredPreferences: Boolean,
-    val unmatchedEntries: List<UnmatchedBackupEntry>
+    val unmatchedEntries: List<UnmatchedBackupEntry>,
+    /**
+     * لغة التفضيل المسترجع (متابعة `#97` — مسار الاسترجاع): تُمرَّر من الحمولة
+     * عندما اختار المستخدم `restorePreferences` وتحمل الحمولة تفضيلات — ليُطبِّق
+     * `SettingsViewModel` اللغة عبر منفذ `AppLocalePort` الواحد **بعد نجاح
+     * الاسترجاع اكتمالاً** (نمط ADR-0016 «فور نجاح الكتابة»). null عندما لم
+     * تُستعَد تفضيلات أو كانت الحمولة بلا تفضيلات — فلا تطبيق لغة زائف.
+     */
+    val restoredLanguage: AppLanguage? = null
 )
 
 /**

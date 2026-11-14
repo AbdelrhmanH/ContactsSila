@@ -2,6 +2,7 @@ package app.sila.di
 
 import android.content.Context
 import app.sila.core.common.crash.CrashSink
+import app.sila.core.common.crash.staleReportNames
 import java.io.File
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -36,11 +37,14 @@ internal class AndroidCrashFileSink(private val context: Context) : CrashSink {
         return true
     }
 
-    /** حذف التقارير الأقدم من السقف — الترتيب معجمي على `crash-<millis>` ثابت الزمن. */
+    /** حذف التقارير الأقدم من السقف — الخوارزمية النقية المشتركة [staleReportNames]. */
     private fun pruneOldReports(dir: File) {
-        val reports = dir.listFiles { candidate -> candidate.isFile && candidate.name.startsWith(PREFIX) } ?: return
-        if (reports.size <= MAX_RETAINED_REPORTS) return
-        reports.sortedByDescending(selector = File::getName).drop(MAX_RETAINED_REPORTS).forEach { stale -> stale.delete() }
+        val names = dir.listFiles { candidate -> candidate.isFile && candidate.name.startsWith(PREFIX) }
+            ?.map(File::getName)
+            ?: return
+        staleReportNames(names = names, max = MAX_RETAINED_REPORTS).forEach { stale ->
+            File(dir, stale).delete()
+        }
     }
 
     private companion object {

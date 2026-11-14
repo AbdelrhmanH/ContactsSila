@@ -329,6 +329,7 @@ class SettingsRepositoryImpl(
         // استعادة التفضيلات إذا طلب المستخدم صراحة ذلك (AC: لا تُستعاد التفضيلات تلقائياً)
         // — بعد COMMIT حصراً (ADR-0015): فشل المعاملة يبقي DataStore بلا مساس،
         // وفشل DataStore اللاحق لا يترك قاعدة نصف مستعادة (المعاملة سبقت كل كتابة).
+        val restoredLanguage: AppLanguage? = if (restorePreferences) payload.preferences?.language else null
         if (restorePreferences) {
             payload.preferences?.let { p ->
                 dataSource.setThemeMode(p.themeMode)
@@ -390,7 +391,11 @@ class SettingsRepositoryImpl(
             matchedArham = matchedArhamCount,
             unmatchedArham = unmatchedArhamList.size,
             restoredPreferences = restorePreferences,
-            unmatchedEntries = unmatchedMap.values.toList()
+            unmatchedEntries = unmatchedMap.values.toList(),
+            // متابعة `#97` (مسار الاسترجاع): اللغة المسترجعة تُحمل في النتيجة —
+            // التطبيق على المنصة قرار طبقة العرض بعد النجاح عبر المنفذ الواحد،
+            // لا كتابة بيانات.
+            restoredLanguage = restoredLanguage
         )
     }
 

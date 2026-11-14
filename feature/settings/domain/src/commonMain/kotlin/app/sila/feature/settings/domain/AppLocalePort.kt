@@ -9,14 +9,15 @@ import app.sila.core.model.AppLanguage
  * وحدها: ميزة الإعدادات تدير نصوصها بجداول Kotlin تتبع الحالة، بينما تُحمَّل
  * موارد بقية الشاشات من Compose (composeResources) وفق بيئة المنصة الفعلية.
  * على أندرويد القناة الرسمية لذلك هي per-app locales — والمندوب
- * (`AppCompatDelegate.setApplicationLocales`) يجعل نية `SettingsIntent.SetLanguage`
- * هي منبع لغة المنصة الفعلية فتتبع الموارد كلها.
+ * (`AppCompatDelegate.setApplicationLocales`) يجعل نيتَي اللغة
+ * (`SettingsIntent.SetLanguage` من الإعدادات و`MainIntent.ToggleLanguage` من قلب
+ * الشاشة الرئيسية — تذكرة #97) منبعَي لغة المنصة الفعلية فتتبع الموارد كلها.
  *
  * iOS: المنفذ كائن سلبي — شاشاته الأصلية يتماشى نصوصها مع `preferences.language`
  * عبر (SettingsLocalizedStrings(language:)) أصلاً، فلا per-app locales عندها.
  *
- * المسار الاستدعائي: من `SettingsViewModel` بعد نجاح كتابة التفضيل حصراً
- * (نمط ADR-0016 «فور نجاح الكتابة») — لا نداءً مباشراً من الواجهة.
+ * المسار الاستدعائي: من `SettingsViewModel` ومن `MainViewModel` بعد نجاح كتابة
+ * التفضيل حصراً (نمط ADR-0016 «فور نجاح الكتابة») — لا نداءً مباشراً من الواجهة.
  */
 interface AppLocalePort {
 
