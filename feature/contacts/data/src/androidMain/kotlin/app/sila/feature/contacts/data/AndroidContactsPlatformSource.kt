@@ -157,7 +157,7 @@ class AndroidContactsPlatformSource(
         // المعاكس (صفحات ثم مسح) كان يطبع اللقطة بإصدارات أحدث من البيانات المقروءة
         // فيفقِد التعديلات المتزامنة إلى الأبد.
         val scanRows = scanRawContacts()
-        val resolvedLookupKeys = resolveLookupKeysForRecentScan(scanRows)
+        val resolution = resolveRecentScan(scanRows)
         val pagedAggregateIds = mutableSetOf<Long>()
         val upserted = buildList {
             var offset = 0
@@ -175,11 +175,14 @@ class AndroidContactsPlatformSource(
             }
         }
         // FINDING-SYNC-1 (ADR-0022): قرار الدلتا نقّي مُختبر — «مسح غير فارغ بلا تغطية
-        // استيراد» يُعاد بلا لقطة فيفشل المحرك (§8) ويُعاد على الإشارة/المصالحة/الإقلاع التالية.
+        // استيراد» يُعاد بلا لقطة فيفشل المحرك (§8) ويُعاد على الإشارة/المصالحة/الإقلاع
+        // التالية. نطاق التغطية الكتالوج القابل للاستيراد: المراجع المعلقة (معلن موجب
+        // بلا صف مجمّع — 63/34 ميدانياً على MIUI) معفاة ولا تُخفق المصالحة دائماً (G7).
         return buildFullResyncDelta(
             scanRows = scanRows,
+            resolvableAggregateContactIds = resolution.resolvableAggregateContactIds,
             pagedAggregateIds = pagedAggregateIds,
-            resolvedLookupKeys = resolvedLookupKeys,
+            resolvedLookupKeys = resolution.lookupKeysByRawContactId,
             upserted = upserted,
             previousSnapshot = previousSnapshot
         )
@@ -284,29 +287,53 @@ class AndroidContactsPlatformSource(
         }
 
     /**
-     * حلّ LOOKUP_KEY لكل السجلات الخام غير المحذوفة (تُستخدم في مسار إعادة المزامنة
-     * الكاملة حيث لا توجد لقطة سابقة تحفظ المفاتيح).
+     * نتيجة حلّ المفاتيح لمسح حديث (G7): مفاتيح السجلات الخام + **المجموعة المُعادَّة**
+     * التي تُظهرها بوابة تغطية الكتالوج القابل للاستيراد (تعديل ADR-0022).
      */
-    private fun resolveLookupKeysForRecentScan(scanRows: List<RawContactScanRow>): Map<String, String> {
-        val aggregateIds = scanRows.mapNotNull(RawContactScanRow::aggregateContactId).distinct()
-        if (aggregateIds.isEmpty()) return emptyMap()
+    private data class RecentScanResolution(
+        val lookupKeysByRawContactId: Map<String, String>,
+        val resolvableAggregateContactIds: Set<Long>,
+    )
 
-        val lookupByAggregateId = aggregateIds.chunked(SQL_IN_BATCH_SIZE).flatMap { chunk ->
+    /**
+     * حلّ LOOKUP_KEY لكل السجلات الخام غير المحذوفة (تُستخدم في مسار إعادة المزامنة
+     * الكاملة حيث لا توجد لقطة سابقة تحفظ المفاتيح)، مع إظهار **المجموعة المُعادَّة**
+     * — معرفات التجمّع المعلنة الموجودة فعلاً في `Contacts` بمفتاح غير فارغ وقت القياس
+     * (G7 · شرطا C-1 وC-6 من بوابة مراجعة التصميم): تُستخرج من الأزواج **العائدة فعلاً
+     * من المزوّد** حصراً عبر الدالة النقية [extractResolvableAggregateContactIds]
+     * فتُختبر على JVM ولا يصمت انحسار هذا التوصيل (F-1/High). الاستعلام القائم بلا
+     * أي فلتر إضافي — صفر استعلامات مزوّد جديدة.
+     */
+    private fun resolveRecentScan(scanRows: List<RawContactScanRow>): RecentScanResolution {
+        val aggregateIds = scanRows.mapNotNull(RawContactScanRow::aggregateContactId).distinct()
+        if (aggregateIds.isEmpty()) {
+            return RecentScanResolution(lookupKeysByRawContactId = emptyMap(), resolvableAggregateContactIds = emptySet())
+        }
+
+        val resolvedPairs = aggregateIds.chunked(SQL_IN_BATCH_SIZE).flatMap { chunk ->
             contentResolver.useQuery(
                 uri = ContactsContract.Contacts.CONTENT_URI,
                 projection = arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.LOOKUP_KEY),
                 selection = "${ContactsContract.Contacts._ID} IN (${inSelectionPlaceholders(chunk.size)})",
                 selectionArgs = chunk.map(Long::toString).toTypedArray()
             ) { cursor ->
-                val pairs = mutableListOf<Pair<Long, String>>()
+                val pairs = mutableListOf<ResolvedAggregateLookup>()
                 while (cursor.moveToNext()) {
-                    val lookupKey = cursor.getString(cursor.getColumnIndex(ContactsContract.Contacts.LOOKUP_KEY)) ?: continue
-                    pairs.add(cursor.getLong(cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)) to lookupKey)
+                    val idColumn = cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
+                    val lookupColumn = cursor.getColumnIndex(ContactsContract.Contacts.LOOKUP_KEY)
+                    // المفتاح قد يكون null — الفلترة في النقي ([resolvableLookupIndex]) لا هنا.
+                    pairs.add(
+                        ResolvedAggregateLookup(
+                            aggregateContactId = cursor.getLong(idColumn),
+                            lookupKey = cursor.getString(lookupColumn)
+                        )
+                    )
                 }
                 pairs
             }
-        }.toMap()
+        }
 
+        val lookupByAggregateId = resolvableLookupIndex(resolvedPairs)
         val resolved = mutableMapOf<String, String>()
         for (row in scanRows) {
             if (row.deleted) continue
@@ -314,7 +341,10 @@ class AndroidContactsPlatformSource(
             val lookupKey = lookupByAggregateId[aggregateId] ?: continue
             resolved[row.rawContactId] = lookupKey
         }
-        return resolved
+        return RecentScanResolution(
+            lookupKeysByRawContactId = resolved,
+            resolvableAggregateContactIds = extractResolvableAggregateContactIds(scanRows, resolvedPairs)
+        )
     }
 
     /**

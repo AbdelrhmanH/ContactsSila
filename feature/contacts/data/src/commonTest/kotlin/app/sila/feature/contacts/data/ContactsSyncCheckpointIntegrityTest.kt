@@ -236,4 +236,59 @@ class ContactsSyncCheckpointIntegrityTest {
             db.closeConnection()
         }
     }
+
+    /**
+     * شكل الميدان MIUI (G7 · `DIAG_rootcause_summary.md`، اصطناعي حصراً): دلتا مبنية عبر
+     * النقي [buildFullResyncDelta] على تركيبة «717 مُعادَّ + 63 معلّقاً شبيه-تيليجرام +
+     * 34 معلّقاً شبيه-واتساب» — المحرك يستورد الكتالوج القابل للاستيراد ويختم بوابة
+     * المصالحة وتظهر القائمة، بدل `FAILED` الدائم على مزوّد غير متسق مرجعياً.
+     */
+    @Test
+    fun miuiFieldShapedFullResyncImportsCatalogAndStampsReconcile() = runTest {
+        val db = LocalSilaDatabase(dispatchers = testDispatchers)
+        try {
+            val importableIds = (1L..717L)
+            val scan = importableIds.map { id ->
+                RawContactScanRow(rawContactId = "raw-$id", version = 3L, deleted = false, aggregateContactId = id)
+            } + (0 until 63).map { i ->
+                RawContactScanRow(
+                    rawContactId = "raw-dangling-tg-$i",
+                    version = 3L,
+                    deleted = false,
+                    aggregateContactId = 5000L + i
+                )
+            } + (0 until 34).map { i ->
+                RawContactScanRow(
+                    rawContactId = "raw-dangling-wa-$i",
+                    version = 3L,
+                    deleted = false,
+                    aggregateContactId = 5100L + i
+                )
+            }
+            val delta = buildFullResyncDelta(
+                scanRows = scan,
+                resolvableAggregateContactIds = importableIds.toSet(),
+                pagedAggregateIds = importableIds.toSet(),
+                resolvedLookupKeys = importableIds.associate { id -> "raw-$id" to "lookup-$id" },
+                upserted = importableIds.map { id ->
+                    FakeContactsPlatformSource.contact("lookup-$id", lookupKey = "lookup-$id")
+                },
+                previousSnapshot = null
+            )
+            val snapshot = assertNotNull(delta.newSnapshot, "شكل الميدان: الكتالوج القابل للاستيراد مقروء بالكامل")
+            assertEquals(814, snapshot.androidRawContacts.size, "المعلّق يبقى في اللقطة (سلوك قائم)")
+
+            val source = FakeContactsPlatformSource().withDeltas(delta)
+            val engine = newEngine(db, source, FakeClock())
+
+            engine.runSyncCycle(ContactsPermissionState.GRANTED)
+
+            assertEquals(ContactsSyncState.READY, engine.state.value)
+            assertNotNull(db.loadLastReconcileAtMillis())
+            assertNotNull(db.loadSyncSnapshotJson())
+            assertEquals(717, db.observeContacts().first().size)
+        } finally {
+            db.closeConnection()
+        }
+    }
 }
