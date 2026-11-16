@@ -4,11 +4,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import androidx.core.app.NotificationManagerCompat
+import app.sila.core.common.AppDispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.koin.core.Koin
 
@@ -21,50 +22,55 @@ import org.koin.core.Koin
  *   وسياسة ترامبولين الإشعارات (`targetSdk = 37`)، بينما يتولى `MainActivity`
  *   (`ArhamReminderDispatch.onLaunchIntentHandled`) مسح إشعار 2001 عند الاستقبال. يظل هذا
  *   المستقبِل يتكفل ببثّات «اتصل الآن» متبقية من تثبيتٍ أقدم (مسار احتياطي).
- * - **التنظيف والتحصين:** يرفض الأفعال الأجنبية قبل `goAsync()`، ويعيد رمي
- *   [CancellationException] دون ابتلاع، ويمسح الإشعار في `finally`.
+ * - **التنظيف والتحصين:** يرفض الأفعال الأجنبية قبل `goAsync()`، ويحلّ `AppDispatchers.io`
+ *   عند توفر Koin، ويعيد رمي [CancellationException] و[Error] دون ابتلاع، ويمسح الإشعار في `finally`.
  */
 class ArhamNotificationActionReceiver internal constructor(
-    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val dispatcherOverride: CoroutineDispatcher? = null,
     private val koinProvider: () -> Koin? = ::resolveArhamKoin,
-    private val notificationCanceller: (Context) -> Unit = { ctx ->
-        NotificationManagerCompat.from(ctx).cancel(ArhamNotificationPoster.REMINDER_NOTIFICATION_ID)
-    },
-    private val onActionCompleted: (() -> Unit)? = null,
+    private val notificationCanceller: (Context) -> Unit =
+        ArhamNotificationPoster::defaultCancelReminderNotification,
 ) : BroadcastReceiver() {
 
     /** المنشئ العام الافتراضي لمكوّن `<receiver>` في `AndroidManifest.xml`. */
-    constructor() : this(dispatcher = Dispatchers.IO)
+    constructor() : this(dispatcherOverride = null)
 
     override fun onReceive(context: Context, intent: Intent) {
+        dispatchAction(context = context, intent = intent)
+    }
+
+    /** يطلق معالجة الفعل المسموح خارج الخيط الرئيسي ويعيد [Job] لانتظارٍ حتمي في الاختبارات. */
+    internal fun dispatchAction(context: Context, intent: Intent): Job? {
         val action = intent.action
         if (
             action != ArhamNotificationPoster.ACTION_REMIND_TOMORROW &&
             action != ArhamNotificationPoster.ACTION_CALL_NOW
         ) {
-            return
+            return null
         }
         val appContext = context.applicationContext ?: context
+        val dispatcher = resolveDispatcher()
         val pendingResult: PendingResult? = goAsync()
-        CoroutineScope(dispatcher).launch {
+        return CoroutineScope(dispatcher).launch {
             try {
-                runAction(appContext, action)
+                runAction(appContext = appContext, action = action)
             } finally {
-                try {
-                    pendingResult?.finish()
-                } finally {
-                    onActionCompleted?.invoke()
-                }
+                pendingResult?.finish()
             }
         }
     }
 
-    /** تنفيذ الفعل (اتصل الآن / ذكّرني غداً) — الدوران مُستخرَج ليعاد استخدامه في الاختبارات. */
+    private fun resolveDispatcher(): CoroutineDispatcher =
+        dispatcherOverride ?: runCatching {
+            koinProvider()?.getOrNull<AppDispatchers>()?.io
+        }.onFailure {
+            if (it is CancellationException || it is Error) throw it
+        }.getOrNull() ?: Dispatchers.IO
+
+    /** تنفيذ الفعل (اتصل الآن / ذكّرني غداً) وفق مزودات المنشئ. */
     internal suspend fun runAction(
         appContext: Context,
         action: String,
-        koinProvider: () -> Koin? = this.koinProvider,
-        notificationCanceller: (Context) -> Unit = this.notificationCanceller,
     ) {
         try {
             runCatching {
@@ -90,12 +96,11 @@ class ArhamNotificationActionReceiver internal constructor(
         } finally {
             // ما يحميه finally: ضمان إخفاء إشعار 2001 بعد تفاعل المستخدم على كل المسارات
             // (نجاح/فشل/إلغاء) دون السماح لإخفاق المسح بإسقاط المستقبِل أو طمس الاستثناء.
-            runCatching {
-                notificationCanceller(appContext)
-            }.onFailure {
-                if (it is CancellationException || it is Error) throw it
-                Log.w(TAG, "Notification cleanup failed: ${it.javaClass.simpleName}")
-            }
+            ArhamNotificationPoster.cancelReminderNotification(
+                context = appContext,
+                tag = TAG,
+                notificationCanceller = notificationCanceller,
+            )
         }
     }
 

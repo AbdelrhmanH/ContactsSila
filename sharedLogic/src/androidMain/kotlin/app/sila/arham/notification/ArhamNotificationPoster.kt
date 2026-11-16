@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.sila.feature.arham.domain.ArhamNotificationContent
 import app.sila.feature.arham.domain.OccasionAlertKind
+import kotlinx.coroutines.CancellationException
 
 /**
  * راصد إشعار أرحام على أندرويد (T8-08 · §M): يحوّل المحتوى الدلالي المشترك
@@ -177,20 +178,39 @@ internal object ArhamNotificationPoster {
         context: Context,
         intent: Intent?,
         isRestoredState: Boolean = false,
-        notificationCanceller: (Context) -> Unit = { ctx ->
-            NotificationManagerCompat.from(ctx).cancel(REMINDER_NOTIFICATION_ID)
-        },
+        notificationCanceller: (Context) -> Unit = ::defaultCancelReminderNotification,
     ): Boolean {
         if (isRestoredState || intent == null || intent.action != ACTION_CALL_NOW) return false
         if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return false
         intent.action = Intent.ACTION_MAIN
+        cancelReminderNotification(
+            context = context,
+            tag = TAG,
+            notificationCanceller = notificationCanceller,
+        )
+        return true
+    }
+
+    /** مسح إشعار التذكير الافتراضي بالمعرّف الثابت [REMINDER_NOTIFICATION_ID] (2001). */
+    internal fun defaultCancelReminderNotification(context: Context) {
+        NotificationManagerCompat.from(context).cancel(REMINDER_NOTIFICATION_ID)
+    }
+
+    /**
+     * يمسح إشعار 2001 بأمان دون ابتلاع [CancellationException] أو [Error]، ويسجّل أي إخفاق عادي
+     * بنوعه فقط دون كشف بيانات شخصية.
+     */
+    internal fun cancelReminderNotification(
+        context: Context,
+        tag: String,
+        notificationCanceller: (Context) -> Unit = ::defaultCancelReminderNotification,
+    ) {
         runCatching {
             notificationCanceller(context.applicationContext ?: context)
         }.onFailure {
-            if (it is Error) throw it
-            Log.w(TAG, "Call-now notification cleanup failed: ${it.javaClass.simpleName}")
+            if (it is CancellationException || it is Error) throw it
+            Log.w(tag, "Notification cleanup failed: ${it.javaClass.simpleName}")
         }
-        return true
     }
 
     /**
