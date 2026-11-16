@@ -27,8 +27,10 @@ dependencies {
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
 
-    // اختبار تحقق تهيئة النسخ الاحتياطي (F-06) — JUnit JVM فقط، بلا Robolectric.
+    // اختبار تحقق تهيئة النسخ الاحتياطي (F-06) + دورة حياة MainActivity لإشعارات أرحام (A-N08).
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.sqlite.bundled.jvm)
 }
 
 /**
@@ -122,6 +124,9 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }
 

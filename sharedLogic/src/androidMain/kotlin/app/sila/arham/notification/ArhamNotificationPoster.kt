@@ -1,6 +1,7 @@
 package app.sila.arham.notification
 
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.Log
@@ -8,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.sila.feature.arham.domain.ArhamNotificationContent
 import app.sila.feature.arham.domain.OccasionAlertKind
+import kotlinx.coroutines.CancellationException
 
 /**
  * راصد إشعار أرحام على أندرويد (T8-08 · §M): يحوّل المحتوى الدلالي المشترك
@@ -21,11 +23,15 @@ internal object ArhamNotificationPoster {
     /** معرّف إشعار التذكير الثابت — كل إشعار جديد يستبدل السابق (ميزانية ≤ 1 ظاهر). */
     const val REMINDER_NOTIFICATION_ID = 2001
 
-    /** فعل زر «اتصل الآن» — يفتح التطبيق بلا بيانات مرفقة. */
+    /** فعل زر «اتصل الآن» — يفتح التطبيق بلا بيانات مرفقة (ويُميَّز لمسح إشعار 2001). */
     const val ACTION_CALL_NOW = "app.sila.arham.action.CALL_NOW"
 
     /** فعل زر «ذكّرني غداً» — إزاحةُ جدولةٍ لا حالةُ كتابة (D1 بند 7). */
     const val ACTION_REMIND_TOMORROW = "app.sila.arham.action.REMIND_TOMORROW"
+
+    internal const val CALL_NOW_REQUEST_CODE = 2002
+    internal const val REMIND_TOMORROW_REQUEST_CODE = 2003
+    internal const val CONTENT_TAP_REQUEST_CODE = 2004
 
     /** يرصد الإشعار؛ فشل الرصد يُسجَّل بنوعٍ حصراً (بلا PII) ولا يسقط العملية (§O.5). */
     fun post(context: Context, content: ArhamNotificationContent) {
@@ -80,7 +86,11 @@ internal object ArhamNotificationPoster {
         }
     }
 
-    /** بناء الإشعار: نقرة المحتوى تفتح التطبيق، والفعلان يرسلان للمستقبِل بلا extras. */
+    /**
+     * بناء الإشعار: نقرة المحتوى وزر «اتصل الآن» يطلقان النشاط مباشرةً عبر النظام،
+     * مع حمل [ACTION_CALL_NOW] على زر «اتصل الآن» لمسح إشعار 2001 داخل دورة حياة
+     * `MainActivity`؛ و«ذكّرني غداً» بثّ للمستقبِل — بلا extras في أي Intent (لا PII).
+     */
     private fun build(context: Context, title: String, text: String) =
         NotificationCompat.Builder(context, ArhamNotificationChannel.CHANNEL_ID)
             .setSmallIcon(app.sila.sharedLogic.R.drawable.ic_arham_reminder)
@@ -89,29 +99,131 @@ internal object ArhamNotificationPoster {
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-            .setContentIntent(openAppIntent(context))
+            .setContentIntent(
+                openActivityIntent(
+                    context = context,
+                    intent = createLaunchAppIntent(context),
+                    requestCode = CONTENT_TAP_REQUEST_CODE,
+                ),
+            )
             .addAction(
                 /* icon = */ app.sila.sharedLogic.R.drawable.ic_action_call,
                 /* title = */ context.getString(app.sila.sharedLogic.R.string.arham_action_call_now),
-                /* intent = */ actionIntent(context = context, action = ACTION_CALL_NOW, requestCode = 2002),
+                // A-N08: النظام يُطلق النشاط مباشرةً عند النقر عبر `PendingIntent.getActivity`
+                // لتفادي قيود بدء النشاط من خلفية/ترامبولين الإشعارات على Android 12+ (`targetSdk = 37`)
+                // وبمكوّن صريح لتجاوز فشل `MATCH_DEFAULT_ONLY` (`aInfo is null` / `-91`).
+                /* intent = */ openActivityIntent(
+                    context = context,
+                    intent = createCallNowActivityIntent(context),
+                    requestCode = CALL_NOW_REQUEST_CODE,
+                ),
             )
             .addAction(
                 /* icon = */ app.sila.sharedLogic.R.drawable.ic_action_snooze,
                 /* title = */ context.getString(app.sila.sharedLogic.R.string.arham_action_remind_tomorrow),
-                /* intent = */ actionIntent(context = context, action = ACTION_REMIND_TOMORROW, requestCode = 2003),
+                /* intent = */ actionIntent(
+                    context = context,
+                    action = ACTION_REMIND_TOMORROW,
+                    requestCode = REMIND_TOMORROW_REQUEST_CODE,
+                ),
             )
             .build()
 
-    /** نقرة المحتوى: فتح التطبيق عبر MAIN/LAUNCHER على الحزمة صراحةً — بلا extras. */
-    private fun openAppIntent(context: Context): PendingIntent = PendingIntent.getActivity(
-        context,
-        2004,
-        Intent(Intent.ACTION_MAIN)
+    /**
+     * نية فتح التطبيق بمكوّنٍ صريح (`ComponentName`): تحلّ `MainActivity` عبر
+     * `getLaunchIntentForPackage` وتُثبت احتياطياً باسم النشاط القياسي.
+     *
+     * 1. **الصراحة (`ComponentName`):** `ActivityTaskSupervisor` / `ActivityStarter`
+     *    يفرض `PackageManager.MATCH_DEFAULT_ONLY` للنيات الضمنية؛ وبما أن `<intent-filter>`
+     *    لـ `MainActivity` يحمل `MAIN/LAUNCHER` بلا `CATEGORY_DEFAULT`، فإن النية الضمنية
+     *    تفشل بـ `aInfo is null` (Android 12/MIUI) و`-91` `START_INTENT_NOT_RESOLVED`
+     *    (Android 16) بينما ينجح `cmd package resolve-activity` (flags = 0).
+     * 2. **إعادة استخدام المهمة:** `SINGLE_TOP or CLEAR_TOP` يمنعان تكرار `MainActivity`
+     *    ويمرران النية إلى `onNewIntent` عند وجود التطبيق في الواجهة أو الخلفية.
+     *
+     * بلا extras (لا PII) ولا `tel:`.
+     */
+    internal fun createLaunchAppIntent(context: Context): Intent {
+        val resolvedComponent = context.packageManager
+            ?.getLaunchIntentForPackage(context.packageName)
+            ?.component
+            ?: ComponentName(context.packageName, MAIN_ACTIVITY_CLASS_NAME)
+        return Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .setPackage(context.packageName)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
+            .setComponent(resolvedComponent)
+            .addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP,
+            )
+    }
+
+    /**
+     * نية زر «اتصل الآن» (A-N08): مطابقة لـ [createLaunchAppIntent] بمكوّنٍ صريح،
+     * وتستبدل `action` بـ [ACTION_CALL_NOW] ليتمكن `MainActivity` (`onCreate`/`onNewIntent`)
+     * من مسح إشعار [REMINDER_NOTIFICATION_ID] (2001) بمجرد فتح الشاشة بنجاح — لأن
+     * `setAutoCancel(true)` ينطبق على `contentIntent` (A-N07) لا على `addAction`.
+     */
+    internal fun createCallNowActivityIntent(context: Context): Intent =
+        createLaunchAppIntent(context).setAction(ACTION_CALL_NOW)
+
+    /**
+     * يستهلك وسم [ACTION_CALL_NOW] عند فتح `MainActivity` فتحاً طازجاً (`onCreate` مع
+     * `savedInstanceState == null` أو `onNewIntent`) ما لم يكن الإطلاق من السجل التاريخي
+     * ([Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY])، ثم يمسح إشعار [REMINDER_NOTIFICATION_ID]
+     * (2001) ويعيد تعيين `intent.action` إلى [Intent.ACTION_MAIN] حتى لا يُعاد المسح عند التدوير.
+     */
+    internal fun consumeCallNowIntent(
+        context: Context,
+        intent: Intent?,
+        isRestoredState: Boolean = false,
+        notificationCanceller: (Context) -> Unit = ::defaultCancelReminderNotification,
+    ): Boolean {
+        if (isRestoredState || intent == null || intent.action != ACTION_CALL_NOW) return false
+        if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return false
+        intent.action = Intent.ACTION_MAIN
+        cancelReminderNotification(
+            context = context,
+            tag = TAG,
+            notificationCanceller = notificationCanceller,
+        )
+        return true
+    }
+
+    /** مسح إشعار التذكير الافتراضي بالمعرّف الثابت [REMINDER_NOTIFICATION_ID] (2001). */
+    internal fun defaultCancelReminderNotification(context: Context) {
+        NotificationManagerCompat.from(context).cancel(REMINDER_NOTIFICATION_ID)
+    }
+
+    /**
+     * يمسح إشعار 2001 بأمان دون ابتلاع [CancellationException] أو [Error]، ويسجّل أي إخفاق عادي
+     * بنوعه فقط دون كشف بيانات شخصية.
+     */
+    internal fun cancelReminderNotification(
+        context: Context,
+        tag: String,
+        notificationCanceller: (Context) -> Unit = ::defaultCancelReminderNotification,
+    ) {
+        runCatching {
+            notificationCanceller(context.applicationContext ?: context)
+        }.onFailure {
+            if (it is CancellationException || it is Error) throw it
+            Log.w(tag, "Notification cleanup failed: ${it.javaClass.simpleName}")
+        }
+    }
+
+    /**
+     * إطلاق النشاط مباشرةً بواسطة النظام عبر `PendingIntent.getActivity` لتجنب قيود
+     * ترامبولين الإشعارات (`BroadcastReceiver -> startActivity`) على Android 12+ (`targetSdk = 37`).
+     */
+    private fun openActivityIntent(context: Context, intent: Intent, requestCode: Int): PendingIntent =
+        PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
     /** فعل زر: Intent صريح المكوّن للفعل فقط — بلا extras إطلاقاً (لا PII). */
     private fun actionIntent(context: Context, action: String, requestCode: Int): PendingIntent =
@@ -121,6 +233,9 @@ internal object ArhamNotificationPoster {
             Intent(context, ArhamNotificationActionReceiver::class.java).setAction(action),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+
+    /** اسم فئة النشاط الرئيسي داخل الحزمة الفعلية (`app.sila` أو `app.sila.bench`). */
+    internal const val MAIN_ACTIVITY_CLASS_NAME = "app.sila.MainActivity"
 
     /** نوع التاريخ كما في `ArhamOccasion.type` — مرآة قيم النموذج (لا نص واجهة). */
     private const val DATE_TYPE_BIRTHDAY = "BIRTHDAY"
