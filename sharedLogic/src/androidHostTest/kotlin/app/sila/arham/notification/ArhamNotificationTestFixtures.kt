@@ -18,10 +18,10 @@ import app.sila.core.model.Relation
 import org.koin.core.Koin
 import org.robolectric.Shadows.shadowOf
 import org.w3c.dom.Element
+import org.w3c.dom.NodeList
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 internal fun Context.testNotificationManager(): NotificationManager =
@@ -101,7 +101,7 @@ private fun findAndroidAppManifestFile(): File {
     error("androidApp/src/main/AndroidManifest.xml not found from ${System.getProperty("user.dir")}")
 }
 
-private fun findMainActivityElement(nodes: org.w3c.dom.NodeList, androidNs: String): Element {
+private fun findMainActivityElement(nodes: NodeList, androidNs: String): Element {
     for (i in 0 until nodes.length) {
         val el = nodes.item(i) as Element
         val name = attr(el, androidNs, "name")

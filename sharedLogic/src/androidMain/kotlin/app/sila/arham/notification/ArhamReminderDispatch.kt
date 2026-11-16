@@ -93,8 +93,16 @@ object ArhamReminderDispatch {
      * إذا وصل النشاط عبر زر «اتصل الآن» (`ACTION_CALL_NOW` — A-N08)، يُزال إشعار 2001
      * ويُستهلك الوسم حتى لا يتكرر التنظيف عند تدوير الشاشة.
      */
-    fun onLaunchIntentHandled(context: Context, intent: Intent?): Boolean =
-        ArhamNotificationPoster.consumeCallNowIntent(context = context, intent = intent)
+    fun onLaunchIntentHandled(
+        context: Context,
+        intent: Intent?,
+        isRestoredState: Boolean = false,
+    ): Boolean =
+        ArhamNotificationPoster.consumeCallNowIntent(
+            context = context,
+            intent = intent,
+            isRestoredState = isRestoredState,
+        )
 }
 
 /**

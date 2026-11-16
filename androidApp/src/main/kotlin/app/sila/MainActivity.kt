@@ -21,7 +21,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         ensureKoinStarted(storageDirPath = filesDir.absolutePath)
-        ArhamReminderDispatch.onLaunchIntentHandled(context = this, intent = intent)
+        ArhamReminderDispatch.onLaunchIntentHandled(
+            context = this,
+            intent = intent,
+            isRestoredState = savedInstanceState != null,
+        )
         setContent {
             SilaAndroidApp()
         }

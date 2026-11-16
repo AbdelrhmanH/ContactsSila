@@ -76,9 +76,7 @@ class ArhamNotificationActionHostTest {
             ArhamNotificationPoster.CALL_NOW_REQUEST_CODE,
             Intent(app, ArhamNotificationActionReceiver::class.java)
                 .setAction(ArhamNotificationPoster.ACTION_CALL_NOW),
-            PendingIntent.FLAG_UPDATE_CURRENT or
-                PendingIntent.FLAG_IMMUTABLE or
-                PendingIntent.FLAG_NO_CREATE,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
         )
         assertNull(legacyBroadcast, "لا بثّ بحساب 2002 — الهوية انتقلت للنشاط")
     }
@@ -191,5 +189,44 @@ class ArhamNotificationActionHostTest {
         assertTrue(intent.flags and Intent.FLAG_ACTIVITY_SINGLE_TOP != 0)
         assertTrue(intent.flags and Intent.FLAG_ACTIVITY_CLEAR_TOP != 0)
         assertEquals(0, intent.extras?.size() ?: 0, "بلا extras (لا PII)")
+    }
+
+    @Test
+    fun restoredStateAndHistoryLaunchIgnoreStaleCallNowTaskIntentWithoutClearingNotification() = runBlocking {
+        postDigestNotification(app, koin)
+        assertEquals(1, app.testNotificationManager().activeNotifications.size)
+
+        val historyIntent = ArhamNotificationPoster.createCallNowActivityIntent(app)
+            .addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+        assertFalse(
+            ArhamReminderDispatch.onLaunchIntentHandled(app, historyIntent),
+            "إعادة الفتح من السجل (Recents) لا تستهلك وسم ACTION_CALL_NOW القديم",
+        )
+        assertEquals(ArhamNotificationPoster.ACTION_CALL_NOW, historyIntent.action)
+        assertEquals(1, app.testNotificationManager().activeNotifications.size)
+
+        val restoredIntent = ArhamNotificationPoster.createCallNowActivityIntent(app)
+        assertFalse(
+            ArhamReminderDispatch.onLaunchIntentHandled(app, restoredIntent, isRestoredState = true),
+            "إعادة إنشاء النشاط (savedInstanceState != null) لا تمسح إشعار 2001 الجديد",
+        )
+        assertEquals(ArhamNotificationPoster.ACTION_CALL_NOW, restoredIntent.action)
+        assertEquals(1, app.testNotificationManager().activeNotifications.size)
+
+        assertTrue(ArhamReminderDispatch.onLaunchIntentHandled(app, restoredIntent, isRestoredState = false))
+        assertEquals(Intent.ACTION_MAIN, restoredIntent.action)
+        assertEquals(0, app.testNotificationManager().activeNotifications.size)
+    }
+
+    @Test
+    fun consumeCallNowIntentConsumesActionAndSurvivesCancellerFailure() {
+        val intent = ArhamNotificationPoster.createCallNowActivityIntent(app)
+        val consumed = ArhamNotificationPoster.consumeCallNowIntent(
+            context = app,
+            intent = intent,
+            notificationCanceller = { throw IllegalStateException("cancel failed") },
+        )
+        assertTrue(consumed)
+        assertEquals(Intent.ACTION_MAIN, intent.action)
     }
 }

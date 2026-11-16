@@ -6,8 +6,10 @@ import android.content.ContextWrapper
 import android.content.Intent
 import app.sila.di.createSilaSharedModule
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -21,7 +23,9 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -109,20 +113,86 @@ class ArhamNotificationReceiverResilienceTest {
     }
 
     @Test
-    fun foreignActionInOnReceiveIsIgnoredWithoutCancellingNotification() = runBlocking {
+    fun foreignAndNullActionsInOnReceiveAreIgnoredSynchronouslyWithoutCancellingNotification() = runBlocking {
         postDigestNotification(app, koin)
         assertEquals(1, app.testNotificationManager().activeNotifications.size)
 
-        ArhamNotificationActionReceiver().onReceive(
-            app,
-            Intent("com.example.FOREIGN_ACTION"),
+        var dispatched = false
+        val receiver = ArhamNotificationActionReceiver(
+            dispatcher = Dispatchers.Unconfined,
+            onActionCompleted = { dispatched = true },
         )
-        delay(200L)
+        receiver.onReceive(app, Intent("com.example.FOREIGN_ACTION"))
+        receiver.onReceive(app, Intent())
+        ArhamNotificationActionReceiver().onReceive(app, Intent("com.example.FOREIGN_ACTION"))
+
+        assertFalse(dispatched, "الفعل الغريب أو الفارغ يعود قبل goAsync() وإطلاق الكوروتين")
+        assertNull(shadowOf(app).nextStartedActivity)
         assertEquals(
             1,
             app.testNotificationManager().activeNotifications.size,
             "الفعل الغريب يُتجاهل فوراً قبل goAsync() ولا يلغي إشعار 2001",
         )
+    }
+
+    @Test
+    fun onReceiveDispatchesRemindTomorrowEndToEndThroughReceiverAndClearsNotification() = runBlocking {
+        postDigestNotification(app, koin)
+        assertEquals(1, app.testNotificationManager().activeNotifications.size)
+        val before = System.currentTimeMillis()
+        val completed = CompletableDeferred<Unit>()
+        val receiver = ArhamNotificationActionReceiver(
+            dispatcher = Dispatchers.IO,
+            koinProvider = { koin },
+            onActionCompleted = { completed.complete(Unit) },
+        )
+
+        receiver.onReceive(
+            app,
+            Intent(app, ArhamNotificationActionReceiver::class.java)
+                .setAction(ArhamNotificationPoster.ACTION_REMIND_TOMORROW),
+        )
+        withTimeout(5_000L) { completed.await() }
+
+        val alarms = shadowOf(app.testAlarmManager()).scheduledAlarms
+        assertEquals(1, alarms.size)
+        assertTrue(alarms.single().getTriggerAtMs() > before)
+        assertEquals(0, app.testNotificationManager().activeNotifications.size)
+    }
+
+    @Test
+    fun onReceiveDispatchesCallNowEndToEndThroughReceiverAndClearsNotification() = runBlocking {
+        postDigestNotification(app, koin)
+        assertEquals(1, app.testNotificationManager().activeNotifications.size)
+        val completed = CompletableDeferred<Unit>()
+        val receiver = ArhamNotificationActionReceiver(
+            dispatcher = Dispatchers.IO,
+            onActionCompleted = { completed.complete(Unit) },
+        )
+
+        receiver.onReceive(
+            app,
+            Intent(ArhamNotificationPoster.ACTION_CALL_NOW),
+        )
+        withTimeout(5_000L) { completed.await() }
+
+        assertNotNull(shadowOf(app).nextStartedActivity)
+        assertEquals(0, app.testNotificationManager().activeNotifications.size)
+    }
+
+    @Test
+    fun cancellationDuringRemindTomorrowReschedulePropagatesAndClearsNotification() = runBlocking {
+        postDigestNotification(app, koin)
+        assertEquals(1, app.testNotificationManager().activeNotifications.size)
+
+        assertFailsWith<CancellationException> {
+            ArhamNotificationActionReceiver().runAction(
+                appContext = app,
+                action = ArhamNotificationPoster.ACTION_REMIND_TOMORROW,
+                koinProvider = { throw CancellationException("cancelled during reschedule") },
+            )
+        }
+        assertEquals(0, app.testNotificationManager().activeNotifications.size)
     }
 
     @Test
@@ -182,6 +252,5 @@ class ArhamNotificationReceiverResilienceTest {
                 notificationCanceller = throwingCleaner,
             )
         }
-        Unit
     }
 }

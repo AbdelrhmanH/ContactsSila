@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -23,7 +24,17 @@ import org.koin.core.Koin
  * - **التنظيف والتحصين:** يرفض الأفعال الأجنبية قبل `goAsync()`، ويعيد رمي
  *   [CancellationException] دون ابتلاع، ويمسح الإشعار في `finally`.
  */
-class ArhamNotificationActionReceiver : BroadcastReceiver() {
+class ArhamNotificationActionReceiver internal constructor(
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val koinProvider: () -> Koin? = ::resolveArhamKoin,
+    private val notificationCanceller: (Context) -> Unit = { ctx ->
+        NotificationManagerCompat.from(ctx).cancel(ArhamNotificationPoster.REMINDER_NOTIFICATION_ID)
+    },
+    private val onActionCompleted: (() -> Unit)? = null,
+) : BroadcastReceiver() {
+
+    /** المنشئ العام الافتراضي لمكوّن `<receiver>` في `AndroidManifest.xml`. */
+    constructor() : this(dispatcher = Dispatchers.IO)
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
@@ -33,12 +44,17 @@ class ArhamNotificationActionReceiver : BroadcastReceiver() {
         ) {
             return
         }
+        val appContext = context.applicationContext ?: context
         val pendingResult: PendingResult? = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(dispatcher).launch {
             try {
-                runAction(context.applicationContext, action)
+                runAction(appContext, action)
             } finally {
-                pendingResult?.finish()
+                try {
+                    pendingResult?.finish()
+                } finally {
+                    onActionCompleted?.invoke()
+                }
             }
         }
     }
@@ -47,10 +63,8 @@ class ArhamNotificationActionReceiver : BroadcastReceiver() {
     internal suspend fun runAction(
         appContext: Context,
         action: String,
-        koinProvider: () -> Koin? = ::resolveArhamKoin,
-        notificationCanceller: (Context) -> Unit = { ctx ->
-            NotificationManagerCompat.from(ctx).cancel(ArhamNotificationPoster.REMINDER_NOTIFICATION_ID)
-        },
+        koinProvider: () -> Koin? = this.koinProvider,
+        notificationCanceller: (Context) -> Unit = this.notificationCanceller,
     ) {
         try {
             runCatching {
@@ -79,7 +93,7 @@ class ArhamNotificationActionReceiver : BroadcastReceiver() {
             runCatching {
                 notificationCanceller(appContext)
             }.onFailure {
-                if (it is Error) throw it
+                if (it is CancellationException || it is Error) throw it
                 Log.w(TAG, "Notification cleanup failed: ${it.javaClass.simpleName}")
             }
         }

@@ -168,22 +168,26 @@ internal object ArhamNotificationPoster {
         createLaunchAppIntent(context).setAction(ACTION_CALL_NOW)
 
     /**
-     * يستهلك وسم [ACTION_CALL_NOW] عند فتح `MainActivity` (عبر `onCreate` أو `onNewIntent`)
-     * ويمسح إشعار [REMINDER_NOTIFICATION_ID] (2001) بعد تحقق فتح النشاط، ثم يعيد تعيين
-     * `intent.action` إلى [Intent.ACTION_MAIN] حتى لا يُعاد المسح عند تدوير الشاشة.
+     * يستهلك وسم [ACTION_CALL_NOW] عند فتح `MainActivity` فتحاً طازجاً (`onCreate` مع
+     * `savedInstanceState == null` أو `onNewIntent`) ما لم يكن الإطلاق من السجل التاريخي
+     * ([Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY])، ثم يمسح إشعار [REMINDER_NOTIFICATION_ID]
+     * (2001) ويعيد تعيين `intent.action` إلى [Intent.ACTION_MAIN] حتى لا يُعاد المسح عند التدوير.
      */
     internal fun consumeCallNowIntent(
         context: Context,
         intent: Intent?,
+        isRestoredState: Boolean = false,
         notificationCanceller: (Context) -> Unit = { ctx ->
             NotificationManagerCompat.from(ctx).cancel(REMINDER_NOTIFICATION_ID)
         },
     ): Boolean {
-        if (intent?.action != ACTION_CALL_NOW) return false
+        if (isRestoredState || intent == null || intent.action != ACTION_CALL_NOW) return false
+        if ((intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return false
         intent.action = Intent.ACTION_MAIN
         runCatching {
-            notificationCanceller(context.applicationContext)
+            notificationCanceller(context.applicationContext ?: context)
         }.onFailure {
+            if (it is Error) throw it
             Log.w(TAG, "Call-now notification cleanup failed: ${it.javaClass.simpleName}")
         }
         return true
@@ -210,7 +214,7 @@ internal object ArhamNotificationPoster {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-    /** اسم فئة النشاط الرئيسي داخل الحزمة الفعلية (`app.sila` أو `app.sila.test`). */
+    /** اسم فئة النشاط الرئيسي داخل الحزمة الفعلية (`app.sila` أو `app.sila.bench`). */
     internal const val MAIN_ACTIVITY_CLASS_NAME = "app.sila.MainActivity"
 
     /** نوع التاريخ كما في `ArhamOccasion.type` — مرآة قيم النموذج (لا نص واجهة). */
