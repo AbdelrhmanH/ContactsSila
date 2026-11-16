@@ -49,35 +49,58 @@ class ArhamNotificationActionReceiver internal constructor(
             return null
         }
         val appContext = context.applicationContext ?: context
-        val dispatcher = resolveDispatcher()
+        val prefetchedKoin: Result<Koin?>? = if (
+            dispatcherOverride == null &&
+            action == ArhamNotificationPoster.ACTION_REMIND_TOMORROW
+        ) {
+            runCatching { koinProvider() }.onFailure {
+                if (it is Error) throw it
+            }
+        } else {
+            null
+        }
+        val dispatcher = dispatcherOverride
+            ?: prefetchedKoin?.getOrNull()?.getOrNull<AppDispatchers>()?.io
+            ?: Dispatchers.IO
         val pendingResult: PendingResult? = goAsync()
-        return CoroutineScope(dispatcher).launch {
-            try {
-                runAction(appContext = appContext, action = action)
-            } finally {
+        var launched = false
+        try {
+            val job = CoroutineScope(dispatcher).launch {
+                try {
+                    runAction(
+                        appContext = appContext,
+                        action = action,
+                        prefetchedKoin = prefetchedKoin,
+                    )
+                } finally {
+                    pendingResult?.finish()
+                }
+            }
+            launched = true
+            return job
+        } finally {
+            if (!launched) {
                 pendingResult?.finish()
             }
         }
     }
 
-    private fun resolveDispatcher(): CoroutineDispatcher =
-        dispatcherOverride ?: runCatching {
-            koinProvider()?.getOrNull<AppDispatchers>()?.io
-        }.onFailure {
-            if (it is CancellationException || it is Error) throw it
-        }.getOrNull() ?: Dispatchers.IO
-
     /** تنفيذ الفعل (اتصل الآن / ذكّرني غداً) وفق مزودات المنشئ. */
     internal suspend fun runAction(
         appContext: Context,
         action: String,
+        prefetchedKoin: Result<Koin?>? = null,
     ) {
         try {
             runCatching {
                 when (action) {
                     ArhamNotificationPoster.ACTION_CALL_NOW -> launchApp(appContext)
                     ArhamNotificationPoster.ACTION_REMIND_TOMORROW -> {
-                        val koin = koinProvider()
+                        val koin = if (prefetchedKoin != null) {
+                            prefetchedKoin.getOrThrow()
+                        } else {
+                            koinProvider()
+                        }
                         if (koin == null) {
                             Log.w(TAG, "Koin unavailable at notification action — skipped")
                         } else {

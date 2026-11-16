@@ -4,10 +4,12 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import app.sila.core.common.AppDispatchers
 import app.sila.di.createSilaSharedModule
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -16,11 +18,13 @@ import org.junit.runner.RunWith
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
+import org.koin.dsl.module
 import org.koin.mp.KoinPlatformTools
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.coroutines.ContinuationInterceptor
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -247,6 +251,9 @@ class ArhamNotificationReceiverResilienceTest {
 
     @Test
     fun errorDuringActionAndCancellationInCleanupFinallyPropagateWithoutBeingSwallowed() = runBlocking<Unit> {
+        postDigestNotification(app, koin)
+        assertEquals(1, app.testNotificationManager().activeNotifications.size)
+
         val errorStart = object : ContextWrapper(app) {
             override fun getApplicationContext(): Context = this
             override fun startActivity(intent: Intent?) {
@@ -259,6 +266,7 @@ class ArhamNotificationReceiverResilienceTest {
                 action = ArhamNotificationPoster.ACTION_CALL_NOW,
             )
         }
+        assertEquals(0, app.testNotificationManager().activeNotifications.size)
 
         val cancellingCleaner: (Context) -> Unit = {
             throw CancellationException("cancelled in finally")
@@ -269,5 +277,69 @@ class ArhamNotificationReceiverResilienceTest {
                 action = ArhamNotificationPoster.ACTION_CALL_NOW,
             )
         }
+
+        val errorCleaner: (Context) -> Unit = { throw AssertionError("fatal cleanup error") }
+        assertFailsWith<AssertionError> {
+            ArhamNotificationActionReceiver(notificationCanceller = errorCleaner).runAction(
+                appContext = app,
+                action = ArhamNotificationPoster.ACTION_CALL_NOW,
+            )
+        }
+    }
+
+    @Test
+    fun dispatchActionWithNullOverrideUsesKoinAppDispatchersAndHandlesFallbackAndCancellation() = runBlocking<Unit> {
+        postDigestNotification(app, koin)
+        val testThreadDispatcher = coroutineContext[ContinuationInterceptor] as CoroutineDispatcher
+        var lookups = 0
+        var ioUsed = false
+        val trackingDispatcher = object : CoroutineDispatcher() {
+            override fun dispatch(context: CoroutineContext, block: Runnable) {
+                ioUsed = true
+                testThreadDispatcher.dispatch(context, block)
+            }
+        }
+        koin.loadModules(
+            listOf(
+                module {
+                    single<AppDispatchers> {
+                        object : AppDispatchers {
+                            override val main = testThreadDispatcher
+                            override val io = trackingDispatcher
+                            override val default = testThreadDispatcher
+                        }
+                    }
+                },
+            ),
+            allowOverride = true,
+        )
+
+        val koinJob = ArhamNotificationActionReceiver(
+            koinProvider = {
+                lookups++
+                koin
+            },
+        ).dispatchAction(app, Intent(ArhamNotificationPoster.ACTION_REMIND_TOMORROW))
+        assertNotNull(koinJob)
+        koinJob.join()
+        assertEquals(1, lookups)
+        assertTrue(ioUsed)
+        assertEquals(0, app.testNotificationManager().activeNotifications.size)
+
+        postDigestNotification(app, koin)
+        val fallbackJob = ArhamNotificationActionReceiver(koinProvider = { null })
+            .dispatchAction(app, Intent(ArhamNotificationPoster.ACTION_REMIND_TOMORROW))
+        assertNotNull(fallbackJob)
+        fallbackJob.join()
+        assertEquals(0, app.testNotificationManager().activeNotifications.size)
+
+        postDigestNotification(app, koin)
+        val cancelJob = ArhamNotificationActionReceiver(
+            koinProvider = { throw CancellationException("cancelled in lookup") },
+        ).dispatchAction(app, Intent(ArhamNotificationPoster.ACTION_REMIND_TOMORROW))
+        assertNotNull(cancelJob)
+        cancelJob.join()
+        assertTrue(cancelJob.isCancelled)
+        assertEquals(0, app.testNotificationManager().activeNotifications.size)
     }
 }
