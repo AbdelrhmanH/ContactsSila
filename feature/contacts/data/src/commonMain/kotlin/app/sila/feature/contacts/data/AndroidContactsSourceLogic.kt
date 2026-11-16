@@ -245,13 +245,15 @@ internal data class ResolvedAggregateLookup(
 /**
  * فهرس `LOOKUP_KEY` بمعرف التجمّعة من أزواج استعلام المزوّد — الفلتر الوحيد المشترك
  * (مفتاح غير فارغ ∧ معرف موجب) الذي يبني «المُعادَّ» ويغذي حلّ مفاتيح السجلات الخام.
+ * «غير فارغ» حرفياً: غير `null` وغير السلسلة الفارغة/الفراغات (`isNotBlank`) — المفتاح
+ * الفارغ لا يصلح هوية استيراد (`systemContactId`) فليست صفه في الكتالوج القابل للاستيراد.
  * الصفوف المُدخلة هي **العائدة فعلاً من المزوّد** لا معرفات المسح (شرط C-6).
  */
 internal fun resolvableLookupIndex(
     resolvedPairs: List<ResolvedAggregateLookup>,
 ): Map<Long, String> = resolvedPairs.mapNotNull { pair ->
     pair.lookupKey
-        ?.takeIf { pair.aggregateContactId > 0L }
+        ?.takeIf { key -> pair.aggregateContactId > 0L && key.isNotBlank() }
         ?.let { key -> pair.aggregateContactId to key }
 }.toMap()
 
@@ -262,8 +264,8 @@ internal fun resolvableLookupIndex(
  *
  * المجموعة = معرفات التجمّع **المعلنة الحية الموجبة في المسح** ∧ **العائدة فعلاً من
  * استعلام المزوّد بمفتاح `LOOKUP_KEY` غير فارغ** ([resolvableLookupIndex]):
- * - مفتاح `null` ⇒ ليس مُعادَّ (لا يمكن بناء استيراد منها — `mapAndroidContactRows`
- *   يرمي بلا مفتاح).
+ * - مفتاح `null` أو فارغ («»/فراغات) ⇒ ليس مُعادَّ (لا يمكن بناء استيراد سليم منها —
+ *   `mapAndroidContactRows` يرمي بلا مفتاح، والمفتاح الفارغ لا يصلح هوية استيراد).
  * - معرف `0` أو سالب ⇒ ليس مُعادَّ (`Contacts._ID` يبدأ من 1؛ `0` القيمة المرسلة
  *   «بلا تجمّعة بعد»).
  * - معرف لم يعلنه سجل خام حي (محذوف أو غائب عن المسح) ⇒ ليس مُعادَّ — التعريف من
@@ -295,12 +297,13 @@ internal fun extractResolvableAggregateContactIds(
  * المصالحة التالية (العطل المرصود: لقطة 5000 سجل + ختم بينما `contacts = 0` في Room
  * لأكثر من 13 دقيقة).
  *
- * نطاق الحكم تغطية **المعرفات المجمّعة** حصراً، مع أربع فئات إعفاء:
+ * نطاق الحكم تغطية **المعرفات المجمّعة** حصراً، مع ثلاث فئات إعفاء:
  * - الصفوف `DELETED=1` والسجلات بلا تجمّعة بعد (بما فيها القيمة المرسلة `CONTACT_ID = 0`
  *   عند بعض مزودات البائعين قبل إسناد تجمّعة) لا تُطالَب تغطية.
  * - **المرجع المعلّق (إعفاء G7):** تجمّعة معلنة موجبة حية **غير مُعادَّ** — لا صف لها في
  *   `Contacts` ⇒ لا اسم ولا `LOOKUP_KEY` ⇒ غير قابلة للاستيراد بنائها ([mapAndroidContactRows]
- *   يرمي بلا مفتاح)، فمطالبتها «تغطيةً» مطالبة بالمستحيل. مرصود ميدانياً على MIUI
+ *   يرمي بلا مفتاح)، فمطالبتها «تغطيةً» مطالبة بالمستحيل — ويشمل المعيار البنيوي ذاته
+ *   الصف الموجود بمفتاح `LOOKUP_KEY` غير صالح للاستيراد (فارغ/فراغات). مرصود ميدانياً على MIUI
  *   (`DIAG_rootcause_summary.md`: 804 معلنة / 717 مُعادَّ — 63 مزامنة تيليجرام و34
  *   واتساب قراءة-فقط، تقلب 87–97 مع مزامنة الحسابات). محايد-المزود: بالبنية لا بالاسم.
  * - كتالوج فارغ (لا مُعادَّ) مع صفر upserts = دفتر فارغ شرعي؛ وفي حالة البذر العابر
@@ -379,6 +382,9 @@ internal fun buildFullResyncDelta(
 /**
  * تحويل صفوف `Contacts` + سجلات `Data` المنتمية إليها إلى قائمة [PlatformContact] —
  * المفتاح الموحّد يأتي من `LOOKUP_KEY` حصراً، ولا يُخزن `Contacts._ID` (ADR-0009 §4).
+ * المفتاح الموحّد يجب أن يكون **غير فارغ** حرفياً (غير `null` وغير «»/فراغات) — الصف
+ * بمفتاح منحل يُرمى معاملة بلا مفتاح: هوية «» تنهار عبر upsert أول-مطابقة فتسقط جهات
+ * متعددة في صف واحد (مواءمة مع عقد «غير فارغ» في [resolvableLookupIndex]).
  */
 
 internal fun mapAndroidContactRows(
@@ -410,7 +416,8 @@ internal fun mapAndroidContactRows(
             ).filter { it.isNotBlank() }.joinToString(" ").takeIf { it.isNotBlank() }
         )
         PlatformContact(
-            systemContactId = row.lookupKey ?: return@mapNotNull null,
+            systemContactId = row.lookupKey?.takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null,
             lookupKey = row.lookupKey,
             name = contactName,
             photoUri = row.photoUri,

@@ -480,6 +480,41 @@ class AndroidContactsSourceLogicTest {
     }
 
     @Test
+    fun blankLookupKeyRowIsSkippedLikeKeyless() {
+        // مواءمة الـ mapper مع العقد الموثق (إعادة-مراجعة الـ دلتا B · Medium):
+        // مفتاح «»/فراغات لا يصلح هوية استيراد (`systemContactId`) — يُرمى معاملة بلا مفتاح
+        // وإلا انهار عبر upsert أول-مطابقة فيسقط جهات متعددة في صف واحد.
+        val contacts = mapAndroidContactRows(
+            contactRows = listOf(
+                AndroidContactRow(
+                    aggregateContactId = 100L,
+                    lookupKey = "",
+                    displayName = "بمفتاح فارغ",
+                    photoUri = null,
+                    isFavorite = false
+                ),
+                AndroidContactRow(
+                    aggregateContactId = 101L,
+                    lookupKey = "   ",
+                    displayName = "بمفتاح فراغات",
+                    photoUri = null,
+                    isFavorite = false
+                ),
+                AndroidContactRow(
+                    aggregateContactId = 102L,
+                    lookupKey = "lookup-102",
+                    displayName = "سليم",
+                    photoUri = null,
+                    isFavorite = false
+                )
+            ),
+            dataRecords = emptyList()
+        )
+        assertEquals(1, contacts.size)
+        assertEquals("lookup-102", contacts.single().systemContactId)
+    }
+
+    @Test
     fun `data records of other contacts do not leak across`() {
         val contacts = mapAndroidContactRows(
             contactRows = listOf(
@@ -547,6 +582,8 @@ class AndroidContactsSourceLogicTest {
      *   (طبقة 1) + `fullResyncCatalogWithoutImportRefusesCheckpointAndStaysFailed`
      *   (طبقة 3 — يبقى غير معدَّل أخضر) |
      * | مُعادَّ بمفتاح `null` | `resolvableAggregateWithNullLookupKeyIsExemptAndNotResolvable` |
+     * | مفتاح فارغ/فراغات (تقاطع B/C) | `extractResolvableIgnoresBlankLookupKeys` + `blankKeyedAggregateIsExemptFromCoverage` |
+     * | هوية مفتاح فارغ في الـ mapper | `blankLookupKeyRowIsSkippedLikeKeyless` |
      * | معلّق يصير مُعادَّ | `danglingReferenceBecomingResolvableIsImported` |
      * | استخراج المجموعة المُعادَّة (C-1/C-6) | قسم `extractResolvableAggregateContactIds` |
      * | تكامل المحرك بشكل الميدان | `ContactsSyncCheckpointIntegrityTest.miuiFieldShapedFullResyncImportsCatalogAndStampsReconcile` |
@@ -825,6 +862,44 @@ class AndroidContactsSourceLogicTest {
             )
         )
         assertEquals(setOf(1L), resolvable)
+    }
+
+    @Test
+    fun extractResolvableIgnoresBlankLookupKeys() {
+        // تقاطع المراجعتين المستقلتين B/C (2026-11-16): العقد الموثق (KDoc + تعديل
+        // ADR-0022 ب) يستلزم مفتاحاً **غير فارغ** لا مجرد غير-`null` — «» والفراغات
+        // لا يصلحان هوية استيراد (`systemContactId`)، فليست في الكتالوج القابل للاستيراد.
+        val scan = validScanRows(count = 3)
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = listOf(
+                ResolvedAggregateLookup(aggregateContactId = 1L, lookupKey = "lookup-1"),
+                ResolvedAggregateLookup(aggregateContactId = 2L, lookupKey = ""),
+                ResolvedAggregateLookup(aggregateContactId = 3L, lookupKey = "   ")
+            )
+        )
+        assertEquals(setOf(1L), resolvable)
+    }
+
+    @Test
+    fun blankKeyedAggregateIsExemptFromCoverage() {
+        // صف موجود في `Contacts` بمفتاح فارغ-السلسلة = غير قابل للاستيراد بنائها —
+        // يُعامل معاملة المرجع المعلق: معفى من التغطية لا مطالَب بها.
+        val scan = validScanRows(count = 2)
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = listOf(
+                ResolvedAggregateLookup(aggregateContactId = 1L, lookupKey = "lookup-1"),
+                ResolvedAggregateLookup(aggregateContactId = 2L, lookupKey = "")
+            )
+        )
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = resolvable,
+                pagedAggregateContactIds = setOf(1L)
+            )
+        )
     }
 
     @Test
