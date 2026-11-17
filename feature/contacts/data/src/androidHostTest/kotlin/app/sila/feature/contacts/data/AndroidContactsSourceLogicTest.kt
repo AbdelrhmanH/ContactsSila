@@ -480,6 +480,41 @@ class AndroidContactsSourceLogicTest {
     }
 
     @Test
+    fun blankLookupKeyRowIsSkippedLikeKeyless() {
+        // مواءمة الـ mapper مع العقد الموثق (إعادة-مراجعة الـ دلتا B · Medium):
+        // مفتاح «»/فراغات لا يصلح هوية استيراد (`systemContactId`) — يُرمى معاملة بلا مفتاح
+        // وإلا انهار عبر upsert أول-مطابقة فيسقط جهات متعددة في صف واحد.
+        val contacts = mapAndroidContactRows(
+            contactRows = listOf(
+                AndroidContactRow(
+                    aggregateContactId = 100L,
+                    lookupKey = "",
+                    displayName = "بمفتاح فارغ",
+                    photoUri = null,
+                    isFavorite = false
+                ),
+                AndroidContactRow(
+                    aggregateContactId = 101L,
+                    lookupKey = "   ",
+                    displayName = "بمفتاح فراغات",
+                    photoUri = null,
+                    isFavorite = false
+                ),
+                AndroidContactRow(
+                    aggregateContactId = 102L,
+                    lookupKey = "lookup-102",
+                    displayName = "سليم",
+                    photoUri = null,
+                    isFavorite = false
+                )
+            ),
+            dataRecords = emptyList()
+        )
+        assertEquals(1, contacts.size)
+        assertEquals("lookup-102", contacts.single().systemContactId)
+    }
+
+    @Test
     fun `data records of other contacts do not leak across`() {
         val contacts = mapAndroidContactRows(
             contactRows = listOf(
@@ -528,16 +563,51 @@ class AndroidContactsSourceLogicTest {
 
     // ---------------------------------------------------- isFullReadIncomplete
 
+    /**
+     * خريطة سيناريو ← اختبار (شرط C-2 من بوابة مراجعة التصميم `G7_DESIGN_REVIEW_GATE.md`):
+     *
+     * | السيناريو الإلزامي | الاختبار |
+     * |---|---|
+     * | 63 مرجعاً معلقاً شبيه-تيليجرام | `danglingTelegramShapedReferencesAreExemptFromCoverage` |
+     * | 34 مرجعاً معلقاً شبيه-واتساب | `danglingWhatsAppShapedReferencesAreExemptFromCoverage` |
+     * | كلاهما (97 · تركيبة MIUI الميدانية) | `miuiFieldShapedMixImportsSnapshotAroundDanglingReferences` |
+     * | قطع جزئي حول معلّق | `partialPagingCutAroundDanglingReferencesStillReportsIncomplete` |
+     * | مزيج صالح + مراجع شرعية | `fullCoverageOfCatalogAggregatesReportsReadComplete` |
+     * | مرجع محلي فاسد غائب عن المسح | `genuinelyInvalidLocalReferenceAbsentFromScanRequiresNoCoverage` |
+     * | مزوّد مجهول (محايدة-المزود) | `unknownProviderDanglingReferencesAreExemptProviderNeutral` |
+     * | دفتر فارغ | `emptyCatalogWithNoUpsertsIsLegitimateEmptyBook` |
+     * | مكررات | `duplicateRawRowsSharingOneDanglingAggregateIdAreExemptOnce` |
+     * | حدود + كبير | `unaggregatedSentinelAggregateIdZeroIsExemptFromCoverage` + `miuiFieldShapedMix…` (816 صفاً) |
+     * | بذرة 5000 بعد A+ | `emptyResolvableCatalogPassesGuardLayerForSeed5000Scenario`
+     *   (طبقة 1) + `fullResyncCatalogWithoutImportRefusesCheckpointAndStaysFailed`
+     *   (طبقة 3 — يبقى غير معدَّل أخضر) |
+     * | مُعادَّ بمفتاح `null` | `resolvableAggregateWithNullLookupKeyIsExemptAndNotResolvable` |
+     * | مفتاح فارغ/فراغات (تقاطع B/C) | `extractResolvableIgnoresBlankLookupKeys` + `blankKeyedAggregateIsExemptFromCoverage` |
+     * | هوية مفتاح فارغ في الـ mapper | `blankLookupKeyRowIsSkippedLikeKeyless` |
+     * | معلّق يصير مُعادَّ | `danglingReferenceBecomingResolvableIsImported` |
+     * | استخراج المجموعة المُعادَّة (C-1/C-6) | قسم `extractResolvableAggregateContactIds` |
+     * | تكامل المحرك بشكل الميدان | `ContactsSyncCheckpointIntegrityTest.miuiFieldShapedFullResyncImportsCatalogAndStampsReconcile` |
+     *
+     * «المرجع المعلق» هنا اصطناعي حصراً: معرف مجمّعة موجب حي **غائب عن المجموعة المُعادَّة**
+     * (بلا صف مجمّع في `Contacts` ⇒ غير قابل للاستيراد بنائها) — مطابق لتصنيف الميدان
+     * في `DIAG_rootcause_summary.md` (G7). لا بيانات حقيقية إطلاقاً (`SeedContact_%04d`).
+     */
+
     @Test
     fun catalogAggregatesMissingFromPagedReadReportFullReadIncomplete() {
-        // FINDING-SYNC-1 (ADR-0022): مسح `RawContacts` غير فارغ مع قراءة `Contacts` فارغة
-        // (المؤشر العابر/تأخر التجميع) — العطل المرصود: لقطة 5000 سجل + ختم مصالحة بينما
-        // `contacts = 0` في Room لأكثر من 13 دقيقة.
+        // FINDING-SYNC-1 (ADR-0022): مُعادَّ غائب عن صفوف الترقيم = خرق مرجعي حقيقي
+        // (صف موجود لم يُقرأ) — القطع الجزئي يبقى مكشوفاً بعد A+.
         val scan = listOf(
             RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L),
             RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 101L)
         )
-        assertTrue(isFullReadIncomplete(scanRows = scan, pagedAggregateContactIds = emptySet()))
+        assertTrue(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = setOf(100L, 101L),
+                pagedAggregateContactIds = emptySet()
+            )
+        )
     }
 
     @Test
@@ -551,6 +621,7 @@ class AndroidContactsSourceLogicTest {
         assertFalse(
             isFullReadIncomplete(
                 scanRows = scan,
+                resolvableAggregateContactIds = setOf(100L, 101L),
                 pagedAggregateContactIds = setOf(100L, 101L)
             )
         )
@@ -562,12 +633,24 @@ class AndroidContactsSourceLogicTest {
             RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L),
             RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 101L)
         )
-        assertTrue(isFullReadIncomplete(scanRows = scan, pagedAggregateContactIds = setOf(100L)))
+        assertTrue(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = setOf(100L, 101L),
+                pagedAggregateContactIds = setOf(100L)
+            )
+        )
     }
 
     @Test
     fun emptyCatalogWithNoUpsertsIsLegitimateEmptyBook() {
-        assertFalse(isFullReadIncomplete(scanRows = emptyList(), pagedAggregateContactIds = emptySet()))
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = emptyList(),
+                resolvableAggregateContactIds = emptySet(),
+                pagedAggregateContactIds = emptySet()
+            )
+        )
     }
 
     @Test
@@ -576,7 +659,13 @@ class AndroidContactsSourceLogicTest {
             RawContactScanRow(rawContactId = "10", version = 1L, deleted = true, aggregateContactId = 100L),
             RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = null)
         )
-        assertFalse(isFullReadIncomplete(scanRows = scan, pagedAggregateContactIds = emptySet()))
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = emptySet(),
+                pagedAggregateContactIds = emptySet()
+            )
+        )
     }
 
     @Test
@@ -589,21 +678,289 @@ class AndroidContactsSourceLogicTest {
             RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 101L)
         )
         assertFalse(
-            isFullReadIncomplete(scanRows = scan, pagedAggregateContactIds = setOf(101L))
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = setOf(101L),
+                pagedAggregateContactIds = setOf(101L)
+            )
         )
+    }
+
+    @Test
+    fun danglingTelegramShapedReferencesAreExemptFromCoverage() {
+        // الميدان MIUI 2026-11-16 (G7): 63 سجلاً خاماً من مزامنة قراءة-فقط تعلن
+        // `contact_id` موجباً بلا صف مجمّع — غير قابلة للاستيراد بنائها فلا تُطالَب تغطية.
+        val scan = validScanRows(count = 717) +
+            danglingShapedScanRows(count = 63, aggregateIdStart = 5000L, rawIdStart = 5000)
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = (1L..717L).toSet(),
+                pagedAggregateContactIds = (1L..717L).toSet()
+            )
+        )
+    }
+
+    @Test
+    fun danglingWhatsAppShapedReferencesAreExemptFromCoverage() {
+        // الميدان MIUI 2026-11-16 (G7): 34 سجلاً خاماً بنفس البنية — الإعفاء محايد-المزود.
+        val scan = validScanRows(count = 717) +
+            danglingShapedScanRows(count = 34, aggregateIdStart = 5100L, rawIdStart = 5100)
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = (1L..717L).toSet(),
+                pagedAggregateContactIds = (1L..717L).toSet()
+            )
+        )
+    }
+
+    @Test
+    fun partialPagingCutAroundDanglingReferencesStillReportsIncomplete() {
+        // إعفاء المعلّق لا يُطفئ كشف القطع الجزئي: مُعادَّ ({1..500 مقطوع}) غائب عن الترقيم
+        // = خرق مرجعي حقيقي. الاستقلالية بين مصدرَي القياس هي ما يجعل التمييز ممكناً (B-1).
+        val scan = validScanRows(count = 717) +
+            danglingShapedScanRows(count = 97, aggregateIdStart = 5000L, rawIdStart = 5000)
+        assertTrue(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = (1L..717L).toSet(),
+                pagedAggregateContactIds = (1L..500L).toSet()
+            )
+        )
+    }
+
+    @Test
+    fun unknownProviderDanglingReferencesAreExemptProviderNeutral() {
+        // لا allowlist أسماء تطبيقات: أي مزوّد (موجود أو مستقبلي) يعلن إيجاباً بلا صف
+        // يُعفى بنفس القاعدة — القاعدة بالبنية لا بالاسم.
+        val scan = validScanRows(count = 10) +
+            danglingShapedScanRows(count = 5, aggregateIdStart = 990_001L, rawIdStart = 1)
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = (1L..10L).toSet(),
+                pagedAggregateContactIds = (1L..10L).toSet()
+            )
+        )
+    }
+
+    @Test
+    fun duplicateRawRowsSharingOneDanglingAggregateIdAreExemptOnce() {
+        val scan = validScanRows(count = 1) + List(3) { i ->
+            RawContactScanRow(
+                rawContactId = "raw-dup-$i",
+                version = 3L,
+                deleted = false,
+                aggregateContactId = 7000L
+            )
+        }
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = setOf(1L),
+                pagedAggregateContactIds = setOf(1L)
+            )
+        )
+    }
+
+    @Test
+    fun genuinelyInvalidLocalReferenceAbsentFromScanRequiresNoCoverage() {
+        // مرجع فاسد فعلاً اختفى سجله الخام من المسح: الحارس لا يطالب بتغطية غير المعلن —
+        // ومعرفات قديمة في `paged`/`resolvable` لا تجعل القراءة ناقصة.
+        val scan = validScanRows(count = 1)
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = setOf(1L, 42L),
+                pagedAggregateContactIds = setOf(1L, 42L)
+            )
+        )
+    }
+
+    @Test
+    fun emptyResolvableCatalogPassesGuardLayerForSeed5000Scenario() {
+        // بذرة 5000 (المخاطرة الأصلية لـ ADR-0022): كتالوج `Contacts` عابر الفارغ ⇒ لا
+        // أزواج مُعادَّة ⇒ طبقتا 1/2 تعديان — **رفض «صفر استيراد» انتقل إلى حارس طبقة 3
+        // في المحرك** (`fullResyncCatalogWithoutImportRefusesCheckpointAndStaysFailed`
+        // يبقى غير معدَّل أخضر): تحوّل موضع الرفض بنفس النتيجة المرئية (F-2 → C-3/ج).
+        val scan = validScanRows(count = 5000)
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = emptySet(),
+                pagedAggregateContactIds = emptySet()
+            )
+        )
+    }
+
+    @Test
+    fun resolvableAggregateWithNullLookupKeyIsExemptAndNotResolvable() {
+        // تجمّعة صفها موجود لكن استعلام المزوّد عاد بمفتاح `LOOKUP_KEY` فارغ: غير مُعادَّ
+        // (لا يمكن بناء استيراد منها — `mapAndroidContactRows` يرمي بلا مفتاح) فمعفاة
+        // من التغطية، وتُقرأ صفّها في الترقيم وتدخل اللقطة عبر سجلها الخام كالمعتاد.
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L),
+            RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 300L)
+        )
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = listOf(
+                ResolvedAggregateLookup(aggregateContactId = 100L, lookupKey = "lookup-100"),
+                ResolvedAggregateLookup(aggregateContactId = 300L, lookupKey = null)
+            )
+        )
+        assertEquals(setOf(100L), resolvable)
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = resolvable,
+                pagedAggregateContactIds = setOf(100L)
+            )
+        )
+    }
+
+    @Test
+    fun danglingReferenceBecomingResolvableIsImported() {
+        // معلّق حلّه المزوّد لاحقاً (أنشأ صفه المجمّع): صار مُعادَّ ومقروءاً في الترقيم ⇒
+        // التغطية مكتملة ويُستورد — مسار الاسترداد الأول (رفع `VERSION`) والمصالحة
+        // الدورية مسار ثانٍ مستقل (ADR-0010 §3).
+        val scan = validScanRows(count = 2) +
+            danglingShapedScanRows(count = 1, aggregateIdStart = 5000L, rawIdStart = 1)
+        val delta = buildFullResyncDelta(
+            scanRows = scan,
+            resolvableAggregateContactIds = setOf(1L, 2L, 5000L),
+            pagedAggregateIds = setOf(1L, 2L, 5000L),
+            resolvedLookupKeys = mapOf(
+                "raw-1" to "lookup-1",
+                "raw-2" to "lookup-2",
+                "raw-dangling-1" to "lookup-5000"
+            ),
+            upserted = listOf(
+                PlatformContact(
+                    systemContactId = "lookup-5000",
+                    lookupKey = "lookup-5000",
+                    name = ContactName(displayName = "SeedContact_5000")
+                )
+            ),
+            previousSnapshot = null
+        )
+        val snapshot = assertNotNull(delta.newSnapshot)
+        assertEquals("lookup-5000", snapshot.androidRawContacts.getValue("raw-dangling-1").lookupKey)
+    }
+
+    // --------------------------------- extractResolvableAggregateContactIds (شرط C-1)
+
+    @Test
+    fun extractResolvableIgnoresNullLookupKeys() {
+        val scan = validScanRows(count = 2)
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = listOf(
+                ResolvedAggregateLookup(aggregateContactId = 1L, lookupKey = "lookup-1"),
+                ResolvedAggregateLookup(aggregateContactId = 2L, lookupKey = null)
+            )
+        )
+        assertEquals(setOf(1L), resolvable)
+    }
+
+    @Test
+    fun extractResolvableIgnoresBlankLookupKeys() {
+        // تقاطع المراجعتين المستقلتين B/C (2026-11-16): العقد الموثق (KDoc + تعديل
+        // ADR-0022 ب) يستلزم مفتاحاً **غير فارغ** لا مجرد غير-`null` — «» والفراغات
+        // لا يصلحان هوية استيراد (`systemContactId`)، فليست في الكتالوج القابل للاستيراد.
+        val scan = validScanRows(count = 3)
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = listOf(
+                ResolvedAggregateLookup(aggregateContactId = 1L, lookupKey = "lookup-1"),
+                ResolvedAggregateLookup(aggregateContactId = 2L, lookupKey = ""),
+                ResolvedAggregateLookup(aggregateContactId = 3L, lookupKey = "   ")
+            )
+        )
+        assertEquals(setOf(1L), resolvable)
+    }
+
+    @Test
+    fun blankKeyedAggregateIsExemptFromCoverage() {
+        // صف موجود في `Contacts` بمفتاح فارغ-السلسلة = غير قابل للاستيراد بنائها —
+        // يُعامل معاملة المرجع المعلق: معفى من التغطية لا مطالَب بها.
+        val scan = validScanRows(count = 2)
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = listOf(
+                ResolvedAggregateLookup(aggregateContactId = 1L, lookupKey = "lookup-1"),
+                ResolvedAggregateLookup(aggregateContactId = 2L, lookupKey = "")
+            )
+        )
+        assertFalse(
+            isFullReadIncomplete(
+                scanRows = scan,
+                resolvableAggregateContactIds = resolvable,
+                pagedAggregateContactIds = setOf(1L)
+            )
+        )
+    }
+
+    @Test
+    fun extractResolvableIgnoresZeroAndNegativeAggregateIds() {
+        val scan = validScanRows(count = 1)
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = listOf(
+                ResolvedAggregateLookup(aggregateContactId = 0L, lookupKey = "sentinel"),
+                ResolvedAggregateLookup(aggregateContactId = -7L, lookupKey = "negative"),
+                ResolvedAggregateLookup(aggregateContactId = 1L, lookupKey = "lookup-1")
+            )
+        )
+        assertEquals(setOf(1L), resolvable)
+    }
+
+    @Test
+    fun extractResolvableOnlyKeepsDeclaredLiveAggregates() {
+        // C-6: المجموعة من أزواج المزوّد العائدة حصراً ∧ المعلن الحي الموجب من المسح —
+        // معرف صف محذوف أو غير معلن (900) لا يصير «مُعادَّ» بالخطأ.
+        val scan = listOf(
+            RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L),
+            RawContactScanRow(rawContactId = "11", version = 1L, deleted = false, aggregateContactId = 101L),
+            RawContactScanRow(rawContactId = "12", version = 1L, deleted = true, aggregateContactId = 102L)
+        )
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = listOf(
+                ResolvedAggregateLookup(aggregateContactId = 100L, lookupKey = "lookup-100"),
+                ResolvedAggregateLookup(aggregateContactId = 101L, lookupKey = null),
+                ResolvedAggregateLookup(aggregateContactId = 102L, lookupKey = "lookup-102"),
+                ResolvedAggregateLookup(aggregateContactId = 900L, lookupKey = "lookup-900")
+            )
+        )
+        assertEquals(setOf(100L), resolvable)
+    }
+
+    @Test
+    fun extractResolvableMergesDuplicatePairs() {
+        val scan = validScanRows(count = 1)
+        val resolvable = extractResolvableAggregateContactIds(
+            scanRows = scan,
+            resolvedPairs = List(4) {
+                ResolvedAggregateLookup(aggregateContactId = 1L, lookupKey = "lookup-1")
+            }
+        )
+        assertEquals(setOf(1L), resolvable)
     }
 
     // ------------------------------------------------------- buildFullResyncDelta
 
     @Test
     fun fullResyncDeltaDecisionScanWithoutPagedCoverageYieldsNullSnapshot() {
-        // FINDING-SYNC-1 (ADR-0022): تثبيت طبقة التوصيل نفسها — مسح غير فارغ + قراءة
-        // تجمّعية فارغة (المؤشر العابر) ← بلا لقطة إطلاقاً مهما كانت upserts والمفاتيح.
+        // FINDING-SYNC-1 (ADR-0022): تثبيت طبقة التوصيل نفسها — مُعادَّ غير مغطى بالترقيم
+        // ← بلا لقطة إطلاقاً مهما كانت upserts والمفاتيح.
         val scan = listOf(
             RawContactScanRow(rawContactId = "10", version = 1L, deleted = false, aggregateContactId = 100L)
         )
         val delta = buildFullResyncDelta(
             scanRows = scan,
+            resolvableAggregateContactIds = setOf(100L),
             pagedAggregateIds = emptySet(),
             resolvedLookupKeys = mapOf("10" to "lookup-10"),
             upserted = emptyList(),
@@ -621,6 +978,7 @@ class AndroidContactsSourceLogicTest {
         )
         val delta = buildFullResyncDelta(
             scanRows = scan,
+            resolvableAggregateContactIds = setOf(100L),
             pagedAggregateIds = setOf(100L),
             resolvedLookupKeys = mapOf("10" to "lookup-10"),
             upserted = listOf(
@@ -637,6 +995,71 @@ class AndroidContactsSourceLogicTest {
         assertEquals(4L, snapshot.androidRawContacts.getValue("10").version)
         assertEquals("lookup-10", snapshot.androidRawContacts.getValue("10").lookupKey)
         assertTrue(delta.isFullResync)
+    }
+
+    @Test
+    fun miuiFieldShapedMixImportsSnapshotAroundDanglingReferences() {
+        // التركيبة الميدانية الكاملة (G7 · `DIAG_rootcause_summary.md`، اصطناعية):
+        // 717 مُعادَّ + 63 معلّقاً شبيه-تيليجرام + 34 معلّقاً شبيه-واتساب + صفوف حدودية.
+        val scan = validScanRows(count = 717) +
+            danglingShapedScanRows(count = 63, aggregateIdStart = 5000L, rawIdStart = 5000) +
+            danglingShapedScanRows(count = 34, aggregateIdStart = 5100L, rawIdStart = 5100) +
+            listOf(
+                RawContactScanRow(rawContactId = "raw-del", version = 1L, deleted = true, aggregateContactId = 6000L),
+                RawContactScanRow(rawContactId = "raw-null", version = 1L, deleted = false, aggregateContactId = null),
+                RawContactScanRow(rawContactId = "raw-zero", version = 1L, deleted = false, aggregateContactId = 0L)
+            )
+        val importableCatalog = (1L..717L).toSet()
+        val delta = buildFullResyncDelta(
+            scanRows = scan,
+            resolvableAggregateContactIds = importableCatalog,
+            pagedAggregateIds = importableCatalog,
+            resolvedLookupKeys = (1L..717L).associate { id -> "raw-$id" to "lookup-$id" },
+            upserted = (1L..717L).map { id ->
+                PlatformContact(
+                    systemContactId = "lookup-$id",
+                    lookupKey = "lookup-$id",
+                    name = ContactName(displayName = "SeedContact_%04d".format(id))
+                )
+            },
+            previousSnapshot = null
+        )
+        val snapshot = assertNotNull(delta.newSnapshot, "الكتالوج القابل للاستيراد مقروء بالكامل ← لقطة تُقدَّم")
+        assertTrue(delta.isFullResync)
+        assertEquals(717, delta.upserted.size)
+        assertEquals(
+            717 + 63 + 34 + 2,
+            snapshot.androidRawContacts.size,
+            "المعلّق يبقى في اللقطة كما اليوم (لا إخفاء ولا حذف) — المحذوف والبلا تجمّعة خارجان"
+        )
+        assertNull(snapshot.androidRawContacts.getValue("raw-dangling-5000").lookupKey)
+    }
+
+    // --------------------------------------------------- أُصناف مساعدة اصطناعية (G7)
+
+    /** صفوف مسح صالحة اصطناعية: `SeedContact_%04d` بلا أي بيانات حقيقية. */
+    private fun validScanRows(count: Int, idStart: Long = 1L): List<RawContactScanRow> =
+        (idStart until idStart + count).map { id ->
+            RawContactScanRow(
+                rawContactId = "raw-$id",
+                version = 3L,
+                deleted = false,
+                aggregateContactId = id
+            )
+        }
+
+    /** صفوف «مراجع معلقة» اصطناعية: معرف مجمّعة موجب حي لا صف مجمّع له في `Contacts`. */
+    private fun danglingShapedScanRows(
+        count: Int,
+        aggregateIdStart: Long,
+        rawIdStart: Int,
+    ): List<RawContactScanRow> = (0 until count).map { i ->
+        RawContactScanRow(
+            rawContactId = "raw-dangling-${rawIdStart + i}",
+            version = 3L,
+            deleted = false,
+            aggregateContactId = aggregateIdStart + i
+        )
     }
 
     // ---------------------------------------------------------------- fixtures
